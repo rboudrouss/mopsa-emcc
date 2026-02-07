@@ -1,0 +1,12 @@
+[submodule "deps/apron"]
+	path = deps/apron
+	url = git@github.com:rboudrouss/apron.git
+[submodule "deps/mopsa-analyzer"]
+	path = deps/mopsa-analyzer
+	url = git@gitlab.com:rboudrouss/mopsa-analyzer-ocaml-4.12.git
+[submodule "deps/mlgmpidl"]
+	path = deps/mlgmpidl
+	url = git@github.com:nberth/mlgmpidl.git
+[submodule "deps/camlidl"]
+	path = deps/camlidl
+	url = git@github.com:xavierleroy/camlidl.git

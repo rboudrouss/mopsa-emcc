@@ -1,0 +1,75 @@
+exp10.lo: exp10.c mpfr-impl.h \
+  /home/rboud/Documents/emsdk/upstream/emscripten/cache/sysroot/include/stdio.h \
+  /home/rboud/Documents/emsdk/upstream/emscripten/cache/sysroot/include/wasi/api.h \
+  /home/rboud/Documents/emsdk/upstream/lib/clang/22/include/stddef.h \
+  /home/rboud/Documents/emsdk/upstream/emscripten/cache/sysroot/include/stddef.h \
+  /home/rboud/Documents/emsdk/upstream/lib/clang/22/include/__stddef_header_macro.h \
+  /home/rboud/Documents/emsdk/upstream/lib/clang/22/include/__stddef_ptrdiff_t.h \
+  /home/rboud/Documents/emsdk/upstream/lib/clang/22/include/__stddef_size_t.h \
+  /home/rboud/Documents/emsdk/upstream/lib/clang/22/include/__stddef_wchar_t.h \
+  /home/rboud/Documents/emsdk/upstream/lib/clang/22/include/__stddef_null.h \
+  /home/rboud/Documents/emsdk/upstream/lib/clang/22/include/__stddef_max_align_t.h \
+  /home/rboud/Documents/emsdk/upstream/lib/clang/22/include/__stddef_offsetof.h \
+  /home/rboud/Documents/emsdk/upstream/lib/clang/22/include/stdint.h \
+  /home/rboud/Documents/emsdk/upstream/emscripten/cache/sysroot/include/stdint.h \
+  /home/rboud/Documents/emsdk/upstream/emscripten/cache/sysroot/include/bits/alltypes.h \
+  /home/rboud/Documents/emsdk/upstream/emscripten/cache/sysroot/include/bits/stdint.h \
+  /home/rboud/Documents/emsdk/upstream/emscripten/cache/sysroot/include/features.h \
+  /home/rboud/Documents/emsdk/upstream/emscripten/cache/sysroot/include/compat/string.h \
+  /home/rboud/Documents/emsdk/upstream/emscripten/cache/sysroot/include/string.h \
+  /home/rboud/Documents/emsdk/upstream/emscripten/cache/sysroot/include/strings.h \
+  /home/rboud/Documents/emsdk/upstream/emscripten/cache/sysroot/include/compat/stdlib.h \
+  /home/rboud/Documents/emsdk/upstream/emscripten/cache/sysroot/include/stdlib.h \
+  /home/rboud/Documents/emsdk/upstream/emscripten/cache/sysroot/include/alloca.h \
+  /home/rboud/Documents/emsdk/upstream/lib/clang/22/include/limits.h \
+  /home/rboud/Documents/emsdk/upstream/emscripten/cache/sysroot/include/limits.h \
+  /home/rboud/Documents/emsdk/upstream/emscripten/cache/sysroot/include/bits/limits.h \
+  /home/rboud/Documents/emsdk/upstream/lib/clang/22/include/float.h \
+  /home/rboud/Documents/emsdk/upstream/emscripten/cache/sysroot/include/float.h \
+  /home/rboud/Documents/emsdk/upstream/lib/clang/22/include/__float_header_macro.h \
+  /home/rboud/Documents/emsdk/upstream/lib/clang/22/include/__float_float.h \
+  /home/rboud/Documents/emsdk/upstream/lib/clang/22/include/__float_infinity_nan.h \
+  mpfr-cvers.h mpfr-thread.h \
+  /home/rboud/Documents/mopsa-wasm/libs/include/gmp.h mpfr.h mpfr-gmp.h \
+  mpfr-sassert.h mparam.h generic/mparam.h \
+  /home/rboud/Documents/emsdk/upstream/emscripten/cache/sysroot/include/locale.h
+mpfr-impl.h:
+/home/rboud/Documents/emsdk/upstream/emscripten/cache/sysroot/include/stdio.h:
+/home/rboud/Documents/emsdk/upstream/emscripten/cache/sysroot/include/wasi/api.h:
+/home/rboud/Documents/emsdk/upstream/lib/clang/22/include/stddef.h:
+/home/rboud/Documents/emsdk/upstream/emscripten/cache/sysroot/include/stddef.h:
+/home/rboud/Documents/emsdk/upstream/lib/clang/22/include/__stddef_header_macro.h:
+/home/rboud/Documents/emsdk/upstream/lib/clang/22/include/__stddef_ptrdiff_t.h:
+/home/rboud/Documents/emsdk/upstream/lib/clang/22/include/__stddef_size_t.h:
+/home/rboud/Documents/emsdk/upstream/lib/clang/22/include/__stddef_wchar_t.h:
+/home/rboud/Documents/emsdk/upstream/lib/clang/22/include/__stddef_null.h:
+/home/rboud/Documents/emsdk/upstream/lib/clang/22/include/__stddef_max_align_t.h:
+/home/rboud/Documents/emsdk/upstream/lib/clang/22/include/__stddef_offsetof.h:
+/home/rboud/Documents/emsdk/upstream/lib/clang/22/include/stdint.h:
+/home/rboud/Documents/emsdk/upstream/emscripten/cache/sysroot/include/stdint.h:
+/home/rboud/Documents/emsdk/upstream/emscripten/cache/sysroot/include/bits/alltypes.h:
+/home/rboud/Documents/emsdk/upstream/emscripten/cache/sysroot/include/bits/stdint.h:
+/home/rboud/Documents/emsdk/upstream/emscripten/cache/sysroot/include/features.h:
+/home/rboud/Documents/emsdk/upstream/emscripten/cache/sysroot/include/compat/string.h:
+/home/rboud/Documents/emsdk/upstream/emscripten/cache/sysroot/include/string.h:
+/home/rboud/Documents/emsdk/upstream/emscripten/cache/sysroot/include/strings.h:
+/home/rboud/Documents/emsdk/upstream/emscripten/cache/sysroot/include/compat/stdlib.h:
+/home/rboud/Documents/emsdk/upstream/emscripten/cache/sysroot/include/stdlib.h:
+/home/rboud/Documents/emsdk/upstream/emscripten/cache/sysroot/include/alloca.h:
+/home/rboud/Documents/emsdk/upstream/lib/clang/22/include/limits.h:
+/home/rboud/Documents/emsdk/upstream/emscripten/cache/sysroot/include/limits.h:
+/home/rboud/Documents/emsdk/upstream/emscripten/cache/sysroot/include/bits/limits.h:
+/home/rboud/Documents/emsdk/upstream/lib/clang/22/include/float.h:
+/home/rboud/Documents/emsdk/upstream/emscripten/cache/sysroot/include/float.h:
+/home/rboud/Documents/emsdk/upstream/lib/clang/22/include/__float_header_macro.h:
+/home/rboud/Documents/emsdk/upstream/lib/clang/22/include/__float_float.h:
+/home/rboud/Documents/emsdk/upstream/lib/clang/22/include/__float_infinity_nan.h:
+mpfr-cvers.h:
+mpfr-thread.h:
+/home/rboud/Documents/mopsa-wasm/libs/include/gmp.h:
+mpfr.h:
+mpfr-gmp.h:
+mpfr-sassert.h:
+mparam.h:
+generic/mparam.h:
+/home/rboud/Documents/emsdk/upstream/emscripten/cache/sysroot/include/locale.h:
