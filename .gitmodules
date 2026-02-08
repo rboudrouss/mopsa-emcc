@@ -10,3 +10,9 @@
 [submodule "deps/camlidl"]
 	path = deps/camlidl
 	url = git@github.com:xavierleroy/camlidl.git
+[submodule "deps/llvm-project-wasm"]
+	path = deps/llvm-project-wasm
+	url = git@github.com:rboudrouss/llvm-project-wasm.git
+[submodule "deps/ocaml-wasm"]
+	path = deps/ocaml-wasm
+	url = git@github.com:rboudrouss/ocaml.git
