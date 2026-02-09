@@ -70,6 +70,8 @@ final: $(BUILD_DIR)/prims.o $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc
 	$(EMCC) -Wall -g -fno-strict-aliasing -fwrapv \
 	--ffunction-sections -o $(DIST_DIR)/ocamlrun.html \
 	-s ENVIRONMENT='web' --preload-file $(BUILD_DIR)/mopsa.bc \
+  -s EXPORTED_RUNTIME_METHODS="['ccall', 'cwrap', 'FS', 'run','callMain']" \
+	--pre-js backend/wasm/pre.js \
 	$(BUILD_DIR)/prims.o $(BUILD_DIR)/libcamlrun.a
 
 # Clean
