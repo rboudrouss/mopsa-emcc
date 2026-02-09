@@ -29,22 +29,20 @@ CC=gcc-11
 CCX=g++-11
 
 # Targets
-all: init ocaml-wasm mopsa-bc
+all: final
 
 init:
 	mkdir -p $(INSTALL_DIR) $(LIBS_DIR) $(DIST_DIR) $(DEPS_DIR) $(BUILD_DIR)
 
 # OCAML-WASM
-ocaml-wasm: $(DIST_DIR)/ocamlrun.wasm
+libcamlrun: $(BUILD_DIR)/libcamlrun.a
 
-$(DIST_DIR)/ocamlrun.js $(DIST_DIR)/ocamlrun.wasm: init $(DIST_DIR)/mopsa.bc
+$(BUILD_DIR)/prims.o $(BUILD_DIR)/libcamlrun.a: init $(BUILD_DIR)/mopsa.bc
 	cd $(DEPS_DIR)/ocaml-wasm
 	$(EMCONFIGURE) ./configure --disable-native-compiler --disable-ocamltest --disable-ocamldoc --disable-systhreads
 	$(MAKE) -C runtime ocamlrun
-	$(EMCC) -Wall -g -fno-strict-aliasing -fwrapv \
-	--ffunction-sections -o $(DIST_DIR)/ocamlrun.js \
-	-s ENVIRONMENT='web' --preload-file $(DIST_DIR)/mopsa.bc \
-	runtime/prims.o runtime/libcamlrun.a
+	cp runtime/prims.o $(BUILD_DIR)
+	cp runtime/libcamlrun.a $(BUILD_DIR)
 
 # MOPSA-bytecode
 mopsa-bc: $(BUILD_DIR)/mopsa_bonly.bc
@@ -60,12 +58,19 @@ deps:
 
 # Mopsa with deps
 
-mopsa-final: $(DIST_DIR)/mopsa.bc
+mopsa-final: $(BUILD_DIR)/mopsa.bc
 
 ## For now we cp only
-$(DIST_DIR)/mopsa.bc: $(BUILD_DIR)/mopsa_bonly.bc deps
-	rm -f $(DIST_DIR)/mopsa.bc
-	cp $(BUILD_DIR)/mopsa_bonly.bc $(DIST_DIR)/mopsa.bc
+$(BUILD_DIR)/mopsa.bc: $(BUILD_DIR)/mopsa_bonly.bc deps
+	rm -f $(BUILD_DIR)/mopsa.bc
+	cp $(BUILD_DIR)/mopsa_bonly.bc $(BUILD_DIR)/mopsa.bc
+
+# Build final binary
+final: $(BUILD_DIR)/prims.o $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc
+	$(EMCC) -Wall -g -fno-strict-aliasing -fwrapv \
+	--ffunction-sections -o $(DIST_DIR)/ocamlrun.html \
+	-s ENVIRONMENT='web' --preload-file $(BUILD_DIR)/mopsa.bc \
+	$(BUILD_DIR)/prims.o $(BUILD_DIR)/libcamlrun.a
 
 # Clean
 clean: clean-mopsa clean-ocaml clean-project
