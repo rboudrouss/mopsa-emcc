@@ -6,10 +6,11 @@
 .ONESHELL:
 
 # Variables
-INSTALL_DIR := libs
+INSTALL_DIR := $(CURDIR)/libs
 LIBS_DIR := $(INSTALL_DIR)/lib
-DIST_DIR := dist
-DEPS_DIR := deps
+DIST_DIR := $(CURDIR)/dist
+DEPS_DIR := $(CURDIR)/deps
+BUILD_DIR := $(CURDIR)/build
 LLVM_BUILD_DIR := $(DEPS_DIR)/llvm-project/build
 
 EMCC := emcc
@@ -21,7 +22,7 @@ NPM := pnpm
 
 OCAML_STDLIB := $(shell ocamlc -where)
 
-EMCC_SIDE_MODULE := -s SIDE_MODULE=1 -fPIC
+#EMCC_SIDE_MODULE := -s SIDE_MODULE=1 -fPIC
 
 # Needed to build old clang versions
 CC=gcc-11
@@ -31,35 +32,50 @@ CCX=g++-11
 all: init ocaml-wasm mopsa-bc
 
 init:
-	mkdir -p dist
+	mkdir -p $(INSTALL_DIR) $(LIBS_DIR) $(DIST_DIR) $(DEPS_DIR) $(BUILD_DIR)
 
 # OCAML-WASM
-ocaml-wasm: $(DIST_DIR)/ocamlrun.js $(DIST_DIR)/ocamlrun.wasm
+ocaml-wasm: $(DIST_DIR)/ocamlrun.wasm
 
-$(DIST_DIR)/ocamlrun.js $(DIST_DIR)/ocamlrun.wasm: init
+$(DIST_DIR)/ocamlrun.js $(DIST_DIR)/ocamlrun.wasm: init $(DIST_DIR)/mopsa.bc
 	cd $(DEPS_DIR)/ocaml-wasm
-	$(EMCONFIGURE) ./configure --disable-native-compiler --disable-ocamltest --disable-ocamldoc
-# --disable-systhreads
-	$(MAKE) -C runtime ocamlrun.js
-	cp runtime/ocamlrun.js ../../$(DIST_DIR)
-	cp runtime/ocamlrun.wasm ../../$(DIST_DIR)
+	$(EMCONFIGURE) ./configure --disable-native-compiler --disable-ocamltest --disable-ocamldoc --disable-systhreads
+	$(MAKE) -C runtime ocamlrun
+	$(EMCC) -Wall -g -fno-strict-aliasing -fwrapv \
+	--ffunction-sections -o $(DIST_DIR)/ocamlrun.js \
+	-s ENVIRONMENT='web' --preload-file $(DIST_DIR)/mopsa.bc \
+	runtime/prims.o runtime/libcamlrun.a
 
 # MOPSA-bytecode
-mopsa-bc: $(DIST_DIR)/mopsa_worker.bc
+mopsa-bc: $(BUILD_DIR)/mopsa_bonly.bc
 
-$(DIST_DIR)/mopsa_worker.bc: init
+$(BUILD_DIR)/mopsa_bonly.bc: init
 	$(OPAM_EXEC) dune build backend/wasm/mopsa_worker.bc --profile release
-	cp _build/default/backend/wasm/mopsa_worker.bc $(DIST_DIR)
+	rm -f $(BUILD_DIR)/mopsa_bonly.bc
+	cp _build/default/backend/wasm/mopsa_worker.bc $(BUILD_DIR)/mopsa_bonly.bc
+
+# Build deps
+
+deps:
+
+# Mopsa with deps
+
+mopsa-final: $(DIST_DIR)/mopsa.bc
+
+## For now we cp only
+$(DIST_DIR)/mopsa.bc: $(BUILD_DIR)/mopsa_bonly.bc deps
+	rm -f $(DIST_DIR)/mopsa.bc
+	cp $(BUILD_DIR)/mopsa_bonly.bc $(DIST_DIR)/mopsa.bc
 
 # Clean
 clean: clean-mopsa clean-ocaml clean-project
 
 clean-project:
 	dune clean
-	rm -rf dist libs
+	rm -rf $(DIST_DIR) $(INSTALL_DIR) $(BUILD_DIR)
 
 clean-ocaml:
-	$(MAKE) -C deps/ocaml-wasm clean
+	$(MAKE) -C $(DEPS_DIR)/ocaml-wasm clean
 
 clean-mopsa:
-	$(MAKE) -C deps/mopsa-analyzer clean
+	$(MAKE) -C $(DEPS_DIR)/mopsa-analyzer clean
