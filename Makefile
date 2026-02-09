@@ -17,10 +17,12 @@ EMCC := emcc
 EMCONFIGURE := emconfigure
 EMCMAKE := emcmake
 EMMAKE := emmake
+EMAR := emar
 OPAM_EXEC := opam exec --
 NPM := pnpm
 
 OCAML_STDLIB := $(shell ocamlc -where)
+OPAM_PREFIX := $(OCAML_STDLIB)/../../
 
 #EMCC_SIDE_MODULE := -s SIDE_MODULE=1 -fPIC
 
@@ -37,33 +39,47 @@ init:
 # OCAML-WASM
 libcamlrun: $(BUILD_DIR)/libcamlrun.a
 
-$(BUILD_DIR)/prims.o $(BUILD_DIR)/libcamlrun.a: init $(BUILD_DIR)/mopsa.bc
+$(BUILD_DIR)/prims.o $(BUILD_DIR)/libcamlrun.a: init
 	cd $(DEPS_DIR)/ocaml-wasm
 	$(EMCONFIGURE) ./configure --disable-native-compiler --disable-ocamltest --disable-ocamldoc --disable-systhreads
 	$(MAKE) -C runtime ocamlrun
 	cp runtime/prims.o $(BUILD_DIR)
 	cp runtime/libcamlrun.a $(BUILD_DIR)
 
-# MOPSA-bytecode
-mopsa-bc: $(BUILD_DIR)/mopsa_bonly.bc
-
-$(BUILD_DIR)/mopsa_bonly.bc: init
-	$(OPAM_EXEC) dune build backend/wasm/mopsa_worker.bc --profile release
-	rm -f $(BUILD_DIR)/mopsa_bonly.bc
-	cp _build/default/backend/wasm/mopsa_worker.bc $(BUILD_DIR)/mopsa_bonly.bc
 
 # Build deps
 
-deps:
+deps: camlstr stubs
+
+camlstr: $(BUILD_DIR)/libcamlstr.a
+
+$(BUILD_DIR)/libcamlstr.a: init
+	cd $(DEPS_DIR)/ocaml-wasm/otherlibs/str
+	make all || true
+	$(EMCC) -shared -o ./dllcamlstr.so strstubs.o
+	$(EMAR) rcs libcamlstr.a strstubs.o
+	cp libcamlstr.a $(BUILD_DIR)
+
+STUB_LIBS := libpolkaMPQ_caml.a liboctMPQ_caml.a libboxMPQ_caml.a libapron_caml.a \
+             libmopsa_c_parser_stubs.a libmopsa_utils_stubs.a libzarith.a \
+             libmpfr.a libgmp.a libcamlidl.a \
+             libpolkaMPQ.a liboctMPQ.a libboxMPQ.a libapron.a \
+             libclang-cpp.a libclang.a libLLVM-19.a libunix.a
+
+stubs: $(addprefix $(BUILD_DIR)/,$(STUB_LIBS))
+
+$(BUILD_DIR)/lib%.a: backend/wasm/stubs/empty.o
+	$(EMAR) rcs $@ $<
 
 # Mopsa with deps
 
-mopsa-final: $(BUILD_DIR)/mopsa.bc
+## MOPSA-bytecode
+mopsa-bc: $(DIST_DIR)/mopsa.bc $(BUILD_DIR)/libcamlrun.a
 
-## For now we cp only
-$(BUILD_DIR)/mopsa.bc: $(BUILD_DIR)/mopsa_bonly.bc deps
-	rm -f $(BUILD_DIR)/mopsa.bc
-	cp $(BUILD_DIR)/mopsa_bonly.bc $(BUILD_DIR)/mopsa.bc
+$(DIST_DIR)/mopsa.bc: init deps
+	$(OPAM_EXEC) dune build backend/wasm/mopsa_worker.bc --profile release
+	rm -f $(DIST_DIR)/mopsa.bc
+	cp _build/default/backend/wasm/mopsa_worker.bc $(DIST_DIR)/mopsa.bc
 
 # Build final binary
 final: $(BUILD_DIR)/prims.o $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc

@@ -3,5 +3,6 @@
  (modes byte)
  (modules mopsa_worker)
  (libraries mopsa.mopsa_analyzer)
- (ocamlc_flags -no-check-prims -w -a)
- (link_flags -linkall))
+ (ocamlc_flags -no-check-prims -w -a -cc "%{project_root}/alias/emcc_wrapper.sh")
+ (link_flags -linkall
+             "-custom"))
