@@ -265,8 +265,8 @@ let handle_request json_str =
 let () =
   (* Register the callback that JavaScript will call *)
   Callback.register "mopsa_post" handle_request;
-  
-  (* Handle stdin for CLI mode *)
+
+  (* Handle stdin for worker mode, otherwise run mopsa directly *)
   if Array.length Sys.argv > 1 && Sys.argv.(1) = "-stdin" then
     try
       while true do
@@ -274,6 +274,6 @@ let () =
       done
     with End_of_file -> ()
   else
-    (* Just print that we're ready *)
-    Format.eprintf "MOPSA WASM Worker initialized@\n%!"
+    (* Run mopsa directly, parsing command-line arguments *)
+    Mopsa_analyzer.Framework.Runner.run ()
 
