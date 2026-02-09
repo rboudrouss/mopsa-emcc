@@ -28,6 +28,8 @@ CC=gcc-11
 CCX=g++-11
 
 # Targets
+all: init ocaml-wasm mopsa-bc
+
 init:
 	mkdir -p dist
 
@@ -48,3 +50,16 @@ mopsa-bc: $(DIST_DIR)/mopsa_worker.bc
 $(DIST_DIR)/mopsa_worker.bc: init
 	$(OPAM_EXEC) dune build backend/wasm/mopsa_worker.bc --profile release
 	cp _build/default/backend/wasm/mopsa_worker.bc $(DIST_DIR)
+
+# Clean
+clean: clean-mopsa clean-ocaml clean-project
+
+clean-project:
+	dune clean
+	rm -rf dist libs
+
+clean-ocaml:
+	$(MAKE) -C deps/ocaml-wasm clean
+
+clean-mopsa:
+	$(MAKE) -C deps/mopsa-analyzer clean
