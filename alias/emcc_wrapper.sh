@@ -49,4 +49,4 @@ for arg in "$@"; do
 done
 
 # Prepend our build dir so wasm stubs are found first
-exec emcc "-L$BUILD_DIR" "${filtered_args[@]}"
+exec emcc "-L$BUILD_DIR" "-sWARN_ON_UNDEFINED_SYMBOLS=1" "-sERROR_ON_UNDEFINED_SYMBOLS=0" "-Wl,--error-limit=0" "${filtered_args[@]}"
