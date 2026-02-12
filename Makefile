@@ -30,7 +30,7 @@ CCX=g++-11
 # Targets
 all: init final
 
-init:
+$(INSTALL_DIR) $(LIBS_DIR) $(DIST_DIR) $(DEPS_DIR) $(BUILD_DIR):
 	mkdir -p $(INSTALL_DIR) $(LIBS_DIR) $(DIST_DIR) $(DEPS_DIR) $(BUILD_DIR)
 
 # OCAML-WASM
