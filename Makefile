@@ -28,7 +28,7 @@ CC=gcc-11
 CCX=g++-11
 
 # Targets
-all: init final
+all: final
 
 $(INSTALL_DIR) $(LIBS_DIR) $(DIST_DIR) $(DEPS_DIR) $(BUILD_DIR):
 	mkdir -p $(INSTALL_DIR) $(LIBS_DIR) $(DIST_DIR) $(DEPS_DIR) $(BUILD_DIR)
@@ -53,27 +53,27 @@ $(BUILD_DIR)/mopsa_bonly.bc: | $(BUILD_DIR)
 
 # Build deps
 
-deps: camlstr stubs
+deps: stubs
 
-camlstr: $(BUILD_DIR)/dllcamlstr.so
+# camlstr: $(BUILD_DIR)/dllcamlstr.so
 
-$(BUILD_DIR)/dllcamlstr.so: | $(BUILD_DIR)
-	cd $(DEPS_DIR)/ocaml-wasm/otherlibs/str
-	make all || true
-	$(EMCC) -s SIDE_MODULE=1 -o ./dllcamlstr.so strstubs.o
-	$(EMAR) rcs libcamlstr.a strstubs.o
-	cp libcamlstr.a $(BUILD_DIR)
-	cp dllcamlstr.so $(BUILD_DIR)
+# $(BUILD_DIR)/dllcamlstr.so: | $(BUILD_DIR)
+# 	cd $(DEPS_DIR)/ocaml-wasm/otherlibs/str
+# 	make all || true
+# 	$(EMCC) -s SIDE_MODULE=1 -o ./dllcamlstr.so strstubs.o
+# 	$(EMAR) rcs libcamlstr.a strstubs.o
+# 	cp libcamlstr.a $(BUILD_DIR)
+# 	cp dllcamlstr.so $(BUILD_DIR)
 
 STUB_LIBS := dllpolkaMPQ_caml.so dlloctMPQ_caml.so dllboxMPQ_caml.so dllapron_caml.so \
              dllmopsa_c_parser_stubs.so dllmopsa_utils_stubs.so dllzarith.so \
-             dllmpfr.so dllgmp.so dllcamlidl.so \
+             dllmpfr.so dllgmp.so dllgmp_caml.so dllcamlidl.so \
              dllpolkaMPQ.so dlloctMPQ.so dllboxMPQ.so dllapron.so \
-             dllclang-cpp.so dllclang.so dllLLVM-19.so dllunix.so
+             dllclang-cpp.so dllclang.so dllLLVM-19.so dllunix.so dllcamlstr.so
 
-stubs: $(addprefix $(BUILD_DIR)/,$(STUB_LIBS))
+stubs: $(addprefix $(DIST_DIR)/,$(STUB_LIBS))
 
-$(BUILD_DIR)/dll%.so: backend/wasm/stubs/empty.o | $(BUILD_DIR)
+$(DIST_DIR)/dll%.so: backend/wasm/stubs/empty.o | $(DIST_DIR)
 	$(EMCC) -sSIDE_MODULE=1 -o $@ $<
 
 # Mopsa with deps
@@ -86,14 +86,14 @@ $(BUILD_DIR)/mopsa.bc: $(BUILD_DIR)/mopsa_bonly.bc deps
 	cp $(BUILD_DIR)/mopsa_bonly.bc $(BUILD_DIR)/mopsa.bc
 
 # Build final binary
-final: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/dllcamlstr.so
+final: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(DIST_DIR)/dllcamlstr.so
 	$(EMCC) -Wall -g -fno-strict-aliasing -fwrapv \
 	-ffunction-sections -o $(DIST_DIR)/ocamlrun.html \
 	-s ENVIRONMENT='web' --preload-file $(BUILD_DIR)/mopsa.bc \
   -s EXPORTED_RUNTIME_METHODS="['ccall', 'cwrap', 'FS', 'run','callMain']" \
 	--pre-js backend/wasm/pre.js --post-js backend/wasm/post.js -s DYLINK_DEBUG=1 \
 	-s MAIN_MODULE=1 -Wl,--export=__wasm_apply_data_relocs \
-	backend/wasm/stubs/wasm_relocs.c $(BUILD_DIR)/dllcamlstr.so \
+	backend/wasm/stubs/wasm_relocs.c $(DIST_DIR)/*.so \
 	$(BUILD_DIR)/prims.o $(BUILD_DIR)/libcamlrun.a
 
 # Clean
