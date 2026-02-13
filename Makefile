@@ -38,8 +38,8 @@ libcamlrun: $(BUILD_DIR)/libcamlrun.a
 
 $(BUILD_DIR)/prims.o $(BUILD_DIR)/libcamlrun.a: | $(BUILD_DIR)
 	cd $(DEPS_DIR)/ocaml-wasm
-	$(EMCONFIGURE) ./configure --disable-native-compiler --disable-ocamltest --disable-ocamldoc --disable-systhreads
-	$(MAKE) -C runtime ocamlrun
+	CFLAGS="-fPIC" $(EMCONFIGURE) ./configure --disable-native-compiler --disable-ocamltest --disable-ocamldoc --disable-systhreads
+	CFLAGS="-fPIC" $(MAKE) -C runtime ocamlrun
 	cp runtime/prims.o $(BUILD_DIR)
 	cp runtime/libcamlrun.a $(BUILD_DIR)
 
@@ -60,7 +60,7 @@ camlstr: $(BUILD_DIR)/dllcamlstr.so
 $(BUILD_DIR)/dllcamlstr.so: | $(BUILD_DIR)
 	cd $(DEPS_DIR)/ocaml-wasm/otherlibs/str
 	make all || true
-	$(EMCC) -sSIDE_MODULE=1 -o ./dllcamlstr.so strstubs.o
+	$(EMCC) -s SIDE_MODULE=1 -o ./dllcamlstr.so strstubs.o
 	$(EMAR) rcs libcamlstr.a strstubs.o
 	cp libcamlstr.a $(BUILD_DIR)
 	cp dllcamlstr.so $(BUILD_DIR)
@@ -88,11 +88,12 @@ $(BUILD_DIR)/mopsa.bc: $(BUILD_DIR)/mopsa_bonly.bc deps
 # Build final binary
 final: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/dllcamlstr.so
 	$(EMCC) -Wall -g -fno-strict-aliasing -fwrapv \
-	--ffunction-sections -o $(DIST_DIR)/ocamlrun.html \
+	-ffunction-sections -o $(DIST_DIR)/ocamlrun.html \
 	-s ENVIRONMENT='web' --preload-file $(BUILD_DIR)/mopsa.bc \
   -s EXPORTED_RUNTIME_METHODS="['ccall', 'cwrap', 'FS', 'run','callMain']" \
 	--pre-js backend/wasm/pre.js --post-js backend/wasm/post.js -s DYLINK_DEBUG=1 \
-	--preload-file $(BUILD_DIR)/dllcamlstr.so@/dllcamlstr \
+	-s MAIN_MODULE=1 -Wl,--export=__wasm_apply_data_relocs \
+	backend/wasm/stubs/wasm_relocs.c $(BUILD_DIR)/dllcamlstr.so \
 	$(BUILD_DIR)/prims.o $(BUILD_DIR)/libcamlrun.a
 
 # Clean
