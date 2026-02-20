@@ -49,12 +49,12 @@ $(BUILD_DIR)/prims.o: | $(BUILD_DIR)
 	(echo '#define CAML_INTERNALS'; \
 			echo '#include <caml/mlvalues.h>'; \
 	echo '#include <caml/prims.h>'; \
-	sed -e 's/.*/extern value &();/' backend/wasm/libcamlrun_primitives.txt; \
+	sed -e 's/.*/extern value &();/' backend/wasm/primitives.txt; \
 	echo 'c_primitive caml_builtin_cprim[] = {'; \
-	sed -e 's/.*/	&,/' backend/wasm/libcamlrun_primitives.txt; \
+	sed -e 's/.*/	&,/' backend/wasm/primitives.txt; \
 	echo '	 0 };'; \
 	echo 'char * caml_names_of_builtin_cprim[] = {'; \
-	sed -e 's/.*/	"&",/' backend/wasm/libcamlrun_primitives.txt; \
+	sed -e 's/.*/	"&",/' backend/wasm/primitives.txt; \
 	echo '	 0 };') > $(BUILD_DIR)/prims.c
 	$(EMCC) -c -I $(OCAML_STDLIB) -o $(BUILD_DIR)/prims.o $(BUILD_DIR)/prims.c
 
