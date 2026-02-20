@@ -72,20 +72,20 @@ $(LIBS_DIR)/libgmp.a: $(DEPS_DIR)/gmp-6.1.2/configure | $(INSTALL_DIR)
 		--disable-assembly \
 		--host=none \
 		--prefix=$(INSTALL_DIR)
-	$(MAKE) -j$(NPROC)
+	$(MAKE)
 	$(MAKE) install
 
 mpfr: $(LIBS_DIR)/libmpfr.a
 
 $(LIBS_DIR)/libmpfr.a: $(DEPS_DIR)/mpfr-4.2.2/configure | $(INSTALL_DIR)
-	cd mpfr-4.2.2
+	cd $(DEPS_DIR)/mpfr-4.2.2
 	touch aclocal.m4 configure
 	find . -name "Makefile.in" -exec touch {} \;
 	$(EMCONFIGURE) ./configure \
 		--with-gmp=$(INSTALL_DIR) \
 		--host=none \
 		--prefix=$(INSTALL_DIR)
-	$(MAKE) -j$(NPROC)
+	$(MAKE)
 	$(MAKE) install
 
 STUB_LIBS := libpolkaMPQ_caml.a liboctMPQ_caml.a libboxMPQ_caml.a libapron_caml.a \
