@@ -62,7 +62,7 @@ $(BUILD_DIR)/prims.o: | $(BUILD_DIR)
 
 # Build deps
 
-deps: gmp mpfr stubs
+deps: gmp mpfr camlidl stubs
 
 gmp: $(LIBS_DIR)/libgmp.a
 
@@ -88,9 +88,18 @@ $(LIBS_DIR)/libmpfr.a: $(DEPS_DIR)/mpfr-4.2.2/configure | $(INSTALL_DIR)
 	$(MAKE)
 	$(MAKE) install
 
+camlidl: $(LIBS_DIR)/libcamlidl.a
+
+$(LIBS_DIR)/libcamlidl.a: $(DEPS_DIR)/camlidl/runtime/idlalloc.c | $(INSTALL_DIR)
+	$(EMCC) -fno-strict-aliasing -fwrapv -D_FILE_OFFSET_BITS=64 -D_REENTRANT -c -I$(OCAML_STDLIB) $(DEPS_DIR)/camlidl/runtime/idlalloc.c -o $(BUILD_DIR)/idlalloc.o
+	$(EMCC) -fno-strict-aliasing -fwrapv -D_FILE_OFFSET_BITS=64 -D_REENTRANT -c -I$(OCAML_STDLIB) $(DEPS_DIR)/camlidl/runtime/comintf.c -o $(BUILD_DIR)/comintf.o
+	$(EMCC) -fno-strict-aliasing -fwrapv -D_FILE_OFFSET_BITS=64 -D_REENTRANT -c -I$(OCAML_STDLIB) $(DEPS_DIR)/camlidl/runtime/comerror.c -o $(BUILD_DIR)/comerror.o
+	$(EMAR) rcs $(LIBS_DIR)/libcamlidl.a $(BUILD_DIR)/idlalloc.o $(BUILD_DIR)/comintf.o $(BUILD_DIR)/comerror.o
+	cp $(DEPS_DIR)/camlidl/runtime/camlidlruntime.h $(INSTALL_DIR)/include
+	
 STUB_LIBS := libpolkaMPQ_caml.a liboctMPQ_caml.a libboxMPQ_caml.a libapron_caml.a \
              libmopsa_c_parser_stubs.a libmopsa_utils_stubs.a libzarith.a \
-             libgmp_caml.a libcamlidl.a \
+             libgmp_caml.a \
              libpolkaMPQ.a liboctMPQ.a libboxMPQ.a libapron.a \
              libclang-cpp.a libclang.a libLLVM-19.a libunix.a libcamlstr.a
 
