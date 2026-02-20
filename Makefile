@@ -62,7 +62,7 @@ $(BUILD_DIR)/prims.o: | $(BUILD_DIR)
 
 # Build deps
 
-deps: gmp mpfr camlidl stubs
+deps: gmp mpfr camlidl gmp_caml stubs
 
 gmp: $(LIBS_DIR)/libgmp.a
 
@@ -95,11 +95,29 @@ $(LIBS_DIR)/libcamlidl.a: $(DEPS_DIR)/camlidl/runtime/idlalloc.c | $(INSTALL_DIR
 	$(EMCC) -fno-strict-aliasing -fwrapv -D_FILE_OFFSET_BITS=64 -D_REENTRANT -c -I$(OCAML_STDLIB) $(DEPS_DIR)/camlidl/runtime/comintf.c -o $(BUILD_DIR)/comintf.o
 	$(EMCC) -fno-strict-aliasing -fwrapv -D_FILE_OFFSET_BITS=64 -D_REENTRANT -c -I$(OCAML_STDLIB) $(DEPS_DIR)/camlidl/runtime/comerror.c -o $(BUILD_DIR)/comerror.o
 	$(EMAR) rcs $(LIBS_DIR)/libcamlidl.a $(BUILD_DIR)/idlalloc.o $(BUILD_DIR)/comintf.o $(BUILD_DIR)/comerror.o
-	cp $(DEPS_DIR)/camlidl/runtime/camlidlruntime.h $(INSTALL_DIR)/include
+	mkdir -p $(INSTALL_DIR)/include/caml
+	cp $(DEPS_DIR)/camlidl/runtime/camlidlruntime.h $(INSTALL_DIR)/include/caml
+
+gmp_caml: $(LIBS_DIR)/libgmp_caml.a
+
+MLGMPIDL_MODULES := gmp_caml mpz_caml mpq_caml mpf_caml mpfr_caml gmp_random_caml
+
+$(LIBS_DIR)/libgmp_caml.a: gmp mpfr camlidl
+	cd $(DEPS_DIR)/mlgmpidl
+	$(EMCONFIGURE) ./configure \
+		-prefix $(INSTALL_DIR) \
+		-gmp-prefix $(INSTALL_DIR) \
+		-mpfr-prefix $(INSTALL_DIR)
+	$(MAKE) $(MLGMPIDL_MODULES:%=%.c)
+	for module in $(MLGMPIDL_MODULES); do \
+		$(EMCC) -c -I$(OCAML_STDLIB) -I$(INSTALL_DIR)/include $${module}.c -o $(BUILD_DIR)/$${module}.o; \
+	done
+	$(EMAR) rcs $(LIBS_DIR)/libgmp_caml.a $(addprefix $(BUILD_DIR)/,$(MLGMPIDL_MODULES:%=%.o))
+	cp $(DEPS_DIR)/mlgmpidl/gmp_caml.h $(INSTALL_DIR)/include
+	
 	
 STUB_LIBS := libpolkaMPQ_caml.a liboctMPQ_caml.a libboxMPQ_caml.a libapron_caml.a \
              libmopsa_c_parser_stubs.a libmopsa_utils_stubs.a libzarith.a \
-             libgmp_caml.a \
              libpolkaMPQ.a liboctMPQ.a libboxMPQ.a libapron.a \
              libclang-cpp.a libclang.a libLLVM-19.a libunix.a libcamlstr.a
 
