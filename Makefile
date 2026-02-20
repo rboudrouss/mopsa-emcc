@@ -77,7 +77,7 @@ $(LIBS_DIR)/libgmp.a: $(DEPS_DIR)/gmp-6.1.2/configure | $(INSTALL_DIR)
 
 mpfr: $(LIBS_DIR)/libmpfr.a
 
-$(LIBS_DIR)/libmpfr.a: $(DEPS_DIR)/mpfr-4.2.2/configure | $(INSTALL_DIR)
+$(LIBS_DIR)/libmpfr.a: $(DEPS_DIR)/mpfr-4.2.2/configure gmp | $(INSTALL_DIR)
 	cd $(DEPS_DIR)/mpfr-4.2.2
 	touch aclocal.m4 configure
 	find . -name "Makefile.in" -exec touch {} \;
