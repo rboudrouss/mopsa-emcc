@@ -21,8 +21,6 @@ NPM := pnpm
 
 OCAML_STDLIB := $(shell ocamlc -where)
 
-#EMCC_SIDE_MODULE := -s SIDE_MODULE=1 -fPIC
-
 # Needed to build old clang versions
 CC=gcc-11
 CCX=g++-11
@@ -91,8 +89,8 @@ final: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(DIST_DIR)/dllcamlstr.so
 	-ffunction-sections -o $(DIST_DIR)/ocamlrun.html \
 	-s ENVIRONMENT='web' --preload-file $(BUILD_DIR)/mopsa.bc \
   -s EXPORTED_RUNTIME_METHODS="['ccall', 'cwrap', 'FS', 'run','callMain']" \
-	--pre-js backend/wasm/pre.js --post-js backend/wasm/post.js \
-	-s MAIN_MODULE=1 -Wl,--export=__wasm_apply_data_relocs \
+	--pre-js backend/wasm/pre.js \
+	-Wl,--export=__wasm_apply_data_relocs \
 	backend/wasm/stubs/wasm_relocs.c $(DIST_DIR)/*.so \
 	-s ALLOW_MEMORY_GROWTH=1 -s INITIAL_MEMORY=128MB -s STACK_SIZE=5MB \
 	$(BUILD_DIR)/prims.o $(BUILD_DIR)/libcamlrun.a
