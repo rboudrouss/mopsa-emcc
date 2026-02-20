@@ -1,6 +1,10 @@
 # Dependecies :
 # Ocaml 4.12.0
 
+EMCC_FLAGS := "-fno-strict-aliasing -fwrapv"
+COMP_FLAGS := "-fno-common -D_FILE_OFFSET_BITS=64"
+COMP_CAMLFFI_FLAGS := "-DCAML_NAME_SPACE -DCAMLDLLIMPORT="
+
 .ONESHELL:
 
 # Variables
@@ -9,6 +13,7 @@ LIBS_DIR := $(INSTALL_DIR)/lib
 DIST_DIR := $(CURDIR)/dist
 DEPS_DIR := $(CURDIR)/deps
 BUILD_DIR := $(CURDIR)/build
+DEPS_BIN_DIR := $(BUILD_DIR)/deps
 LLVM_BUILD_DIR := $(DEPS_DIR)/llvm-project/build
 
 EMCC := emcc
@@ -28,70 +33,64 @@ CCX=g++-11
 # Targets
 all: final
 
-$(INSTALL_DIR) $(LIBS_DIR) $(DIST_DIR) $(DEPS_DIR) $(BUILD_DIR):
-	mkdir -p $(INSTALL_DIR) $(LIBS_DIR) $(DIST_DIR) $(DEPS_DIR) $(BUILD_DIR)
+$(INSTALL_DIR) $(LIBS_DIR) $(DIST_DIR) $(DEPS_DIR) $(BUILD_DIR) $(DEPS_BIN_DIR):
+	mkdir -p $(INSTALL_DIR) $(LIBS_DIR) $(DIST_DIR) $(DEPS_DIR) $(BUILD_DIR) $(DEPS_BIN_DIR)
 
 # OCAML-WASM
 libcamlrun: $(BUILD_DIR)/libcamlrun.a
 
-$(BUILD_DIR)/prims.o $(BUILD_DIR)/libcamlrun.a: | $(BUILD_DIR)
+$(BUILD_DIR)/libcamlrun.a: | $(BUILD_DIR)
 	cd $(DEPS_DIR)/ocaml-wasm
 	$(EMCONFIGURE) ./configure --disable-native-compiler --disable-ocamltest --disable-ocamldoc --disable-systhreads --disable-naked-pointers
 	$(MAKE) -C runtime ocamlrun
-	cp runtime/prims.o $(BUILD_DIR)
 	cp runtime/libcamlrun.a $(BUILD_DIR)
 
-# MOPSA-bytecode
-mopsa-bc: $(BUILD_DIR)/mopsa_bonly.bc
-
-$(BUILD_DIR)/mopsa_bonly.bc: | $(BUILD_DIR)
-	$(OPAM_EXEC) dune build backend/wasm/mopsa_worker.bc --profile release
-	rm -f $(BUILD_DIR)/mopsa_bonly.bc
-	cp _build/default/backend/wasm/mopsa_worker.bc $(BUILD_DIR)/mopsa_bonly.bc
+$(BUILD_DIR)/prims.o: | $(BUILD_DIR)
+	(echo '#define CAML_INTERNALS'; \
+			echo '#include <caml/mlvalues.h>'; \
+	echo '#include <caml/prims.h>'; \
+	sed -e 's/.*/extern value &();/' backend/wasm/libcamlrun_primitives.txt; \
+	echo 'c_primitive caml_builtin_cprim[] = {'; \
+	sed -e 's/.*/	&,/' backend/wasm/libcamlrun_primitives.txt; \
+	echo '	 0 };'; \
+	echo 'char * caml_names_of_builtin_cprim[] = {'; \
+	sed -e 's/.*/	"&",/' backend/wasm/libcamlrun_primitives.txt; \
+	echo '	 0 };') > $(BUILD_DIR)/prims.c
+	$(EMCC) -c -I $(OCAML_STDLIB) -o $(BUILD_DIR)/prims.o $(BUILD_DIR)/prims.c
 
 # Build deps
 
 deps: stubs
 
-# camlstr: $(BUILD_DIR)/dllcamlstr.so
+STUB_LIBS := libpolkaMPQ_caml.a liboctMPQ_caml.a libboxMPQ_caml.a libapron_caml.a \
+             libmopsa_c_parser_stubs.a libmopsa_utils_stubs.a libzarith.a \
+             libmpfr.a libgmp.a libgmp_caml.a libcamlidl.a \
+             libpolkaMPQ.a liboctMPQ.a libboxMPQ.a libapron.a \
+             libclang-cpp.a libclang.a libLLVM-19.a libunix.a libcamlstr.a
 
-# $(BUILD_DIR)/dllcamlstr.so: | $(BUILD_DIR)
-# 	cd $(DEPS_DIR)/ocaml-wasm/otherlibs/str
-# 	make all || true
-# 	$(EMCC) -s SIDE_MODULE=1 -o ./dllcamlstr.so strstubs.o
-# 	$(EMAR) rcs libcamlstr.a strstubs.o
-# 	cp libcamlstr.a $(BUILD_DIR)
-# 	cp dllcamlstr.so $(BUILD_DIR)
+stubs: $(addprefix $(DEPS_BIN_DIR)/,$(STUB_LIBS))
 
-STUB_LIBS := dllpolkaMPQ_caml.so dlloctMPQ_caml.so dllboxMPQ_caml.so dllapron_caml.so \
-             dllmopsa_c_parser_stubs.so dllmopsa_utils_stubs.so dllzarith.so \
-             dllmpfr.so dllgmp.so dllgmp_caml.so dllcamlidl.so \
-             dllpolkaMPQ.so dlloctMPQ.so dllboxMPQ.so dllapron.so \
-             dllclang-cpp.so dllclang.so dllLLVM-19.so dllunix.so dllcamlstr.so
-
-stubs: $(addprefix $(DIST_DIR)/,$(STUB_LIBS))
-
-$(DIST_DIR)/dll%.so: backend/wasm/stubs/empty.o | $(DIST_DIR)
-	$(EMCC) -sSIDE_MODULE=1 -o $@ $<
+$(DEPS_BIN_DIR)/lib%.a: backend/wasm/stubs/empty.o | $(DEPS_BIN_DIR)
+	$(EMAR) rcs $@ $<
 
 # Mopsa with deps
 
-mopsa-final: $(BUILD_DIR)/mopsa.bc
+mopsa-bc: $(BUILD_DIR)/mopsa.bc
 
 ## For now we cp only
-$(BUILD_DIR)/mopsa.bc: $(BUILD_DIR)/mopsa_bonly.bc deps
+$(BUILD_DIR)/mopsa.bc:
+	$(OPAM_EXEC) dune build backend/wasm/mopsa_worker.bc --profile release
 	rm -f $(BUILD_DIR)/mopsa.bc
-	cp $(BUILD_DIR)/mopsa_bonly.bc $(BUILD_DIR)/mopsa.bc
+	cp _build/default/backend/wasm/mopsa_worker.bc $(BUILD_DIR)/mopsa.bc
 
 # Build final binary
-final: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(DIST_DIR)/dllcamlstr.so
+final: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o deps
 	$(EMCC) -Wall -g -fno-strict-aliasing -fwrapv \
 	-ffunction-sections -o $(DIST_DIR)/ocamlrun.html \
 	-s ENVIRONMENT='web' --preload-file $(BUILD_DIR)/mopsa.bc \
   -s EXPORTED_RUNTIME_METHODS="['ccall', 'cwrap', 'FS', 'run','callMain']" \
 	--pre-js backend/wasm/pre.js \
-	-Wl,--export=__wasm_apply_data_relocs \
-	backend/wasm/stubs/wasm_relocs.c $(DIST_DIR)/*.so \
+	$(DEPS_BIN_DIR)/*.a \
 	-s ALLOW_MEMORY_GROWTH=1 -s INITIAL_MEMORY=128MB -s STACK_SIZE=5MB \
 	$(BUILD_DIR)/prims.o $(BUILD_DIR)/libcamlrun.a
 
