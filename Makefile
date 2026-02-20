@@ -24,6 +24,8 @@ EMAR := emar
 OPAM_EXEC := opam exec --
 NPM := pnpm
 
+NPROC := $(shell nproc 2>/dev/null || echo 1)
+
 OCAML_STDLIB := $(shell ocamlc -where)
 
 # Needed to build old clang versions
@@ -60,11 +62,35 @@ $(BUILD_DIR)/prims.o: | $(BUILD_DIR)
 
 # Build deps
 
-deps: stubs
+deps: gmp mpfr stubs
+
+gmp: $(LIBS_DIR)/libgmp.a
+
+$(LIBS_DIR)/libgmp.a: $(DEPS_DIR)/gmp-6.1.2/configure | $(INSTALL_DIR)
+	cd $(DEPS_DIR)/gmp-6.1.2
+	$(EMCONFIGURE) ./configure \
+		--disable-assembly \
+		--host=none \
+		--prefix=$(INSTALL_DIR)
+	$(MAKE) -j$(NPROC)
+	$(MAKE) install
+
+mpfr: $(LIBS_DIR)/libmpfr.a
+
+$(LIBS_DIR)/libmpfr.a: $(DEPS_DIR)/mpfr-4.2.2/configure | $(INSTALL_DIR)
+	cd mpfr-4.2.2
+	touch aclocal.m4 configure
+	find . -name "Makefile.in" -exec touch {} \;
+	$(EMCONFIGURE) ./configure \
+		--with-gmp=$(INSTALL_DIR) \
+		--host=none \
+		--prefix=$(INSTALL_DIR)
+	$(MAKE) -j$(NPROC)
+	$(MAKE) install
 
 STUB_LIBS := libpolkaMPQ_caml.a liboctMPQ_caml.a libboxMPQ_caml.a libapron_caml.a \
              libmopsa_c_parser_stubs.a libmopsa_utils_stubs.a libzarith.a \
-             libmpfr.a libgmp.a libgmp_caml.a libcamlidl.a \
+             libgmp_caml.a libcamlidl.a \
              libpolkaMPQ.a liboctMPQ.a libboxMPQ.a libapron.a \
              libclang-cpp.a libclang.a libLLVM-19.a libunix.a libcamlstr.a
 
@@ -89,13 +115,14 @@ final: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o deps
 	-ffunction-sections -o $(DIST_DIR)/ocamlrun.html \
 	-s ENVIRONMENT='web' --preload-file $(BUILD_DIR)/mopsa.bc \
   -s EXPORTED_RUNTIME_METHODS="['ccall', 'cwrap', 'FS', 'run','callMain']" \
-	--pre-js backend/wasm/pre.js \
-	$(DEPS_BIN_DIR)/*.a \
+	--pre-js backend/wasm/pre.js -L$(LIBS_DIR) \
+	$(DEPS_BIN_DIR)/*.a -lgmp -lmpfr \
 	-s ALLOW_MEMORY_GROWTH=1 -s INITIAL_MEMORY=128MB -s STACK_SIZE=5MB \
+	-s ERROR_ON_UNDEFINED_SYMBOLS=0 -s WARN_ON_UNDEFINED_SYMBOLS=1 \
 	$(BUILD_DIR)/prims.o $(BUILD_DIR)/libcamlrun.a
 
 # Clean
-clean: clean-mopsa clean-ocaml clean-project
+clean: clean-mopsa clean-ocaml clean-project clean-gmp clean-mpfr
 
 clean-project:
 	dune clean
@@ -106,3 +133,9 @@ clean-ocaml:
 
 clean-mopsa:
 	$(MAKE) -C $(DEPS_DIR)/mopsa-analyzer clean
+
+clean-gmp:
+	$(MAKE) -C $(DEPS_DIR)/gmp-6.1.2 clean
+
+clean-mpfr:
+	$(MAKE) -C $(DEPS_DIR)/mpfr-4.2.2 clean
