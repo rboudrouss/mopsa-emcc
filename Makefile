@@ -32,6 +32,11 @@ OCAML_STDLIB := $(shell ocamlc -where)
 CC=gcc-11
 CCX=g++-11
 
+# Phony targets
+.PHONY: all final deps gmp mpfr camlidl gmp_caml zarith apron apron_caml \
+        mopsa_floats stubs libcamlrun prims mopsa-bc \
+        clean clean-project clean-ocaml clean-mopsa clean-gmp clean-mpfr clean-apron
+
 # Targets
 all: final
 
@@ -46,6 +51,8 @@ $(BUILD_DIR)/libcamlrun.a: | $(BUILD_DIR)
 	$(EMCONFIGURE) ./configure --disable-native-compiler --disable-ocamltest --disable-ocamldoc --disable-systhreads --disable-naked-pointers
 	$(MAKE) -C runtime ocamlrun
 	cp runtime/libcamlrun.a $(BUILD_DIR)
+	
+prims: $(BUILD_DIR)/prims.o
 
 $(BUILD_DIR)/prims.o: | $(BUILD_DIR)
 	(echo '#define CAML_INTERNALS'; \
@@ -78,7 +85,7 @@ $(LIBS_DIR)/libgmp.a: $(DEPS_DIR)/gmp-6.1.2/configure | $(INSTALL_DIR)
 
 mpfr: $(LIBS_DIR)/libmpfr.a
 
-$(LIBS_DIR)/libmpfr.a: $(DEPS_DIR)/mpfr-4.2.2/configure gmp | $(INSTALL_DIR)
+$(LIBS_DIR)/libmpfr.a: $(DEPS_DIR)/mpfr-4.2.2/configure $(LIBS_DIR)/libgmp.a | $(INSTALL_DIR)
 	cd $(DEPS_DIR)/mpfr-4.2.2
 	touch aclocal.m4 configure
 	find . -name "Makefile.in" -exec touch {} \;
@@ -103,7 +110,7 @@ gmp_caml: $(LIBS_DIR)/libgmp_caml.a
 
 MLGMPIDL_MODULES := gmp_caml mpz_caml mpq_caml mpf_caml mpfr_caml gmp_random_caml
 
-$(LIBS_DIR)/libgmp_caml.a: gmp mpfr camlidl
+$(LIBS_DIR)/libgmp_caml.a: $(LIBS_DIR)/libgmp.a $(LIBS_DIR)/libmpfr.a $(LIBS_DIR)/libcamlidl.a
 	cd $(DEPS_DIR)/mlgmpidl
 	$(EMCONFIGURE) ./configure \
 		-prefix $(INSTALL_DIR) \
@@ -125,7 +132,7 @@ $(LIBS_DIR)/libzarith.a:
 	
 apron: $(LIBS_DIR)/libapron.a
 	
-$(LIBS_DIR)/libapron.a: gmp mpfr
+$(LIBS_DIR)/libapron.a: $(LIBS_DIR)/libgmp.a $(LIBS_DIR)/libmpfr.a
 	cd $(DEPS_DIR)/apron
 	MPFR_PREFIX=$(INSTALL_DIR) \
 	GMP_PREFIX=$(INSTALL_DIR) \
@@ -149,7 +156,7 @@ MLAPRONIDL_IDL := scalar interval coeff dim linexpr0 lincons0 generator0 texpr0 
                   tcons1 abstract1 policy disjunction version
 MLAPRONIDL_MODULES := $(MLAPRONIDL_IDL:%=%_caml) apron_caml
 
-$(DEPS_BIN_DIR)/libapron_caml.a: $(LIBS_DIR)/libapron.a camlidl gmp_caml | $(DEPS_BIN_DIR)
+$(DEPS_BIN_DIR)/libapron_caml.a: $(LIBS_DIR)/libapron.a $(LIBS_DIR)/libcamlidl.a $(LIBS_DIR)/libgmp_caml.a | $(DEPS_BIN_DIR)
 	cd $(DEPS_DIR)/apron/mlapronidl && \
 	for idl in $(MLAPRONIDL_IDL); do \
 		$(CAMLIDL) -no-include -prepro "$(PERL) macros.pl" $$idl.idl && \
