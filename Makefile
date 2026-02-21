@@ -62,7 +62,7 @@ $(BUILD_DIR)/prims.o: | $(BUILD_DIR)
 
 # Build deps
 
-deps: gmp mpfr camlidl gmp_caml zarith apron apron_caml stubs
+deps: gmp mpfr camlidl gmp_caml zarith apron apron_caml mopsa_floats stubs
 
 gmp: $(LIBS_DIR)/libgmp.a
 
@@ -202,8 +202,13 @@ $(DEPS_BIN_DIR)/libpolkaMPQ_caml.a: $(DEPS_BIN_DIR)/libapron_caml.a | $(DEPS_BIN
 		-o $(BUILD_DIR)/polka_caml.o $(DEPS_DIR)/apron/newpolka/polka_caml.c
 	$(EMAR) rcs $@ $(BUILD_DIR)/polka_caml.o
 
+mopsa_floats: $(DEPS_BIN_DIR)/mopsa_floats.a
 
-STUB_LIBS := libmopsa_c_parser_stubs.a libmopsa_utils_stubs.a \
+$(DEPS_BIN_DIR)/mopsa_floats.a:
+	$(EMCC) -c -I$(OCAML_STDLIB) -o $(BUILD_DIR)/floats_round.o $(DEPS_DIR)/mopsa-analyzer/utils/itvUtils/floats_round.c
+	$(EMAR) rcs $@ $(BUILD_DIR)/floats_round.o
+
+STUB_LIBS := libmopsa_c_parser_stubs.a \
              libclang-cpp.a libclang.a libLLVM-19.a libunix.a
 
 stubs: $(addprefix $(DEPS_BIN_DIR)/,$(STUB_LIBS))
