@@ -62,7 +62,7 @@ $(BUILD_DIR)/prims.o: | $(BUILD_DIR)
 
 # Build deps
 
-deps: gmp mpfr camlidl gmp_caml stubs
+deps: gmp mpfr camlidl gmp_caml apron stubs
 
 gmp: $(LIBS_DIR)/libgmp.a
 
@@ -71,6 +71,7 @@ $(LIBS_DIR)/libgmp.a: $(DEPS_DIR)/gmp-6.1.2/configure | $(INSTALL_DIR)
 	$(EMCONFIGURE) ./configure \
 		--disable-assembly \
 		--host=none \
+		--enable-cxx \
 		--prefix=$(INSTALL_DIR)
 	$(MAKE)
 	$(MAKE) install
@@ -115,11 +116,22 @@ $(LIBS_DIR)/libgmp_caml.a: gmp mpfr camlidl
 	$(EMAR) rcs $(LIBS_DIR)/libgmp_caml.a $(addprefix $(BUILD_DIR)/,$(MLGMPIDL_MODULES:%=%.o))
 	cp $(DEPS_DIR)/mlgmpidl/gmp_caml.h $(INSTALL_DIR)/include
 	
+apron: $(LIBS_DIR)/libapron.a
+	
+$(LIBS_DIR)/libapron.a: gmp mpfr
+	cd $(DEPS_DIR)/apron
+	MPFR_PREFIX=$(INSTALL_DIR) \
+	GMP_PREFIX=$(INSTALL_DIR) \
+	$(EMCONFIGURE) ./configure \
+		-no-java -no-cxx -no-ppl -no-pplite \
+		-no-ocaml -no-strip \
+		-prefix $(INSTALL_DIR) && \
+	$(MAKE)
+	$(MAKE) install
 	
 STUB_LIBS := libpolkaMPQ_caml.a liboctMPQ_caml.a libboxMPQ_caml.a libapron_caml.a \
              libmopsa_c_parser_stubs.a libmopsa_utils_stubs.a libzarith.a \
-             libpolkaMPQ.a liboctMPQ.a libboxMPQ.a libapron.a \
-             libclang-cpp.a libclang.a libLLVM-19.a libunix.a libcamlstr.a
+             libclang-cpp.a libclang.a libLLVM-19.a libunix.a
 
 stubs: $(addprefix $(DEPS_BIN_DIR)/,$(STUB_LIBS))
 
