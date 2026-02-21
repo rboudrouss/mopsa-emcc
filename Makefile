@@ -1,9 +1,9 @@
 # Dependecies :
 # Ocaml 4.12.0
 
-EMCC_FLAGS := "-fno-strict-aliasing -fwrapv"
-COMP_FLAGS := "-fno-common -D_FILE_OFFSET_BITS=64"
-COMP_CAMLFFI_FLAGS := "-DCAML_NAME_SPACE -DCAMLDLLIMPORT="
+EMCC_FLAGS := -fno-strict-aliasing -fwrapv
+COMP_FLAGS := -fno-common -D_FILE_OFFSET_BITS=64
+COMP_CAMLFFI_FLAGS := -DCAML_NAME_SPACE -DCAMLDLLIMPORT=
 
 .ONESHELL:
 
@@ -65,7 +65,7 @@ $(BUILD_DIR)/prims.o: | $(BUILD_DIR)
 	echo 'char * caml_names_of_builtin_cprim[] = {'; \
 	sed -e 's/.*/	"&",/' backend/wasm/primitives.txt; \
 	echo '	 0 };') > $(BUILD_DIR)/prims.c
-	$(EMCC) -c -I $(OCAML_STDLIB) -o $(BUILD_DIR)/prims.o $(BUILD_DIR)/prims.c
+	$(EMCC) $(EMCC_FLAGS) -c -I $(OCAML_STDLIB) -o $(BUILD_DIR)/prims.o $(BUILD_DIR)/prims.c
 
 # Build deps
 
@@ -118,7 +118,7 @@ $(LIBS_DIR)/libgmp_caml.a: $(LIBS_DIR)/libgmp.a $(LIBS_DIR)/libmpfr.a $(LIBS_DIR
 		-mpfr-prefix $(INSTALL_DIR)
 	$(MAKE) $(MLGMPIDL_MODULES:%=%.c)
 	for module in $(MLGMPIDL_MODULES); do \
-		$(EMCC) -c -I$(OCAML_STDLIB) -I$(INSTALL_DIR)/include $${module}.c -o $(BUILD_DIR)/$${module}.o; \
+		$(EMCC) $(EMCC_FLAGS) -c -I$(OCAML_STDLIB) -I$(INSTALL_DIR)/include $${module}.c -o $(BUILD_DIR)/$${module}.o; \
 	done
 	$(EMAR) rcs $(LIBS_DIR)/libgmp_caml.a $(addprefix $(BUILD_DIR)/,$(MLGMPIDL_MODULES:%=%.o))
 	cp $(DEPS_DIR)/mlgmpidl/gmp_caml.h $(INSTALL_DIR)/include
@@ -126,7 +126,7 @@ $(LIBS_DIR)/libgmp_caml.a: $(LIBS_DIR)/libgmp.a $(LIBS_DIR)/libmpfr.a $(LIBS_DIR
 zarith: $(LIBS_DIR)/libzarith.a
 
 $(LIBS_DIR)/libzarith.a:
-	$(EMCC) -c -DHAS_GMP -I$(OCAML_STDLIB) -I$(INSTALL_DIR)/include $(DEPS_DIR)/Zarith/caml_z.c -o $(BUILD_DIR)/caml_z.o
+	$(EMCC) $(EMCC_FLAGS) -c -DHAS_GMP -I$(OCAML_STDLIB) -I$(INSTALL_DIR)/include $(DEPS_DIR)/Zarith/caml_z.c -o $(BUILD_DIR)/caml_z.o
 	$(EMAR) rcs $(LIBS_DIR)/libzarith.a $(BUILD_DIR)/caml_z.o
 	cp $(DEPS_DIR)/Zarith/zarith.h $(INSTALL_DIR)/include
 	
@@ -165,7 +165,7 @@ $(DEPS_BIN_DIR)/libapron_caml.a: $(LIBS_DIR)/libapron.a $(LIBS_DIR)/libcamlidl.a
 		$(PERL) perlscript_caml.pl < $$idl.mli > $$idl.mli.tmp && mv $$idl.mli.tmp $$idl.mli; \
 	done
 	for module in $(MLAPRONIDL_MODULES); do \
-		$(EMCC) -c $(CAMLIDL_CFLAGS) -I$(DEPS_DIR)/apron/apron -I$(DEPS_DIR)/apron/mlapronidl \
+		$(EMCC) $(EMCC_FLAGS) -c $(CAMLIDL_CFLAGS) -I$(DEPS_DIR)/apron/apron -I$(DEPS_DIR)/apron/mlapronidl \
 			-o $(BUILD_DIR)/$${module}.o $(DEPS_DIR)/apron/mlapronidl/$${module}.c; \
 	done
 	$(EMAR) rcs $@ $(addprefix $(BUILD_DIR)/,$(MLAPRONIDL_MODULES:%=%.o))
@@ -178,7 +178,7 @@ $(DEPS_BIN_DIR)/libboxMPQ_caml.a: $(DEPS_BIN_DIR)/libapron_caml.a | $(DEPS_BIN_D
 	$(PERL) ../mlapronidl/perlscript_c.pl < tmp/box_stubs.c > box_caml.c && \
 	$(PERL) perlscript_caml.pl < tmp/box.ml > box.ml && \
 	$(PERL) perlscript_caml.pl < tmp/box.mli > box.mli
-	$(EMCC) -c $(CAMLIDL_CFLAGS) -I$(DEPS_DIR)/apron/apron -I$(DEPS_DIR)/apron/mlapronidl \
+	$(EMCC) $(EMCC_FLAGS) -c $(CAMLIDL_CFLAGS) -I$(DEPS_DIR)/apron/apron -I$(DEPS_DIR)/apron/mlapronidl \
 		-I$(DEPS_DIR)/apron/box -DNUM_MPQ \
 		-o $(BUILD_DIR)/box_caml.o $(DEPS_DIR)/apron/box/box_caml.c
 	$(EMAR) rcs $@ $(BUILD_DIR)/box_caml.o
@@ -191,7 +191,7 @@ $(DEPS_BIN_DIR)/liboctMPQ_caml.a: $(DEPS_BIN_DIR)/libapron_caml.a | $(DEPS_BIN_D
 	$(PERL) perlscript_c.pl < tmp/oct_stubs.c > oct_caml.c && \
 	$(PERL) perlscript_caml.pl < tmp/oct.ml > oct.ml && \
 	$(PERL) perlscript_caml.pl < tmp/oct.mli > oct.mli
-	$(EMCC) -c $(CAMLIDL_CFLAGS) -I$(DEPS_DIR)/apron/apron -I$(DEPS_DIR)/apron/mlapronidl \
+	$(EMCC) $(EMCC_FLAGS) -c $(CAMLIDL_CFLAGS) -I$(DEPS_DIR)/apron/apron -I$(DEPS_DIR)/apron/mlapronidl \
 		-I$(DEPS_DIR)/apron/octagons -DNUM_MPQ \
 		-o $(BUILD_DIR)/oct_caml.o $(DEPS_DIR)/apron/octagons/oct_caml.c
 	$(EMAR) rcs $@ $(BUILD_DIR)/oct_caml.o
@@ -204,7 +204,7 @@ $(DEPS_BIN_DIR)/libpolkaMPQ_caml.a: $(DEPS_BIN_DIR)/libapron_caml.a | $(DEPS_BIN
 	cp tmp/polka_stubs.c polka_caml.c && \
 	$(PERL) perlscript_caml.pl < tmp/polka.ml > polka.ml && \
 	$(PERL) perlscript_caml.pl < tmp/polka.mli > polka.mli
-	$(EMCC) -c $(CAMLIDL_CFLAGS) -I$(DEPS_DIR)/apron/apron -I$(DEPS_DIR)/apron/mlapronidl \
+	$(EMCC) $(EMCC_FLAGS) -c $(CAMLIDL_CFLAGS) -I$(DEPS_DIR)/apron/apron -I$(DEPS_DIR)/apron/mlapronidl \
 		-I$(DEPS_DIR)/apron/newpolka -DNUM_MPQ \
 		-o $(BUILD_DIR)/polka_caml.o $(DEPS_DIR)/apron/newpolka/polka_caml.c
 	$(EMAR) rcs $@ $(BUILD_DIR)/polka_caml.o
@@ -212,13 +212,19 @@ $(DEPS_BIN_DIR)/libpolkaMPQ_caml.a: $(DEPS_BIN_DIR)/libapron_caml.a | $(DEPS_BIN
 mopsa_floats: $(DEPS_BIN_DIR)/mopsa_floats.a
 
 $(DEPS_BIN_DIR)/mopsa_floats.a:
-	$(EMCC) -c -I$(OCAML_STDLIB) -o $(BUILD_DIR)/floats_round.o $(DEPS_DIR)/mopsa-analyzer/utils/itvUtils/floats_round.c
+	$(EMCC) $(EMCC_FLAGS) -c -I$(OCAML_STDLIB) -o $(BUILD_DIR)/floats_round.o $(DEPS_DIR)/mopsa-analyzer/utils/itvUtils/floats_round.c
 	$(EMAR) rcs $@ $(BUILD_DIR)/floats_round.o
 
 STUB_LIBS := libmopsa_c_parser_stubs.a \
              libclang-cpp.a libclang.a libLLVM-19.a libunix.a
 
 stubs: $(addprefix $(DEPS_BIN_DIR)/,$(STUB_LIBS))
+
+$(BUILD_DIR)/clang_stubs.o: backend/wasm/stubs/clang_stubs.c | $(BUILD_DIR)
+	$(EMCC) $(EMCC_FLAGS) -c -I$(OCAML_STDLIB) -o $@ $<
+
+$(DEPS_BIN_DIR)/libmopsa_c_parser_stubs.a: $(BUILD_DIR)/clang_stubs.o | $(DEPS_BIN_DIR)
+	$(EMAR) rcs $@ $<
 
 $(DEPS_BIN_DIR)/lib%.a: backend/wasm/stubs/empty.o | $(DEPS_BIN_DIR)
 	$(EMAR) rcs $@ $<
@@ -238,7 +244,7 @@ final: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o deps
 	$(EMCC) -Wall -g -fno-strict-aliasing -fwrapv \
 	-ffunction-sections -o $(DIST_DIR)/ocamlrun.html \
 	-s ENVIRONMENT='web' --preload-file $(BUILD_DIR)/mopsa.bc \
-  -s EXPORTED_RUNTIME_METHODS="['ccall', 'cwrap', 'FS', 'run','callMain']" \
+	-s EXPORTED_RUNTIME_METHODS="['ccall', 'cwrap', 'FS', 'run','callMain']" \
 	--pre-js backend/wasm/pre.js -L$(LIBS_DIR) \
 	$(DEPS_BIN_DIR)/*.a $(LIBS_DIR)/*.a \
 	-s ALLOW_MEMORY_GROWTH=1 -s INITIAL_MEMORY=128MB -s STACK_SIZE=5MB \

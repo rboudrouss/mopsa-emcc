@@ -1,6 +1,3 @@
-(* External function implemented in JavaScript (core.ts) *)
-external mopsa_emit : string -> unit = "mopsa_emit"
-
 (* Command types for communication with JavaScript *)
 type command =
   | Init of string          (* Initialize with configuration *)
@@ -263,17 +260,5 @@ let handle_request json_str =
 
 (* Main entry point *)
 let () =
-  (* Register the callback that JavaScript will call *)
-  Callback.register "mopsa_post" handle_request;
-
-  (* Handle stdin for worker mode, otherwise run mopsa directly *)
-  if Array.length Sys.argv > 1 && Sys.argv.(1) = "-stdin" then
-    try
-      while true do
-        mopsa_emit @@ handle_request @@ Stdlib.read_line ()
-      done
-    with End_of_file -> ()
-  else
-    (* Run mopsa directly, parsing command-line arguments *)
     Mopsa_analyzer.Framework.Runner.run ()
 
