@@ -234,7 +234,7 @@ final: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o deps
 	$(BUILD_DIR)/prims.o $(BUILD_DIR)/libcamlrun.a
 
 # Clean
-clean: clean-mopsa clean-ocaml clean-project clean-gmp clean-mpfr
+clean: clean-mopsa clean-ocaml clean-project clean-gmp clean-mpfr clean-apron
 
 clean-project:
 	dune clean
@@ -251,3 +251,6 @@ clean-gmp:
 
 clean-mpfr:
 	$(MAKE) -C $(DEPS_DIR)/mpfr-4.2.2 clean
+
+clean-apron:
+	$(MAKE) -C $(DEPS_DIR)/apron clean
