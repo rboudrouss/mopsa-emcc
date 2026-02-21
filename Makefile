@@ -62,7 +62,7 @@ $(BUILD_DIR)/prims.o: | $(BUILD_DIR)
 
 # Build deps
 
-deps: gmp mpfr camlidl gmp_caml zarith apron stubs
+deps: gmp mpfr camlidl gmp_caml zarith apron apron_caml stubs
 
 gmp: $(LIBS_DIR)/libgmp.a
 
@@ -136,8 +136,74 @@ $(LIBS_DIR)/libapron.a: gmp mpfr
 	$(MAKE)
 	$(MAKE) install
 
-STUB_LIBS := libpolkaMPQ_caml.a liboctMPQ_caml.a libboxMPQ_caml.a libapron_caml.a \
-             libmopsa_c_parser_stubs.a libmopsa_utils_stubs.a \
+
+apron_caml: $(DEPS_BIN_DIR)/libapron_caml.a $(DEPS_BIN_DIR)/libboxMPQ_caml.a \
+            $(DEPS_BIN_DIR)/liboctMPQ_caml.a $(DEPS_BIN_DIR)/libpolkaMPQ_caml.a
+
+CAMLIDL := $(shell opam var bin)/camlidl
+PERL := /usr/bin/perl
+CAMLIDL_CFLAGS := -I$(OCAML_STDLIB) -I$(shell opam var lib)/camlidl -I$(INSTALL_DIR)/include
+
+MLAPRONIDL_IDL := scalar interval coeff dim linexpr0 lincons0 generator0 texpr0 tcons0 \
+                  manager abstract0 var environment linexpr1 lincons1 generator1 texpr1 \
+                  tcons1 abstract1 policy disjunction version
+MLAPRONIDL_MODULES := $(MLAPRONIDL_IDL:%=%_caml) apron_caml
+
+$(DEPS_BIN_DIR)/libapron_caml.a: $(LIBS_DIR)/libapron.a camlidl gmp_caml | $(DEPS_BIN_DIR)
+	cd $(DEPS_DIR)/apron/mlapronidl && \
+	for idl in $(MLAPRONIDL_IDL); do \
+		$(CAMLIDL) -no-include -prepro "$(PERL) macros.pl" $$idl.idl && \
+		$(PERL) perlscript_c.pl < $${idl}_stubs.c > $${idl}_caml.c && \
+		$(PERL) perlscript_caml.pl < $$idl.ml > $$idl.ml.tmp && mv $$idl.ml.tmp $$idl.ml && \
+		$(PERL) perlscript_caml.pl < $$idl.mli > $$idl.mli.tmp && mv $$idl.mli.tmp $$idl.mli; \
+	done
+	for module in $(MLAPRONIDL_MODULES); do \
+		$(EMCC) -c $(CAMLIDL_CFLAGS) -I$(DEPS_DIR)/apron/apron -I$(DEPS_DIR)/apron/mlapronidl \
+			-o $(BUILD_DIR)/$${module}.o $(DEPS_DIR)/apron/mlapronidl/$${module}.c; \
+	done
+	$(EMAR) rcs $@ $(addprefix $(BUILD_DIR)/,$(MLAPRONIDL_MODULES:%=%.o))
+
+$(DEPS_BIN_DIR)/libboxMPQ_caml.a: $(DEPS_BIN_DIR)/libapron_caml.a | $(DEPS_BIN_DIR)
+	cd $(DEPS_DIR)/apron/box && \
+	mkdir -p tmp && \
+	cp box.idl ../mlapronidl/*.idl tmp/ && \
+	cd tmp && $(CAMLIDL) -no-include -nocpp -I . box.idl && cd .. && \
+	$(PERL) ../mlapronidl/perlscript_c.pl < tmp/box_stubs.c > box_caml.c && \
+	$(PERL) perlscript_caml.pl < tmp/box.ml > box.ml && \
+	$(PERL) perlscript_caml.pl < tmp/box.mli > box.mli
+	$(EMCC) -c $(CAMLIDL_CFLAGS) -I$(DEPS_DIR)/apron/apron -I$(DEPS_DIR)/apron/mlapronidl \
+		-I$(DEPS_DIR)/apron/box -DNUM_MPQ \
+		-o $(BUILD_DIR)/box_caml.o $(DEPS_DIR)/apron/box/box_caml.c
+	$(EMAR) rcs $@ $(BUILD_DIR)/box_caml.o
+
+$(DEPS_BIN_DIR)/liboctMPQ_caml.a: $(DEPS_BIN_DIR)/libapron_caml.a | $(DEPS_BIN_DIR)
+	cd $(DEPS_DIR)/apron/octagons && \
+	mkdir -p tmp && \
+	cp oct.idl ../mlapronidl/*.idl tmp/ && \
+	cd tmp && $(CAMLIDL) -no-include -nocpp -I . oct.idl && cd .. && \
+	$(PERL) perlscript_c.pl < tmp/oct_stubs.c > oct_caml.c && \
+	$(PERL) perlscript_caml.pl < tmp/oct.ml > oct.ml && \
+	$(PERL) perlscript_caml.pl < tmp/oct.mli > oct.mli
+	$(EMCC) -c $(CAMLIDL_CFLAGS) -I$(DEPS_DIR)/apron/apron -I$(DEPS_DIR)/apron/mlapronidl \
+		-I$(DEPS_DIR)/apron/octagons -DNUM_MPQ \
+		-o $(BUILD_DIR)/oct_caml.o $(DEPS_DIR)/apron/octagons/oct_caml.c
+	$(EMAR) rcs $@ $(BUILD_DIR)/oct_caml.o
+
+$(DEPS_BIN_DIR)/libpolkaMPQ_caml.a: $(DEPS_BIN_DIR)/libapron_caml.a | $(DEPS_BIN_DIR)
+	cd $(DEPS_DIR)/apron/newpolka && \
+	mkdir -p tmp && \
+	cp polka.idl ../mlapronidl/manager.idl tmp/ && \
+	cd tmp && $(CAMLIDL) -no-include -nocpp polka.idl && cd .. && \
+	cp tmp/polka_stubs.c polka_caml.c && \
+	$(PERL) perlscript_caml.pl < tmp/polka.ml > polka.ml && \
+	$(PERL) perlscript_caml.pl < tmp/polka.mli > polka.mli
+	$(EMCC) -c $(CAMLIDL_CFLAGS) -I$(DEPS_DIR)/apron/apron -I$(DEPS_DIR)/apron/mlapronidl \
+		-I$(DEPS_DIR)/apron/newpolka -DNUM_MPQ \
+		-o $(BUILD_DIR)/polka_caml.o $(DEPS_DIR)/apron/newpolka/polka_caml.c
+	$(EMAR) rcs $@ $(BUILD_DIR)/polka_caml.o
+
+
+STUB_LIBS := libmopsa_c_parser_stubs.a libmopsa_utils_stubs.a \
              libclang-cpp.a libclang.a libLLVM-19.a libunix.a
 
 stubs: $(addprefix $(DEPS_BIN_DIR)/,$(STUB_LIBS))
@@ -162,7 +228,7 @@ final: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o deps
 	-s ENVIRONMENT='web' --preload-file $(BUILD_DIR)/mopsa.bc \
   -s EXPORTED_RUNTIME_METHODS="['ccall', 'cwrap', 'FS', 'run','callMain']" \
 	--pre-js backend/wasm/pre.js -L$(LIBS_DIR) \
-	$(DEPS_BIN_DIR)/*.a -lgmp -lmpfr \
+	$(DEPS_BIN_DIR)/*.a $(LIBS_DIR)/*.a \
 	-s ALLOW_MEMORY_GROWTH=1 -s INITIAL_MEMORY=128MB -s STACK_SIZE=5MB \
 	-s ERROR_ON_UNDEFINED_SYMBOLS=0 -s WARN_ON_UNDEFINED_SYMBOLS=1 \
 	$(BUILD_DIR)/prims.o $(BUILD_DIR)/libcamlrun.a
