@@ -62,7 +62,7 @@ $(BUILD_DIR)/prims.o: | $(BUILD_DIR)
 
 # Build deps
 
-deps: gmp mpfr camlidl gmp_caml apron stubs
+deps: gmp mpfr camlidl gmp_caml zarith apron stubs
 
 gmp: $(LIBS_DIR)/libgmp.a
 
@@ -115,6 +115,13 @@ $(LIBS_DIR)/libgmp_caml.a: gmp mpfr camlidl
 	done
 	$(EMAR) rcs $(LIBS_DIR)/libgmp_caml.a $(addprefix $(BUILD_DIR)/,$(MLGMPIDL_MODULES:%=%.o))
 	cp $(DEPS_DIR)/mlgmpidl/gmp_caml.h $(INSTALL_DIR)/include
+
+zarith: $(LIBS_DIR)/libzarith.a
+
+$(LIBS_DIR)/libzarith.a:
+	$(EMCC) -c -DHAS_GMP -I$(OCAML_STDLIB) -I$(INSTALL_DIR)/include $(DEPS_DIR)/Zarith/caml_z.c -o $(BUILD_DIR)/caml_z.o
+	$(EMAR) rcs $(LIBS_DIR)/libzarith.a $(BUILD_DIR)/caml_z.o
+	cp $(DEPS_DIR)/Zarith/zarith.h $(INSTALL_DIR)/include
 	
 apron: $(LIBS_DIR)/libapron.a
 	
@@ -128,9 +135,9 @@ $(LIBS_DIR)/libapron.a: gmp mpfr
 		-prefix $(INSTALL_DIR) && \
 	$(MAKE)
 	$(MAKE) install
-	
+
 STUB_LIBS := libpolkaMPQ_caml.a liboctMPQ_caml.a libboxMPQ_caml.a libapron_caml.a \
-             libmopsa_c_parser_stubs.a libmopsa_utils_stubs.a libzarith.a \
+             libmopsa_c_parser_stubs.a libmopsa_utils_stubs.a \
              libclang-cpp.a libclang.a libLLVM-19.a libunix.a
 
 stubs: $(addprefix $(DEPS_BIN_DIR)/,$(STUB_LIBS))
