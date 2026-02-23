@@ -1,9 +1,16 @@
 # Dependecies :
 # Ocaml 4.12.0
 
-EMCC_FLAGS := -fno-strict-aliasing -fwrapv
+# Force no optimization in all sub-builds
+CFLAGS := -O0 -g -s EXPORT_ALL=1 -s LINKABLE=1 
+CXXFLAGS := -O0 -g -s EXPORT_ALL=1 -s LINKABLE=1
+CFLAGS_FOR_BUILD := -O0 -g -s EXPORT_ALL=1 -s LINKABLE=1
+CXXFLAGS_FOR_BUILD := -O0 -g -s EXPORT_ALL=1 -s LINKABLE=1
+
+EMCC_FLAGS := $(CFLAGS) -fno-strict-aliasing -fwrapv
 COMP_FLAGS := -fno-common -D_FILE_OFFSET_BITS=64
 COMP_CAMLFFI_FLAGS := -DCAML_NAME_SPACE -DCAMLDLLIMPORT=
+
 
 .ONESHELL:
 
@@ -14,7 +21,11 @@ DIST_DIR := $(CURDIR)/dist
 DEPS_DIR := $(CURDIR)/deps
 BUILD_DIR := $(CURDIR)/build
 DEPS_BIN_DIR := $(BUILD_DIR)/deps
-LLVM_BUILD_DIR := $(DEPS_DIR)/llvm-project/build
+LLVM_WASM_SRC     := $(DEPS_DIR)/llvm-project-wasm
+LLVM_NATIVE_BUILD := $(LLVM_WASM_SRC)/build-native
+LLVM_WASM_BUILD   := $(LLVM_WASM_SRC)/build-wasm
+EMSDK_TOOLCHAIN   := /home/rboud/Documents/emsdk/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake
+CLANG_TO_ML_SRC   := $(DEPS_DIR)/mopsa-analyzer/parsers/c/lib/parser/Clang_to_ml.cc
 
 EMCC := emcc
 EMCONFIGURE := emconfigure
@@ -35,7 +46,8 @@ CCX=g++-11
 # Phony targets
 .PHONY: all final deps gmp mpfr camlidl gmp_caml zarith apron apron_caml \
         mopsa_floats stubs libcamlrun prims mopsa-bc \
-        clean clean-project clean-ocaml clean-mopsa clean-gmp clean-mpfr clean-apron
+        llvm-tblgen clang-wasm clang_to_ml clang-resource-headers \
+        clean clean-project clean-ocaml clean-mopsa clean-gmp clean-mpfr clean-apron clean-llvm
 
 # Targets
 all: final
@@ -48,8 +60,12 @@ libcamlrun: $(BUILD_DIR)/libcamlrun.a
 
 $(BUILD_DIR)/libcamlrun.a: | $(BUILD_DIR)
 	cd $(DEPS_DIR)/ocaml-wasm
-	$(EMCONFIGURE) ./configure --disable-native-compiler --disable-ocamltest --disable-ocamldoc --disable-systhreads --disable-naked-pointers
-	$(MAKE) -C runtime ocamlrun
+	CFLAGS="$(CFLAGS)" $(EMCONFIGURE) ./configure --disable-native-compiler --disable-ocamltest --disable-ocamldoc --disable-systhreads --disable-naked-pointers
+	# Patch s.h to disable features not supported by Emscripten
+	sed -i 's/^#define HAS_SOCKETS.*$$/\/* #undef HAS_SOCKETS - disabled for Emscripten *\//' runtime/caml/s.h
+	sed -i 's/^#define HAS_GETHOSTBYNAME_R.*$$/\/* #undef HAS_GETHOSTBYNAME_R - disabled for Emscripten *\//' runtime/caml/s.h
+	sed -i 's/^#define HAS_GETHOSTBYADDR_R.*$$/\/* #undef HAS_GETHOSTBYADDR_R - disabled for Emscripten *\//' runtime/caml/s.h
+	CFLAGS="$(CFLAGS)" $(MAKE) -C runtime ocamlrun
 	cp runtime/libcamlrun.a $(BUILD_DIR)
 	
 prims: $(BUILD_DIR)/prims.o
@@ -69,18 +85,18 @@ $(BUILD_DIR)/prims.o: | $(BUILD_DIR)
 
 # Build deps
 
-deps: gmp mpfr camlidl gmp_caml zarith apron apron_caml mopsa_floats stubs
+deps: gmp mpfr camlidl gmp_caml zarith apron apron_caml mopsa_floats stubs clang_to_ml
 
 gmp: $(LIBS_DIR)/libgmp.a
 
 $(LIBS_DIR)/libgmp.a: $(DEPS_DIR)/gmp-6.1.2/configure | $(INSTALL_DIR)
 	cd $(DEPS_DIR)/gmp-6.1.2
-	$(EMCONFIGURE) ./configure \
+	CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" $(EMCONFIGURE) ./configure \
 		--disable-assembly \
 		--host=none \
 		--enable-cxx \
 		--prefix=$(INSTALL_DIR)
-	$(MAKE)
+	CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" $(MAKE)
 	$(MAKE) install
 
 mpfr: $(LIBS_DIR)/libmpfr.a
@@ -89,11 +105,11 @@ $(LIBS_DIR)/libmpfr.a: $(DEPS_DIR)/mpfr-4.2.2/configure $(LIBS_DIR)/libgmp.a | $
 	cd $(DEPS_DIR)/mpfr-4.2.2
 	touch aclocal.m4 configure
 	find . -name "Makefile.in" -exec touch {} \;
-	$(EMCONFIGURE) ./configure \
+	CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" $(EMCONFIGURE) ./configure \
 		--with-gmp=$(INSTALL_DIR) \
 		--host=none \
 		--prefix=$(INSTALL_DIR)
-	$(MAKE)
+	CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" $(MAKE)
 	$(MAKE) install
 
 camlidl: $(LIBS_DIR)/libcamlidl.a
@@ -112,11 +128,11 @@ MLGMPIDL_MODULES := gmp_caml mpz_caml mpq_caml mpf_caml mpfr_caml gmp_random_cam
 
 $(LIBS_DIR)/libgmp_caml.a: $(LIBS_DIR)/libgmp.a $(LIBS_DIR)/libmpfr.a $(LIBS_DIR)/libcamlidl.a
 	cd $(DEPS_DIR)/mlgmpidl
-	$(EMCONFIGURE) ./configure \
+	CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" $(EMCONFIGURE) ./configure \
 		-prefix $(INSTALL_DIR) \
 		-gmp-prefix $(INSTALL_DIR) \
 		-mpfr-prefix $(INSTALL_DIR)
-	$(MAKE) $(MLGMPIDL_MODULES:%=%.c)
+	CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" $(MAKE) $(MLGMPIDL_MODULES:%=%.c)
 	for module in $(MLGMPIDL_MODULES); do \
 		$(EMCC) $(EMCC_FLAGS) -c -I$(OCAML_STDLIB) -I$(INSTALL_DIR)/include $${module}.c -o $(BUILD_DIR)/$${module}.o; \
 	done
@@ -136,11 +152,11 @@ $(LIBS_DIR)/libapron.a: $(LIBS_DIR)/libgmp.a $(LIBS_DIR)/libmpfr.a
 	cd $(DEPS_DIR)/apron
 	MPFR_PREFIX=$(INSTALL_DIR) \
 	GMP_PREFIX=$(INSTALL_DIR) \
-	$(EMCONFIGURE) ./configure \
+	CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" $(EMCONFIGURE) ./configure \
 		-no-java -no-cxx -no-ppl -no-pplite \
 		-no-ocaml -no-strip \
 		-prefix $(INSTALL_DIR) && \
-	$(MAKE)
+	CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" $(MAKE)
 	$(MAKE) install
 
 
@@ -215,16 +231,91 @@ $(DEPS_BIN_DIR)/mopsa_floats.a:
 	$(EMCC) $(EMCC_FLAGS) -c -I$(OCAML_STDLIB) -o $(BUILD_DIR)/floats_round.o $(DEPS_DIR)/mopsa-analyzer/utils/itvUtils/floats_round.c
 	$(EMAR) rcs $@ $(BUILD_DIR)/floats_round.o
 
-STUB_LIBS := libmopsa_c_parser_stubs.a \
-             libclang-cpp.a libclang.a libLLVM-19.a libunix.a
+# LLVM/Clang wasm build
+
+llvm-tblgen: $(LLVM_NATIVE_BUILD)/bin/llvm-tblgen
+
+$(LLVM_NATIVE_BUILD)/bin/llvm-tblgen: | $(LLVM_WASM_SRC)
+	cmake -G Ninja -S $(LLVM_WASM_SRC)/llvm -B $(LLVM_NATIVE_BUILD) \
+	  -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+	  -DCMAKE_C_COMPILER=$(CC) \
+	  -DCMAKE_CXX_COMPILER=$(CCX) \
+	  -DLLVM_ENABLE_PROJECTS=clang \
+	  -DLLVM_TARGETS_TO_BUILD=host \
+	  -DCMAKE_BUILD_TYPE=Release \
+	  -DLLVM_BUILD_TOOLS=OFF \
+	  -DLLVM_INCLUDE_TESTS=OFF \
+	  -DLLVM_INCLUDE_EXAMPLES=OFF \
+	  -DLLVM_BUILD_EXAMPLES=OFF \
+	  -DLLVM_INCLUDE_BENCHMARKS=OFF \
+	  -DLLVM_ENABLE_ZLIB=OFF \
+	  -DLLVM_ENABLE_TERMINFO=OFF
+	ninja -C $(LLVM_NATIVE_BUILD) -j$(NPROC) llvm-tblgen clang-tblgen
+
+clang-wasm: $(LLVM_WASM_BUILD)/lib/libclangFrontend.a
+
+$(LLVM_WASM_BUILD)/lib/libclangFrontend.a: $(LLVM_NATIVE_BUILD)/bin/llvm-tblgen
+	CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" cmake -G Ninja -S $(LLVM_WASM_SRC)/llvm -B $(LLVM_WASM_BUILD) \
+	  -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+	  -DCMAKE_TOOLCHAIN_FILE=$(EMSDK_TOOLCHAIN) \
+	  -DLLVM_TABLEGEN=$(LLVM_NATIVE_BUILD)/bin/llvm-tblgen \
+	  -DCLANG_TABLEGEN=$(LLVM_NATIVE_BUILD)/bin/clang-tblgen \
+	  -DLLVM_ENABLE_PROJECTS=clang \
+	  -DLLVM_TARGETS_TO_BUILD=WebAssembly \
+	  -DCMAKE_BUILD_TYPE=Release \
+	  -DLLVM_DEFAULT_TARGET_TRIPLE=wasm32-unknown-emscripten \
+	  -DLLVM_HOST_TRIPLE=wasm32-unknown-emscripten \
+	  -DLLVM_ENABLE_THREADS=OFF \
+	  -DLLVM_ENABLE_ZLIB=OFF \
+	  -DLLVM_ENABLE_TERMINFO=OFF \
+	  -DLLVM_ENABLE_LIBEDIT=OFF \
+	  -DLLVM_ENABLE_LIBXML2=OFF \
+	  -DLLVM_ENABLE_ASSERTIONS=OFF \
+	  -DLLVM_ENABLE_EH=OFF \
+	  -DLLVM_ENABLE_RTTI=OFF \
+	  -DLLVM_BUILD_TOOLS=OFF \
+	  -DLLVM_INCLUDE_TESTS=OFF \
+	  -DLLVM_INCLUDE_EXAMPLES=OFF \
+	  -DLLVM_BUILD_EXAMPLES=OFF \
+	  -DLLVM_INCLUDE_BENCHMARKS=OFF \
+	  -DCLANG_BUILD_TOOLS=OFF \
+	  -DCLANG_INCLUDE_TESTS=OFF \
+	  -DCMAKE_INSTALL_PREFIX=$(INSTALL_DIR)
+	CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" ninja -C $(LLVM_WASM_BUILD) -j$(NPROC) \
+	  clangFrontend clangParse clangAST clangLex clangBasic \
+	  clangSema clangDriver clangEdit clangSerialization \
+	  clangAnalysis clangStaticAnalyzerCore \
+	  LLVMSupport LLVMCore LLVMMC LLVMMCParser \
+	  LLVMBinaryFormat LLVMBitReader LLVMBitstreamReader \
+	  LLVMOption LLVMProfileData LLVMDemangle LLVMRemarks
+
+clang-resource-headers: $(INSTALL_DIR)/lib/clang/9.0.1/include/stddef.h
+
+$(INSTALL_DIR)/lib/clang/9.0.1/include/stddef.h: $(LLVM_WASM_BUILD)/lib/libclangFrontend.a
+	CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" ninja -C $(LLVM_WASM_BUILD) install-clang-resource-headers
+
+clang_to_ml: $(DEPS_BIN_DIR)/libmopsa_c_parser.a
+
+$(DEPS_BIN_DIR)/libmopsa_c_parser.a: $(CLANG_TO_ML_SRC) $(LLVM_WASM_BUILD)/lib/libclangFrontend.a $(INSTALL_DIR)/lib/clang/9.0.1/include/stddef.h | $(DEPS_BIN_DIR)
+	em++ -std=c++14 \
+	  -I$(LLVM_WASM_SRC)/llvm/include \
+	  -I$(LLVM_WASM_SRC)/clang/include \
+	  -I$(LLVM_WASM_BUILD)/include \
+	  -I$(LLVM_WASM_BUILD)/tools/clang/include \
+	  -I$(OCAML_STDLIB) \
+	  -DCLANGRESOURCE=\"/clang-headers\" \
+	  -fno-rtti \
+	  -fno-exceptions \
+	  -c $(CLANG_TO_ML_SRC) \
+	  -o $(BUILD_DIR)/clang_to_ml.o \
+	  $(CXXFLAGS)
+	$(EMAR) rcs $@ $(BUILD_DIR)/clang_to_ml.o
+	cp $(LLVM_WASM_BUILD)/lib/libclang*.a $(DEPS_BIN_DIR)/
+	cp $(LLVM_WASM_BUILD)/lib/libLLVM*.a  $(DEPS_BIN_DIR)/
+
+STUB_LIBS := libunix.a
 
 stubs: $(addprefix $(DEPS_BIN_DIR)/,$(STUB_LIBS))
-
-$(BUILD_DIR)/clang_stubs.o: backend/wasm/stubs/clang_stubs.c | $(BUILD_DIR)
-	$(EMCC) $(EMCC_FLAGS) -c -I$(OCAML_STDLIB) -o $@ $<
-
-$(DEPS_BIN_DIR)/libmopsa_c_parser_stubs.a: $(BUILD_DIR)/clang_stubs.o | $(DEPS_BIN_DIR)
-	$(EMAR) rcs $@ $<
 
 $(DEPS_BIN_DIR)/lib%.a: backend/wasm/stubs/empty.o | $(DEPS_BIN_DIR)
 	$(EMAR) rcs $@ $<
@@ -241,18 +332,20 @@ $(BUILD_DIR)/mopsa.bc:
 
 # Build final binary
 final: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o deps
-	$(EMCC) -Wall -g -fno-strict-aliasing -fwrapv \
+	$(EMCC) -Wall -g -O0 -fno-strict-aliasing -fwrapv \
 	-ffunction-sections -o $(DIST_DIR)/ocamlrun.html \
 	-s ENVIRONMENT='web' --preload-file $(BUILD_DIR)/mopsa.bc \
+	--preload-file $(INSTALL_DIR)/lib/clang/9.0.1/include@/clang-headers \
 	-s EXPORTED_RUNTIME_METHODS="['ccall', 'cwrap', 'FS', 'run','callMain']" \
-	--pre-js backend/wasm/pre.js -L$(LIBS_DIR) \
+	--pre-js backend/wasm/pre.js --post-js backend/wasm/post.js -L$(LIBS_DIR) \
 	$(DEPS_BIN_DIR)/*.a $(LIBS_DIR)/*.a \
 	-s ALLOW_MEMORY_GROWTH=1 -s INITIAL_MEMORY=128MB -s STACK_SIZE=5MB \
-	-s ERROR_ON_UNDEFINED_SYMBOLS=0 -s WARN_ON_UNDEFINED_SYMBOLS=1 \
+	-s ASSERTIONS=2 \
+	-s ERROR_ON_UNDEFINED_SYMBOLS=1 \
 	$(BUILD_DIR)/prims.o $(BUILD_DIR)/libcamlrun.a
 
 # Clean
-clean: clean-mopsa clean-ocaml clean-project clean-gmp clean-mpfr clean-apron
+clean: clean-mopsa clean-ocaml clean-project clean-gmp clean-mpfr clean-apron clean-llvm
 
 clean-project:
 	dune clean
@@ -272,3 +365,6 @@ clean-mpfr:
 
 clean-apron:
 	$(MAKE) -C $(DEPS_DIR)/apron clean
+
+clean-llvm:
+	rm -rf $(LLVM_NATIVE_BUILD) $(LLVM_WASM_BUILD)
