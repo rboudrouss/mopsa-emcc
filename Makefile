@@ -353,18 +353,24 @@ clean-project:
 
 clean-ocaml:
 	$(MAKE) -C $(DEPS_DIR)/ocaml-wasm clean
+	rm -f $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/prims.o
 
 clean-mopsa:
 	$(MAKE) -C $(DEPS_DIR)/mopsa-analyzer clean
+	rm -f $(BUILD_DIR)/mopsa.bc
 
 clean-gmp:
 	$(MAKE) -C $(DEPS_DIR)/gmp-6.1.2 clean
+	rm -f $(LIBS_DIR)/libgmp.a
 
 clean-mpfr:
 	$(MAKE) -C $(DEPS_DIR)/mpfr-4.2.2 clean
+	rm -f $(LIBS_DIR)/libmpfr.a
 
 clean-apron:
 	$(MAKE) -C $(DEPS_DIR)/apron clean
+	rm -f $(LIBS_DIR)/libapron.a $(LIBS_DIR)/libpolka_caml.a $(LIBS_DIR)/libboxMPQ.a $(LIBS_DIR)/liboctMPQ.a
 
 clean-llvm:
 	rm -rf $(LLVM_NATIVE_BUILD) $(LLVM_WASM_BUILD)
+	rm -f $(DEPS_BIN_DIR)/libclang*.a $(DEPS_BIN_DIR)/libLLVM*.a $(DEPS_BIN_DIR)/libmopsa_c_parser.a
