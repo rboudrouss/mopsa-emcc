@@ -19,3 +19,6 @@
 [submodule "deps/Zarith"]
 	path = deps/Zarith
 	url = git@github.com:ocaml/Zarith.git
+[submodule "deps/ocaml"]
+	path = deps/ocaml
+	url = git@github.com:rboudfork/ocaml.git
