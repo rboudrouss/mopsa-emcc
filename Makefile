@@ -2,10 +2,10 @@
 # Ocaml 4.12.0
 
 # Force no optimization in all sub-builds
-CFLAGS := -O0 -g -s EXPORT_ALL=1 -s LINKABLE=1 
-CXXFLAGS := -O0 -g -s EXPORT_ALL=1 -s LINKABLE=1
-CFLAGS_FOR_BUILD := -O0 -g -s EXPORT_ALL=1 -s LINKABLE=1
-CXXFLAGS_FOR_BUILD := -O0 -g -s EXPORT_ALL=1 -s LINKABLE=1
+CFLAGS := -O0 -g
+CXXFLAGS := -O0 -g
+CFLAGS_FOR_BUILD := -O0
+CXXFLAGS_FOR_BUILD := -O0 -g
 
 EMCC_FLAGS := $(CFLAGS) -fno-strict-aliasing -fwrapv
 COMP_FLAGS := -fno-common -D_FILE_OFFSET_BITS=64
@@ -37,14 +37,14 @@ NPM := pnpm
 
 NPROC := $(shell nproc 2>/dev/null || echo 1)
 
-OCAML_STDLIB := $(shell ocamlc -where)
+OCAML_STDLIB := $(DEPS_DIR)/ocaml-wasm/runtime
 
 # Needed to build old clang versions
 CC=gcc-11
 CCX=g++-11
 
 # Phony targets
-.PHONY: all final deps gmp mpfr camlidl gmp_caml zarith apron apron_caml \
+.PHONY: all final final-node deps gmp mpfr camlidl gmp_caml zarith apron apron_caml \
         mopsa_floats stubs libcamlrun prims mopsa-bc \
         llvm-tblgen clang-wasm clang_to_ml clang-resource-headers \
         clean clean-project clean-ocaml clean-mopsa clean-gmp clean-mpfr clean-apron clean-llvm
@@ -331,13 +331,27 @@ $(BUILD_DIR)/mopsa.bc:
 	cp _build/default/backend/wasm/mopsa_worker.bc $(BUILD_DIR)/mopsa.bc
 
 # Build final binary
-final: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o deps
+final: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o deps | $(DIST_DIR)
 	$(EMCC) -Wall -g -O0 -fno-strict-aliasing -fwrapv \
 	-ffunction-sections -o $(DIST_DIR)/ocamlrun.html \
 	-s ENVIRONMENT='web' --preload-file $(BUILD_DIR)/mopsa.bc \
 	--preload-file $(INSTALL_DIR)/lib/clang/9.0.1/include@/clang-headers \
 	-s EXPORTED_RUNTIME_METHODS="['ccall', 'cwrap', 'FS', 'run','callMain']" \
 	--pre-js backend/wasm/pre.js --post-js backend/wasm/post.js -L$(LIBS_DIR) \
+	$(DEPS_BIN_DIR)/*.a $(LIBS_DIR)/*.a \
+	-s ALLOW_MEMORY_GROWTH=1 -s INITIAL_MEMORY=128MB -s STACK_SIZE=5MB \
+	-s ASSERTIONS=2 \
+	-s ERROR_ON_UNDEFINED_SYMBOLS=1 \
+	$(BUILD_DIR)/prims.o $(BUILD_DIR)/libcamlrun.a
+
+# Build final binary for Node.js (run as: node ocamlrun.js mopsa.bc)
+final-node: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o deps | $(DIST_DIR)
+	$(EMCC) -Wall -g -O0 -fno-strict-aliasing -fwrapv \
+	-ffunction-sections -o $(DIST_DIR)/ocamlrun.js \
+	-s ENVIRONMENT='node' --preload-file $(BUILD_DIR)/mopsa.bc@mopsa.bc \
+	--preload-file $(INSTALL_DIR)/lib/clang/9.0.1/include@/clang-headers \
+	-s EXPORTED_RUNTIME_METHODS="['ccall', 'cwrap', 'FS', 'run','callMain']" \
+	--post-js backend/wasm/post.js -L$(LIBS_DIR) \
 	$(DEPS_BIN_DIR)/*.a $(LIBS_DIR)/*.a \
 	-s ALLOW_MEMORY_GROWTH=1 -s INITIAL_MEMORY=128MB -s STACK_SIZE=5MB \
 	-s ASSERTIONS=2 \
