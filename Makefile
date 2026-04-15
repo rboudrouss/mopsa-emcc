@@ -34,6 +34,8 @@ EMMAKE := emmake
 EMAR := emar
 OPAM_EXEC := opam exec --
 NPM := pnpm
+DOCKER := docker
+DOCKER_IMAGE_32BC := mopsa-emcc-32bc
 
 NPROC := $(shell nproc 2>/dev/null || echo 1)
 
@@ -47,7 +49,9 @@ CCX=g++-11
 .PHONY: all final final-node deps gmp mpfr camlidl gmp_caml zarith apron apron_caml \
         mopsa_floats stubs libcamlrun prims mopsa-bc \
         llvm-tblgen clang-wasm clang_to_ml clang-resource-headers \
-        clean clean-project clean-ocaml clean-mopsa clean-gmp clean-mpfr clean-apron clean-llvm
+        docker-image-32bc mopsa-bc-32 \
+        clean clean-project clean-ocaml clean-mopsa clean-gmp clean-mpfr clean-apron clean-llvm \
+        clean-docker-32bc
 
 # Targets
 all: final
@@ -329,6 +333,34 @@ $(BUILD_DIR)/mopsa.bc:
 	$(OPAM_EXEC) dune build backend/wasm/mopsa_worker.bc --profile release
 	rm -f $(BUILD_DIR)/mopsa.bc
 	cp _build/default/backend/wasm/mopsa_worker.bc $(BUILD_DIR)/mopsa.bc
+
+# 32-bit bytecode via Docker (for wasm32 targets where int width matters)
+# Uses a linux/386 container so the OCaml runtime compiles with 31-bit ints.
+# The resulting mopsa-32.bc is used in place of mopsa.bc for wasm32 builds.
+docker-image-32bc: $(BUILD_DIR)/.docker-32bc-stamp
+
+$(BUILD_DIR)/.docker-32bc-stamp: docker/Dockerfile.mopsa-32bc | $(BUILD_DIR)
+	DOCKER_BUILDKIT=1 $(DOCKER) build \
+		--platform linux/386 \
+		-t $(DOCKER_IMAGE_32BC) \
+		-f docker/Dockerfile.mopsa-32bc \
+		docker/
+	touch $@
+
+mopsa-bc-32: $(BUILD_DIR)/mopsa-32.bc
+
+$(BUILD_DIR)/mopsa-32.bc: $(BUILD_DIR)/.docker-32bc-stamp | $(BUILD_DIR)
+	$(DOCKER) run --rm \
+		--platform linux/386 \
+		-v $(CURDIR):/workspace \
+		-v mopsa-emcc-opam-32:/root/.opam \
+		$(DOCKER_IMAGE_32BC) \
+		bash /workspace/docker/build-mopsa-32bc.sh
+
+clean-docker-32bc:
+	$(DOCKER) rmi -f $(DOCKER_IMAGE_32BC) 2>/dev/null || true
+	$(DOCKER) volume rm mopsa-emcc-opam-32 2>/dev/null || true
+	rm -f $(BUILD_DIR)/.docker-32bc-stamp $(BUILD_DIR)/mopsa-32.bc
 
 # Build final binary
 final: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o deps | $(DIST_DIR)
