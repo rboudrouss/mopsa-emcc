@@ -1,0 +1,58 @@
+# 32-bit OCaml environment for building mopsa.bc for wasm32 target.
+# Source code is NOT baked in — it is mounted at /workspace at runtime.
+# The opam switch and packages are cached in the mopsa-emcc-opam-32 Docker
+# volume by build-mopsa-32bc.sh, so only the first run is slow.
+FROM --platform=linux/386 debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
+    ca-certificates \
+    libgmp-dev \
+    libmpfr-dev \
+    pkg-config \
+    m4 \
+    unzip \
+    bubblewrap \
+    git \
+    rsync \
+    clang \
+    libclang-dev \
+    libclang-cpp-dev \
+    llvm-dev \
+    perl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Build OCaml 4.12.0 from source with --host=i686-linux-gnu.
+#
+# Problem: Docker's 64-bit kernel reports x86_64 via uname -m even inside a
+# linux/386 container.  OCaml's configure uses uname to detect the target and
+# would wrongly select TARGET_amd64, causing signals_nat.c to reference
+# REG_RIP (x86-64) which does not exist on i386.
+#
+# Fix: --host=i686-linux-gnu overrides the uname-based detection so configure
+# targets i386 correctly.  The compiler in the container already emits i386
+# code by default (Debian i386 packages), so the resulting OCaml installation
+# is a fully functional native i386 toolchain.
+RUN curl -fsSL \
+        https://github.com/ocaml/ocaml/archive/refs/tags/4.12.0.tar.gz \
+        | tar xz -C /tmp \
+    && cd /tmp/ocaml-4.12.0 \
+    && ./configure \
+        --prefix=/opt/ocaml-412 \
+        --host=i686-linux-gnu \
+        --disable-ocamltest \
+        --disable-ocamldoc \
+    && make -j"$(nproc)" world.opt \
+    && make install \
+    && rm -rf /tmp/ocaml-4.12.0
+
+ENV PATH="/opt/ocaml-412/bin:${PATH}"
+
+# Install opam i686 binary
+RUN curl -fsSL \
+    https://github.com/ocaml/opam/releases/download/2.1.6/opam-2.1.6-i686-linux \
+    -o /usr/local/bin/opam \
+    && chmod +x /usr/local/bin/opam
+
+WORKDIR /workspace
