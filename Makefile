@@ -1,5 +1,7 @@
 # Dependecies :
 # Ocaml 4.12.0
+# with mopsa pinned at deps/mopsa-analyzer
+# Docker (for building 32-bit bytecode)
 
 # Force no optimization in all sub-builds
 CFLAGS := -O0 -g
