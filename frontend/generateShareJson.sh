@@ -1,0 +1,1 @@
+node folderToJson.cjs ../deps/mopsa-analyzer/share/mopsa/ -o src/lib/share.json

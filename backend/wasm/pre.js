@@ -1,9 +1,5 @@
-Module["arguments"] = ['build/mopsa.bc'];
-
-// Debug: log crash details
-Module["onAbort"] = function(what) {
-  console.error("[DEBUG] Abort:", what);
-  if (typeof wasmTable !== 'undefined') {
-    console.error("[DEBUG] WASM table size:", wasmTable.length);
-  }
+// pre.js – factory-level defaults.
+// With MODULARIZE each createMopsaModule() call can override these.
+Module["onAbort"] = function (what) {
+  console.error("[Mopsa WASM] Abort:", what);
 };
