@@ -2,11 +2,12 @@
 # Build 32-bit mopsa_worker.bc inside a 32-bit Docker container.
 #
 # Expected environment (provided by the Docker image / Makefile):
-#   - linux/386 container (Debian bookworm-slim + system libs + opam binary)
+#   - linux/386 container with OCaml 4.12.0 at /opt/ocaml-412 (built from
+#     source with --host=i686-linux-gnu so the native compiler targets i386)
 #   - /workspace  : project root mounted from the host
 #   - /root/.opam : mounted as a named Docker volume (persists between runs)
 #
-# On the first run this script sets up the full opam environment (~10 min).
+# On the first run this script sets up the full opam environment (~5 min).
 # Subsequent runs reuse the cached volume and are much faster.
 #
 # Output: /workspace/build/mopsa-32.bc
@@ -19,30 +20,26 @@ cd /workspace
 
 # ── 1. Bootstrap opam (first run only) ───────────────────────────────────────
 if [ ! -f /root/.opam/config ]; then
-    echo "=== Initialising opam (first run — this is cached in the Docker volume) ==="
+    echo "=== Initialising opam (first run — cached in Docker volume) ==="
     opam init --disable-sandboxing --bare -y
 fi
 
-# ── 2. Create bytecode-only OCaml switch (first run only) ────────────────────
-# ocaml-option-bytecode-only disables the native compiler, which avoids a
-# hard compilation error in OCaml 4.12.0's signals_nat.c on i386: the file
-# references REG_RIP (x86-64) rather than REG_EIP (i386) because Docker's
-# 32-bit container runs on a 64-bit kernel and uname -m returns x86_64.
+# ── 2. Create switch using the system OCaml (first run only) ─────────────────
+# ocaml-system uses whatever `ocaml` is in PATH, which is our custom-built
+# /opt/ocaml-412 binary.  That binary was compiled with --host=i686-linux-gnu
+# so it is a proper i386 native compiler (ocamlopt included).
 if ! opam switch list --short 2>/dev/null | grep -qx "${SWITCH}"; then
-    echo "=== Creating OCaml ${SWITCH} bytecode-only switch ==="
-    opam switch create "${SWITCH}" \
-        --packages="ocaml-variants.${SWITCH}+options,ocaml-option-bytecode-only"
+    echo "=== Creating OCaml ${SWITCH} switch (system) ==="
+    opam switch create "${SWITCH}" ocaml-system."${SWITCH}"
 fi
 
 eval "$(opam env --switch=${SWITCH})"
 
 # ── 3. Pin camlidl to the local submodule (first run only) ───────────────────
-# The opam-repository version of camlidl declares a conflict with
-# ocaml-option-bytecode-only (it expects ocamlopt to be present).
-# Our local deps/camlidl/camlidl.opam has no such constraint, and the
-# compiler/Makefile links the camlidl binary with ocamlc — so bytecode-only
-# works fine in practice.
-if ! opam show camlidl 2>/dev/null | grep -q "pinned"; then
+# The opam-repository camlidl may conflict with some switch configurations.
+# Our local deps/camlidl/camlidl.opam has no such constraints and its
+# compiler/Makefile links the camlidl binary with ocamlc, so it builds fine.
+if ! opam list --short --installed --switch="${SWITCH}" 2>/dev/null | grep -qx "camlidl"; then
     opam pin add camlidl /workspace/deps/camlidl --no-action -y
 fi
 
@@ -59,16 +56,33 @@ opam install -y --switch="${SWITCH}" \
     "qcheck-core>=0.26" \
     camlidl
 
-# ── 5. Patch and pin mopsa-analyzer ──────────────────────────────────────────
-# Copy to a writable location, then remove the `!(arch = "x86_32")` availability
-# constraint — the upstream mopsa.opam bars installation on i386, but we only
-# need the bytecode output so the constraint is not applicable here.
+# ── 5. Build and install mopsa-analyzer ──────────────────────────────────────
+# We bypass `opam install mopsa` entirely: the mopsa Makefile calls
+# `opam exec -- dune build` which fails inside a nested `opam install` context
+# (opam lock contention).  Building directly with dune works fine.
 rm -rf /tmp/mopsa-src
 cp -r deps/mopsa-analyzer /tmp/mopsa-src
-sed -i 's/!(arch = "x86_32") & //' /tmp/mopsa-src/mopsa.opam
+rm -f /tmp/mopsa-src/.git
 
-opam pin add mopsa /tmp/mopsa-src --no-action -y
-opam install mopsa -y --switch="${SWITCH}"
+cd /tmp/mopsa-src
+./configure
+
+# On i386 (x87 FPU), FLT_EVAL_METHOD is 2 (extended precision), not 0.
+# floats_round.c requires FLT_EVAL_METHOD == 0.
+# Adding -mfpmath=sse -msse2 forces SSE2 floating-point which gives
+# FLT_EVAL_METHOD == 0, matching the behaviour mopsa expects.
+sed -i 's/(flags -fPIC -frounding-math)/(flags -fPIC -frounding-math -mfpmath=sse -msse2)/' \
+    utils/dune
+
+opam exec -- dune build --build-dir=/tmp/mopsa-build --profile release
+
+OPAM_PREFIX="$(opam var prefix --switch=${SWITCH})"
+opam exec -- dune install \
+    --build-dir=/tmp/mopsa-build \
+    --prefix="${OPAM_PREFIX}" \
+    --profile release
+
+cd /workspace
 
 # ── 6. Build mopsa_worker.bc ─────────────────────────────────────────────────
 # --build-dir keeps artefacts in /tmp so they don't overwrite the host's
