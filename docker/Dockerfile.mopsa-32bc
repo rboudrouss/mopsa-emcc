@@ -42,7 +42,9 @@ RUN curl -fsSL \
         --prefix=/opt/ocaml-412 \
         --host=i686-linux-gnu \
         --disable-ocamltest \
-        --disable-ocamldoc \
+    && sed -i \
+        's/static char sig_alt_stack\[SIGSTKSZ\];/static char sig_alt_stack[65536];/' \
+        runtime/signals_nat.c \
     && make -j"$(nproc)" world.opt \
     && make install \
     && rm -rf /tmp/ocaml-4.12.0

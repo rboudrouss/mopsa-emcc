@@ -328,11 +328,10 @@ $(DEPS_BIN_DIR)/lib%.a: backend/wasm/stubs/empty.o | $(DEPS_BIN_DIR)
 
 mopsa-bc: $(BUILD_DIR)/mopsa.bc
 
-## For now we cp only
-$(BUILD_DIR)/mopsa.bc:
-	$(OPAM_EXEC) dune build backend/wasm/mopsa_worker.bc --profile release
-	rm -f $(BUILD_DIR)/mopsa.bc
-	cp _build/default/backend/wasm/mopsa_worker.bc $(BUILD_DIR)/mopsa.bc
+# mopsa.bc is now the 32-bit bytecode produced by the Docker build so that
+# integer widths match the wasm32 OCaml runtime (31-bit ints, not 63-bit).
+$(BUILD_DIR)/mopsa.bc: $(BUILD_DIR)/mopsa-32.bc
+	cp $(BUILD_DIR)/mopsa-32.bc $(BUILD_DIR)/mopsa.bc
 
 # 32-bit bytecode via Docker (for wasm32 targets where int width matters)
 # Uses a linux/386 container so the OCaml runtime compiles with 31-bit ints.
