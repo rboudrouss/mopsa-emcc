@@ -27,7 +27,7 @@ DEPS_BIN_DIR := $(BUILD_DIR)/deps
 LLVM_WASM_SRC     := $(DEPS_DIR)/llvm-project-wasm
 LLVM_NATIVE_BUILD := $(LLVM_WASM_SRC)/build-native
 LLVM_WASM_BUILD   := $(LLVM_WASM_SRC)/build-wasm
-EMSDK_TOOLCHAIN   := /home/rboud/Documents/emsdk/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake
+EMSDK_TOOLCHAIN   := /opt/emsdk/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake
 CLANG_TO_ML_SRC   := $(DEPS_DIR)/mopsa-analyzer/parsers/c/lib/parser/Clang_to_ml.cc
 
 EMCC := emcc
@@ -40,6 +40,8 @@ NPM := pnpm
 DOCKER := docker
 DOCKER_IMAGE_32BC := mopsa-emcc-32bc
 
+FRONTEND_DIR := $(CURDIR)/frontend
+
 NPROC := $(shell nproc 2>/dev/null || echo 1)
 
 OCAML_STDLIB := $(DEPS_DIR)/ocaml-wasm/runtime
@@ -49,7 +51,7 @@ CC=gcc-11
 CCX=g++-11
 
 # Phony targets
-.PHONY: all final final-node deps gmp mpfr camlidl gmp_caml zarith apron apron_caml \
+.PHONY: all final final-node final-web deps gmp mpfr camlidl gmp_caml zarith apron apron_caml \
         mopsa_floats stubs libcamlrun prims mopsa-bc \
         llvm-tblgen clang-wasm clang_to_ml clang-resource-headers \
         docker-image-32bc mopsa-bc-32 \
@@ -391,6 +393,38 @@ final-node: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o
 	-s ASSERTIONS=2 \
 	-s ERROR_ON_UNDEFINED_SYMBOLS=1 \
 	$(BUILD_DIR)/prims.o $(BUILD_DIR)/libcamlrun.a
+
+# Build WASM module + React frontend, output to dist/web/
+# Requires: make deps && make mopsa-bc (builds the OCaml bytecode via Docker)
+#
+# MODULARIZE exposes createMopsaModule() so the JS wrapper (mopsa_api.js)
+# can create a fresh WASM instance per analysis.  This avoids Asyncify which
+# is incompatible with OCaml's setjmp/longjmp-based exception mechanism.
+#
+# The mopsa share directory is preloaded at /share/mopsa so C/Python stubs
+# are available to Mopsa inside the virtual filesystem.
+final-web: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o deps | $(DIST_DIR)
+	$(EMCC) -Wall -g -O0 -fno-strict-aliasing -fwrapv \
+	-ffunction-sections -o $(DIST_DIR)/ocamlrun.js \
+	-s ENVIRONMENT='web' \
+	-s MODULARIZE=1 \
+	-s EXPORT_NAME='createMopsaModule' \
+	--preload-file $(BUILD_DIR)/mopsa.bc@/build/mopsa.bc \
+	--preload-file $(INSTALL_DIR)/lib/clang/9.0.1/include@/clang-headers \
+	--preload-file $(DEPS_DIR)/mopsa-analyzer/share/mopsa@/share/mopsa \
+	-s EXPORTED_RUNTIME_METHODS="['FS']" \
+	--pre-js backend/wasm/pre.js --post-js backend/wasm/post.js -L$(LIBS_DIR) \
+	$(DEPS_BIN_DIR)/*.a $(LIBS_DIR)/*.a \
+	-s ALLOW_MEMORY_GROWTH=1 -s INITIAL_MEMORY=128MB -s STACK_SIZE=5MB \
+	-s ASSERTIONS=0 \
+	-s ERROR_ON_UNDEFINED_SYMBOLS=1 \
+	$(BUILD_DIR)/prims.o $(BUILD_DIR)/libcamlrun.a
+	cp $(DIST_DIR)/ocamlrun.js   $(FRONTEND_DIR)/public/
+	cp $(DIST_DIR)/ocamlrun.wasm $(FRONTEND_DIR)/public/
+	cp $(DIST_DIR)/ocamlrun.data $(FRONTEND_DIR)/public/
+	cp backend/wasm/mopsa_api.js $(FRONTEND_DIR)/public/
+	cd $(FRONTEND_DIR) && $(NPM) install && $(NPM) exec vite build -- --outDir $(DIST_DIR)/web
+	@echo "Web app ready in $(DIST_DIR)/web/"
 
 # Clean
 clean: clean-mopsa clean-ocaml clean-project clean-gmp clean-mpfr clean-apron clean-llvm
