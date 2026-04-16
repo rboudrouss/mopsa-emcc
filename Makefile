@@ -423,8 +423,7 @@ final-web: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o 
 	cp $(DIST_DIR)/ocamlrun.wasm $(FRONTEND_DIR)/public/
 	cp $(DIST_DIR)/ocamlrun.data $(FRONTEND_DIR)/public/
 	cp backend/wasm/mopsa_api.js $(FRONTEND_DIR)/public/
-	cd $(FRONTEND_DIR) && $(NPM) install && $(NPM) exec vite build -- --outDir $(DIST_DIR)/web
-	@echo "Web app ready in $(DIST_DIR)/web/"
+	cd $(FRONTEND_DIR) && $(NPM) install && $(NPM) exec vite build
 
 # Clean
 clean: clean-mopsa clean-ocaml clean-project clean-gmp clean-mpfr clean-apron clean-llvm

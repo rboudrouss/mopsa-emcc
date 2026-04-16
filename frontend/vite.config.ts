@@ -4,6 +4,9 @@ import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 import tailwindcss from "@tailwindcss/vite";
 
+const isProd = process.env.NODE_ENV === "production";
+const enablePWA = process.env.VITE_PWA === "true" || isProd;
+
 export default defineConfig({
   build: {
     rollupOptions: {
@@ -22,11 +25,8 @@ export default defineConfig({
     },
   },
   plugins: [
-    VitePWA({
+    enablePWA && VitePWA({
       registerType: "autoUpdate",
-      devOptions: {
-        enabled: process.env.NODE_ENV === "development",
-      },
       workbox: {
         maximumFileSizeToCacheInBytes: 500000000,
       },
