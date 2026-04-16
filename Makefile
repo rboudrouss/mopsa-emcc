@@ -64,7 +64,7 @@ libcamlrun: $(BUILD_DIR)/libcamlrun.a
 
 $(BUILD_DIR)/libcamlrun.a: | $(BUILD_DIR)
 	cd $(DEPS_DIR)/ocaml-wasm
-	CFLAGS="$(CFLAGS)" $(EMCONFIGURE) ./configure --disable-native-compiler --disable-ocamltest --disable-ocamldoc --disable-systhreads --disable-naked-pointers
+	CFLAGS="$(CFLAGS)" $(EMCONFIGURE) ./configure --disable-native-compiler --disable-ocamltest --disable-ocamldoc --disable-systhreads
 	# Patch s.h to disable features not supported by Emscripten
 	sed -i 's/^#define HAS_SOCKETS.*$$/\/* #undef HAS_SOCKETS - disabled for Emscripten *\//' runtime/caml/s.h
 	sed -i 's/^#define HAS_GETHOSTBYNAME_R.*$$/\/* #undef HAS_GETHOSTBYNAME_R - disabled for Emscripten *\//' runtime/caml/s.h
