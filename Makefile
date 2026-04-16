@@ -2,6 +2,7 @@
 # Ocaml 4.12.0
 # with mopsa pinned at deps/mopsa-analyzer
 # Docker (for building 32-bit bytecode)
+# gcc-11 and g++-11 (for building old clang & ocaml versions)
 
 # Force no optimization in all sub-builds
 CFLAGS := -O0 -g
