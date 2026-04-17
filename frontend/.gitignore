@@ -32,3 +32,4 @@ dist-ssr
 # dev bins of PWA
 dev-dist
 public/ocamlrun*
+public/mopsa_api.js
