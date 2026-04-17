@@ -2,3 +2,5 @@ libs/
 _build/
 build/
 dist/
+deps/gmp-6.1.2
+deps/mpfr-4.2.2
