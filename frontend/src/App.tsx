@@ -18,7 +18,7 @@ function App() {
   const optionsRef = useRef<HTMLInputElement | null>(null);
 
   return (
-    <div style={{ height: "100%", width: "100%" }}>
+    <div style={{ height: "100%", width: "100%", display: "flex", flexDirection: "column" }}>
       <Header
         onLanguageChange={(language) => {
           let codeFilePath = MopsaJs.getCodeFilePath();
@@ -50,6 +50,7 @@ function App() {
         optionsRef={optionsRef}
       />
       <ResizablePanelGroup
+        style={{ flex: 1, minHeight: 0 }}
         direction={
           window.matchMedia("(max-width: 768px)").matches
             ? "vertical"
