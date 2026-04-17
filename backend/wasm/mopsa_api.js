@@ -60,6 +60,7 @@
           "build/mopsa.bc",
           "-config", "/config.json",
           "-share-dir", "/share/mopsa",
+          "-I", "/clang-headers",
         ].concat(options || []).concat([codeFile]);
 
         createMopsaModule({

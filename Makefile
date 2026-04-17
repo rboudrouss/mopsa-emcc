@@ -371,7 +371,7 @@ final: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o deps
 	$(EMCC) -Wall -g -O0 -fno-strict-aliasing -fwrapv \
 	-ffunction-sections -o $(DIST_DIR)/ocamlrun.html \
 	-s ENVIRONMENT='web' --preload-file $(BUILD_DIR)/mopsa.bc \
-	--preload-file $(INSTALL_DIR)/lib/clang/9.0.1/include@/clang-headers \
+	--preload-file $(INSTALL_DIR)/lib/clang/9.0.1/include@/clang-headers/include \
 	-s EXPORTED_RUNTIME_METHODS="['ccall', 'cwrap', 'FS', 'run','callMain']" \
 	--pre-js backend/wasm/pre.js --post-js backend/wasm/post.js -L$(LIBS_DIR) \
 	$(DEPS_BIN_DIR)/*.a $(LIBS_DIR)/*.a \
@@ -385,7 +385,7 @@ final-node: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o
 	$(EMCC) -Wall -g -O0 -fno-strict-aliasing -fwrapv \
 	-ffunction-sections -o $(DIST_DIR)/ocamlrun.js \
 	-s ENVIRONMENT='node' --preload-file $(BUILD_DIR)/mopsa.bc@mopsa.bc \
-	--preload-file $(INSTALL_DIR)/lib/clang/9.0.1/include@/clang-headers \
+	--preload-file $(INSTALL_DIR)/lib/clang/9.0.1/include@/clang-headers/include \
 	-s EXPORTED_RUNTIME_METHODS="['ccall', 'cwrap', 'FS', 'run','callMain']" \
 	--post-js backend/wasm/post.js -L$(LIBS_DIR) \
 	$(DEPS_BIN_DIR)/*.a $(LIBS_DIR)/*.a \
@@ -410,7 +410,7 @@ final-web: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o 
 	-s MODULARIZE=1 \
 	-s EXPORT_NAME='createMopsaModule' \
 	--preload-file $(BUILD_DIR)/mopsa.bc@/build/mopsa.bc \
-	--preload-file $(INSTALL_DIR)/lib/clang/9.0.1/include@/clang-headers \
+	--preload-file $(INSTALL_DIR)/lib/clang/9.0.1/include@/clang-headers/include \
 	--preload-file $(DEPS_DIR)/mopsa-analyzer/share/mopsa@/share/mopsa \
 	-s EXPORTED_RUNTIME_METHODS="['FS']" \
 	--pre-js backend/wasm/pre.js --post-js backend/wasm/post.js -L$(LIBS_DIR) \
