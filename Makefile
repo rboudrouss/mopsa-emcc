@@ -4,11 +4,10 @@
 # Docker (for building 32-bit bytecode)
 # gcc-11 and g++-11 (for building old clang & ocaml versions)
 
-# Force no optimization in all sub-builds
-CFLAGS := -O0 -g
-CXXFLAGS := -O0 -g
-CFLAGS_FOR_BUILD := -O0
-CXXFLAGS_FOR_BUILD := -O0 -g
+CFLAGS := -Oz -DNDEBUG
+CXXFLAGS := -Oz -DNDEBUG
+CFLAGS_FOR_BUILD := -O2
+CXXFLAGS_FOR_BUILD := -O2
 
 EMCC_FLAGS := $(CFLAGS) -fno-strict-aliasing -fwrapv
 COMP_FLAGS := -fno-common -D_FILE_OFFSET_BITS=64
@@ -124,9 +123,9 @@ $(LIBS_DIR)/libmpfr.a: $(DEPS_DIR)/mpfr-4.2.2/configure $(LIBS_DIR)/libgmp.a | $
 camlidl: $(LIBS_DIR)/libcamlidl.a
 
 $(LIBS_DIR)/libcamlidl.a: $(DEPS_DIR)/camlidl/runtime/idlalloc.c | $(INSTALL_DIR)
-	$(EMCC) -fno-strict-aliasing -fwrapv -D_FILE_OFFSET_BITS=64 -D_REENTRANT -c -I$(OCAML_STDLIB) $(DEPS_DIR)/camlidl/runtime/idlalloc.c -o $(BUILD_DIR)/idlalloc.o
-	$(EMCC) -fno-strict-aliasing -fwrapv -D_FILE_OFFSET_BITS=64 -D_REENTRANT -c -I$(OCAML_STDLIB) $(DEPS_DIR)/camlidl/runtime/comintf.c -o $(BUILD_DIR)/comintf.o
-	$(EMCC) -fno-strict-aliasing -fwrapv -D_FILE_OFFSET_BITS=64 -D_REENTRANT -c -I$(OCAML_STDLIB) $(DEPS_DIR)/camlidl/runtime/comerror.c -o $(BUILD_DIR)/comerror.o
+	$(EMCC) $(EMCC_FLAGS) -D_FILE_OFFSET_BITS=64 -D_REENTRANT -c -I$(OCAML_STDLIB) $(DEPS_DIR)/camlidl/runtime/idlalloc.c -o $(BUILD_DIR)/idlalloc.o
+	$(EMCC) $(EMCC_FLAGS) -D_FILE_OFFSET_BITS=64 -D_REENTRANT -c -I$(OCAML_STDLIB) $(DEPS_DIR)/camlidl/runtime/comintf.c -o $(BUILD_DIR)/comintf.o
+	$(EMCC) $(EMCC_FLAGS) -D_FILE_OFFSET_BITS=64 -D_REENTRANT -c -I$(OCAML_STDLIB) $(DEPS_DIR)/camlidl/runtime/comerror.c -o $(BUILD_DIR)/comerror.o
 	$(EMAR) rcs $(LIBS_DIR)/libcamlidl.a $(BUILD_DIR)/idlalloc.o $(BUILD_DIR)/comintf.o $(BUILD_DIR)/comerror.o
 	mkdir -p $(INSTALL_DIR)/include/caml
 	cp $(DEPS_DIR)/camlidl/runtime/camlidlruntime.h $(INSTALL_DIR)/include/caml
@@ -368,7 +367,7 @@ clean-docker-32bc:
 
 # Build final binary
 final: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o deps | $(DIST_DIR)
-	$(EMCC) -Wall -g -O0 -fno-strict-aliasing -fwrapv \
+	$(EMCC) -Wall -Oz -fno-strict-aliasing -fwrapv \
 	-ffunction-sections -o $(DIST_DIR)/ocamlrun.html \
 	-s ENVIRONMENT='web' --preload-file $(BUILD_DIR)/mopsa.bc \
 	--preload-file $(INSTALL_DIR)/lib/clang/9.0.1/include@/clang-headers/include \
@@ -382,7 +381,7 @@ final: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o deps
 
 # Build final binary for Node.js (run as: node ocamlrun.js mopsa.bc)
 final-node: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o deps | $(DIST_DIR)
-	$(EMCC) -Wall -g -O0 -fno-strict-aliasing -fwrapv \
+	$(EMCC) -Wall -Oz -fno-strict-aliasing -fwrapv \
 	-ffunction-sections -o $(DIST_DIR)/ocamlrun.js \
 	-s ENVIRONMENT='node' --preload-file $(BUILD_DIR)/mopsa.bc@mopsa.bc \
 	--preload-file $(INSTALL_DIR)/lib/clang/9.0.1/include@/clang-headers/include \
@@ -404,7 +403,7 @@ final-node: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o
 # The mopsa share directory is preloaded at /share/mopsa so C/Python stubs
 # are available to Mopsa inside the virtual filesystem.
 final-web: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o deps | $(DIST_DIR)
-	$(EMCC) -Wall -g -O0 -fno-strict-aliasing -fwrapv \
+	$(EMCC) -Wall -Oz -fno-strict-aliasing -fwrapv \
 	-ffunction-sections -o $(DIST_DIR)/ocamlrun.js \
 	-s ENVIRONMENT='web' \
 	-s MODULARIZE=1 \
