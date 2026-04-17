@@ -78,8 +78,6 @@
             if (dir && dir !== "/") {
               try { M.FS.mkdirTree(dir); } catch (_) {}
             }
-            M.FS.writeFile(codeFile, code);
-
             // Write any extra files the user created via writeFile
             Object.keys(_extraFiles).forEach(function (path) {
               var d = path.substring(0, path.lastIndexOf("/"));
@@ -88,6 +86,8 @@
               }
               M.FS.writeFile(path, _extraFiles[path]);
             });
+
+            M.FS.writeFile(codeFile, code);
           }],
         })
           .then(function () { resolve(output); })
