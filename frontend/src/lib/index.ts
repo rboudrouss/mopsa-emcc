@@ -11,15 +11,13 @@ export const supportedLanguages = ["universal", "c", "python"] as const;
 export type SupportedLanguage = (typeof supportedLanguages)[number];
 
 export function handleCustomLanguage(
-  lang: SupportedLanguage
+  lang: SupportedLanguage,
 ): SupportedLanguage {
   if (lang === "universal") return "c";
   return lang;
 }
 
-export function getFileExtensionFromLangage(
-  lang: SupportedLanguage
-): string {
+export function getFileExtensionFromLangage(lang: SupportedLanguage): string {
   switch (lang) {
     case "c":
       return "c";
@@ -32,9 +30,7 @@ export function getFileExtensionFromLangage(
   }
 }
 
-export function getLanguageFromFileExtension(
-  ext: string
-): SupportedLanguage {
+export function getLanguageFromFileExtension(ext: string): SupportedLanguage {
   switch (ext) {
     case "c":
       return "c";
@@ -49,22 +45,22 @@ export function getLanguageFromFileExtension(
 
 export function changeFileExtension(
   filename: string,
-  lang: SupportedLanguage
+  lang: SupportedLanguage,
 ): string {
   const ext = getFileExtensionFromLangage(lang);
-  return filename.includes('.') ? filename.replace(/\.[^/.]+$/, `.${ext}`) : `${filename}.${ext}`;
+  return filename.includes(".")
+    ? filename.replace(/\.[^/.]+$/, `.${ext}`)
+    : `${filename}.${ext}`;
 }
 
-export function filesToFileItemList(
-  files: string[]
-): FileItem[] {
+export function filesToFileItemList(files: string[]): FileItem[] {
   return files.map((file) => {
     return {
       id: file,
       name: file.replace(/.*\//, ""),
       type: "file",
       children: [],
-    }
+    };
   });
 }
 

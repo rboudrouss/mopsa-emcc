@@ -45,7 +45,7 @@ export function FileExplorer({
   moveFile,
 }: FileExplorerProps) {
   const [fileStructure, setFileStructure] = React.useState<FileItem[]>(
-    initialData || []
+    initialData || [],
   );
   const [selectedItem, setSelectedItem] = React.useState<string | null>(null);
   const [draggedItem, setDraggedItem] = React.useState<FileItem | null>(null);
@@ -113,7 +113,7 @@ export function FileExplorer({
   const findParentById = (
     items: FileItem[],
     id: string,
-    parent: { items: FileItem[]; path: string } | null = null
+    parent: { items: FileItem[]; path: string } | null = null,
   ): { items: FileItem[]; path: string } | null => {
     for (const item of items) {
       if (item.id === id) return parent;
@@ -133,7 +133,7 @@ export function FileExplorer({
   const getItemPath = (
     items: FileItem[],
     id: string,
-    currentPath = ""
+    currentPath = "",
   ): string | null => {
     for (const item of items) {
       const itemPath = currentPath ? `${currentPath}/${item.name}` : item.name;
@@ -149,7 +149,7 @@ export function FileExplorer({
   // Update file structure (deep clone and modify)
   const updateFileStructure = (
     items: FileItem[],
-    updateFn: (items: FileItem[]) => FileItem[]
+    updateFn: (items: FileItem[]) => FileItem[],
   ): FileItem[] => {
     const newItems = JSON.parse(JSON.stringify(items));
     return updateFn(newItems);
@@ -207,7 +207,7 @@ export function FileExplorer({
         };
         addToTarget(items);
         return items;
-      })
+      }),
     );
   };
 
@@ -260,7 +260,7 @@ export function FileExplorer({
           };
           addToParent(items);
           return items;
-        })
+        }),
       );
     } else {
       // Add to root
@@ -290,7 +290,7 @@ export function FileExplorer({
                 let path = getItemPath(fileStructure, renameItem.id) || "";
                 moveFile?.(
                   path,
-                  path.replace(/[^/]+$/, renameItem.name.trim())
+                  path.replace(/[^/]+$/, renameItem.name.trim()),
                 );
               }
 
@@ -305,7 +305,7 @@ export function FileExplorer({
         };
         rename(items);
         return items;
-      })
+      }),
     );
 
     setRenameItem({
@@ -336,7 +336,7 @@ export function FileExplorer({
         };
         deleteFromItems(items);
         return items;
-      })
+      }),
     );
   };
 
@@ -389,7 +389,7 @@ export function FileExplorer({
     <div
       className={cn(
         "h-full w-full overflow-auto p-2 font-mono text-sm",
-        className
+        className,
       )}
       onContextMenu={(e) => {
         e.preventDefault();
@@ -650,7 +650,7 @@ function FileTreeItem({
           "flex items-center py-1 px-2 rounded cursor-pointer hover:bg-[#2a2d2e] transition-colors",
           isSelected && "bg-[#CCC]",
           isDropTarget && "bg-[#264f78] border border-dashed border-[#0e639c]",
-          draggedItem && draggedItem.id === item.id && "opacity-50"
+          draggedItem && draggedItem.id === item.id && "opacity-50",
         )}
         style={{ paddingLeft: `${level * 12 + 4}px` }}
         onClick={handleSelect}

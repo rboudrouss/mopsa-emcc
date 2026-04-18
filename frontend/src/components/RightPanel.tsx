@@ -11,6 +11,6 @@ export default function RightPanel({
   showConfig: boolean;
   setLang: (lang: SupportedLanguage) => void;
 }) {
-  if (showConfig) return <ConfigEditor setLang={setLang}/>;
+  if (showConfig) return <ConfigEditor setLang={setLang} />;
   return <MopsaOutput output={output} />;
 }

@@ -44,7 +44,7 @@
   --sidebar-ring: oklch(0.707 0.022 261.325);
 }
 
-*{
+* {
   box-sizing: border-box;
   padding: 0;
   margin: 0;

@@ -1,5 +1,9 @@
 import { useRef, useState } from "react";
-import { changeFileExtension, parseCommandLineOptions, SupportedLanguage } from "./lib";
+import {
+  changeFileExtension,
+  parseCommandLineOptions,
+  SupportedLanguage,
+} from "./lib";
 import Header from "./components/Header";
 import MopsaJs from "./lib/mopsaJs";
 import RightPanel from "./components/RightPanel";
@@ -18,20 +22,27 @@ function App() {
   const optionsRef = useRef<HTMLInputElement | null>(null);
 
   return (
-    <div style={{ height: "100%", width: "100%", display: "flex", flexDirection: "column" }}>
+    <div
+      style={{
+        height: "100%",
+        width: "100%",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
       <Header
         onLanguageChange={(language) => {
           let codeFilePath = MopsaJs.getCodeFilePath();
           let destination = changeFileExtension(codeFilePath, language);
           MopsaJs.moveFile(
             codeFilePath,
-            changeFileExtension(codeFilePath, language)
-          )
+            changeFileExtension(codeFilePath, language),
+          );
           MopsaJs.changeCodeFilePath(destination);
 
           setLang(language);
           setOutput(
-            "Please note that changing the language resets the config."
+            "Please note that changing the language resets the config.",
           );
         }}
         onRunClick={async () => {

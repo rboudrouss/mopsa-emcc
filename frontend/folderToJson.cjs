@@ -24,10 +24,10 @@ function folderToJson(folderPath) {
       result[item] = folderToJson(itemPath);
     } else {
       try {
-        const content = fs.readFileSync(itemPath, 'utf8');
+        const content = fs.readFileSync(itemPath, "utf8");
         result[item] = content;
       } catch (error) {
-        result[item] = 'Unable to read file content (possibly binary file)';
+        result[item] = "Unable to read file content (possibly binary file)";
       }
     }
   }

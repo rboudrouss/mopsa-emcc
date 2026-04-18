@@ -14,7 +14,7 @@ export default function ConfigEditor({
   setLang: (lang: SupportedLanguage) => void;
 }) {
   const [value, setValue] = useState<string | undefined>(
-    MopsaJs.getConfig() || mopsaJs.configUni
+    MopsaJs.getConfig() || mopsaJs.configUni,
   );
 
   const [showPannel, setShowPannel] = useState<boolean>(false);
@@ -22,7 +22,11 @@ export default function ConfigEditor({
 
   return (
     <ResizablePanelGroup direction="horizontal">
-      <ResizablePanel defaultSize={showPannel ? 80 : 100} order={0} id="config-editor">
+      <ResizablePanel
+        defaultSize={showPannel ? 80 : 100}
+        order={0}
+        id="config-editor"
+      >
         <button
           style={{
             position: "fixed",
@@ -90,7 +94,7 @@ export default function ConfigEditor({
                     </p>
                   ))}
                 </div>
-              )
+              ),
             )}
             <div style={{ height: "150px" }}></div>
           </div>

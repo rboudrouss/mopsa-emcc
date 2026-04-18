@@ -10,9 +10,9 @@ const defaultCode = `int main() { return 0; }\n`;
 (window as any).shareData = share;
 
 const defaultConfigs = {
-  c:         getShares()["configs"]["c"]["default.json"],
-  python:    getShares()["configs"]["python"]["default.json"],
-  cfg:       getShares()["configs"]["cfg"]["default.json"],
+  c: getShares()["configs"]["c"]["default.json"],
+  python: getShares()["configs"]["python"]["default.json"],
+  cfg: getShares()["configs"]["cfg"]["default.json"],
   universal: getShares()["configs"]["universal"]["default.json"],
 };
 
@@ -29,7 +29,7 @@ function getCode() {
     return mopsaJs.getCode();
   } catch (e) {
     console.log(
-      "[FRONTEND] mopsaJs.getCode() failed, falling back to default code."
+      "[FRONTEND] mopsaJs.getCode() failed, falling back to default code.",
     );
     mopsaJs.setCode(defaultCode);
     return defaultCode;
@@ -41,7 +41,7 @@ function getConfig() {
     return mopsaJs.getConfig();
   } catch (e) {
     console.log(
-      "[FRONTEND] mopsaJs.getConfig() failed, falling back to universal config."
+      "[FRONTEND] mopsaJs.getConfig() failed, falling back to universal config.",
     );
     mopsaJs.setConfig(defaultConfigs.universal);
     return defaultConfigs.universal;
@@ -57,7 +57,7 @@ async function analyze(options: string[]): Promise<string> {
 async function analyzeParams(
   options: string[],
   code: string,
-  config: string
+  config: string,
 ): Promise<string> {
   setCode(code);
   setConfig(config);
@@ -82,7 +82,7 @@ function listDir(dir: string) {
   try {
     const out = mopsaJs.listDir(dir);
     return (out.slice(1) as string[]).filter(
-      (s) => s !== "dev" && s !== "config.json"
+      (s) => s !== "dev" && s !== "config.json",
     );
   } catch (e) {
     console.log("[FRONTEND] mopsaJs.listDir() failed, returning [].");
