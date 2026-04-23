@@ -424,7 +424,8 @@ final-web: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o 
 	cp $(DIST_DIR)/ocamlrun.js   $(FRONTEND_DIR)/public/
 	cp $(DIST_DIR)/ocamlrun.wasm $(FRONTEND_DIR)/public/
 	cp $(DIST_DIR)/ocamlrun.data $(FRONTEND_DIR)/public/
-	cp backend/wasm/mopsa_api.js $(FRONTEND_DIR)/public/
+	cp backend/wasm/mopsa_api.js    $(FRONTEND_DIR)/public/
+	cp backend/wasm/mopsa_worker.js $(FRONTEND_DIR)/public/
 	cd $(FRONTEND_DIR) && $(NPM) install && $(NPM) exec vite build
 
 # Clean

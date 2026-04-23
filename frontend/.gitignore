@@ -33,3 +33,4 @@ dist-ssr
 dev-dist
 public/ocamlrun*
 public/mopsa_api.js
+public/mopsa_worker.js
