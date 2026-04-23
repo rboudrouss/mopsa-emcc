@@ -85,6 +85,7 @@
           "-config", "/config.json",
           "-share-dir", "/share/mopsa",
           "-I", "/clang-headers",
+          "-I", "/usr/include",
         ].concat(options || []).concat([codeFile]);
 
         Promise.all([_wasmModulePromise, _dataBufferPromise]).then(function (results) {

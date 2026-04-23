@@ -27,6 +27,7 @@ LLVM_WASM_SRC     := $(DEPS_DIR)/llvm-project-wasm
 LLVM_NATIVE_BUILD := $(LLVM_WASM_SRC)/build-native
 LLVM_WASM_BUILD   := $(LLVM_WASM_SRC)/build-wasm
 EMSDK_TOOLCHAIN   := /opt/emsdk/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake
+EMSDK_SYSROOT     := /opt/emsdk/upstream/emscripten/cache/sysroot
 CLANG_TO_ML_SRC   := $(DEPS_DIR)/mopsa-analyzer/parsers/c/lib/parser/Clang_to_ml.cc
 
 EMCC := emcc
@@ -410,6 +411,8 @@ final-web: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o 
 	-s EXPORT_NAME='createMopsaModule' \
 	--preload-file $(BUILD_DIR)/mopsa.bc@/build/mopsa.bc \
 	--preload-file $(INSTALL_DIR)/lib/clang/9.0.1/include@/clang-headers/include \
+	--preload-file $(EMSDK_SYSROOT)/include@/usr/include \
+	--exclude-file "$(EMSDK_SYSROOT)/include/c++" \
 	--preload-file $(DEPS_DIR)/mopsa-analyzer/share/mopsa@/share/mopsa \
 	-s EXPORTED_RUNTIME_METHODS="['FS']" \
 	--pre-js backend/wasm/pre.js --post-js backend/wasm/post.js -L$(LIBS_DIR) \
