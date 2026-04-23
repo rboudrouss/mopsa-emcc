@@ -17,8 +17,6 @@ declare global {
     getCode: () => string;
     getConfig: () => string;
     listDir: (dir: string) => [number, ...string[]];
-    changeCodeFilePath: (codeFilePath: string) => void;
-    getCodeFilePath: () => [number, string];
     deleteFile: (filename: string) => void;
   };
 

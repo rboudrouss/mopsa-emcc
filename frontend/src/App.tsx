@@ -1,6 +1,5 @@
 import { useRef, useState } from "react";
 import {
-  changeFileExtension,
   parseCommandLineOptions,
   SupportedLanguage,
 } from "./lib";
@@ -32,14 +31,6 @@ function App() {
     >
       <Header
         onLanguageChange={(language) => {
-          let codeFilePath = MopsaJs.getCodeFilePath();
-          let destination = changeFileExtension(codeFilePath, language);
-          MopsaJs.moveFile(
-            codeFilePath,
-            changeFileExtension(codeFilePath, language),
-          );
-          MopsaJs.changeCodeFilePath(destination);
-
           setLang(language);
           setOutput(
             "Please note that changing the language resets the config.",

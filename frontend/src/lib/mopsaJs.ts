@@ -68,12 +68,6 @@ function getShares() {
   return share as shareData;
 }
 
-function moveFile(filename: string, destination: string) {
-  const content = mopsaJs.readFile(filename);
-  mopsaJs.writeFile(destination, content);
-  mopsaJs.deleteFile(filename);
-}
-
 function listDir(dir: string) {
   // Ensure default files exist before listing (same as JSOO behaviour).
   MopsaJs.getCode();
@@ -88,15 +82,6 @@ function listDir(dir: string) {
     console.log("[FRONTEND] mopsaJs.listDir() failed, returning [].");
     return [];
   }
-}
-
-function getCodeFilePath() {
-  return mopsaJs.getCodeFilePath()[1];
-}
-
-function changeCodeFilePath(codeFilePath: string) {
-  if (!codeFilePath.startsWith("/")) codeFilePath = "/" + codeFilePath;
-  mopsaJs.changeCodeFilePath(codeFilePath);
 }
 
 function writeFile(filename: string, content: string) {
@@ -115,9 +100,6 @@ function deleteFile(filename: string) {
 }
 
 const MopsaJs = {
-  changeCodeFilePath,
-  getCodeFilePath,
-  moveFile,
   listDir,
   setConfig,
   analyze,

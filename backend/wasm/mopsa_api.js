@@ -54,7 +54,7 @@
     '"universal.numeric.collecting"]}}';
 
   // ── Mutable state ────────────────────────────────────────────────────────
-  var _codeFile  = "/code.u";
+  var _codeFile  = "/code.c";
   var _code      = "int main() { return 0; }\n";    // default Universal snippet
   var _config    = CONFIG_UNI;
   var _extraFiles = {};                // path → content for any extra files
