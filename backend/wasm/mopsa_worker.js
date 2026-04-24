@@ -48,13 +48,15 @@ self.onmessage = function (event) {
 
   var output = "";
 
+  var isHelp = options.indexOf("-help") !== -1;
+
   var args = [
     "build/mopsa.bc",
-    "-config", "/config.json",
+  ].concat(isHelp ? [] : ["-config", "/config.json"]).concat([
     "-share-dir", "/share/mopsa",
     "-I", "/clang-headers",
     "-I", "/usr/include",
-  ].concat(options).concat([codeFile]);
+  ]).concat(options).concat(isHelp ? [] : [codeFile]);
 
   Promise.all([_wasmModulePromise, _dataBufferPromise]).then(function (results) {
     var wasmModule = results[0];
