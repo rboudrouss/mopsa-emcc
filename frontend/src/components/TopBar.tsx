@@ -73,7 +73,7 @@ export function TopBar({ isAnalyzing, onRunClick, resolvedTheme, onThemeToggle, 
             letterSpacing: '-0.01em',
           }}
         >
-          mopsa
+          MOPSA
         </span>
       </div>
 
