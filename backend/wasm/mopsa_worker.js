@@ -113,7 +113,7 @@ self.onmessage = function (event) {
       })
       .catch(function (e) {
         if (e && typeof e === "object" && "status" in e) {
-          // Normal OCaml exit() — output is already captured.
+          // Normal OCaml exit() output is already captured.
           self.postMessage({ type: "result", id: id, output: output });
         } else {
           self.postMessage({

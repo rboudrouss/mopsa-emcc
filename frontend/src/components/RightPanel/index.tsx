@@ -39,7 +39,7 @@ export function RightPanel() {
             gap: 4,
           }}
         >
-          <span style={{ fontWeight: 600 }}>Analysis failed — see Raw output below</span>
+          <span style={{ fontWeight: 600 }}>Analysis failed, see Raw output below</span>
           <span style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-code, monospace)', wordBreak: 'break-word' }}>
             {analysisError}
           </span>

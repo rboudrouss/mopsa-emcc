@@ -40,7 +40,7 @@ export function useMonacoDecorations(
       if (c.callstack.length > 0) {
         hoverLines.push('', '**Call stack:**');
         for (const frame of c.callstack) {
-          hoverLines.push(`- \`${frame.function}\` — ${frame.range.start.file}:${frame.range.start.line}`);
+          hoverLines.push(`- \`${frame.function}\` : ${frame.range.start.file}:${frame.range.start.line}`);
         }
       }
 
@@ -66,7 +66,7 @@ export function useMonacoDecorations(
             inlineClassName: 'mopsa-callsite-span',
             isWholeLine: false,
             hoverMessage: {
-              value: `**↳ \`${frame.function}\`** — call site\n\nLeads to: **${c.title}**${c.messages ? '\n\n' + c.messages : ''}`,
+              value: `**↳ \`${frame.function}\`** : call site\n\nLeads to: **${c.title}**${c.messages ? '\n\n' + c.messages : ''}`,
               isTrusted: false,
             },
           },

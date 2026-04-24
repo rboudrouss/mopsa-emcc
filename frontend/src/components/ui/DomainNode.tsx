@@ -111,7 +111,6 @@ export function DomainNode({ node, depth = 0, label }: DomainNodeProps) {
     );
   }
 
-  // Generic object — render keys
   return (
     <div style={{ paddingLeft: indent }}>
       {Object.entries(obj).map(([key, value]) => (
