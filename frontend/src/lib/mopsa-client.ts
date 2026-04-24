@@ -1,4 +1,5 @@
-import type { AnalysisResult, ParsedOutput, SupportedLanguage } from './types';
+import type { AnalysisResult, ParsedOutput, SupportedLanguage } from "./types";
+import { SELECT_FLAGS } from "./options-schema";
 
 // ── Default code snippets per language ───────────────────────────────────────
 export const DEFAULT_CODE: Record<SupportedLanguage, string> = {
@@ -23,9 +24,9 @@ main()
 };
 
 export const FILE_EXTENSIONS: Record<SupportedLanguage, string> = {
-  c: 'c',
-  python: 'py',
-  universal: 'uni',
+  c: "c",
+  python: "py",
+  universal: "uni",
 };
 
 // ── Output parsing ────────────────────────────────────────────────────────────
@@ -43,9 +44,9 @@ export function parseOutput(raw: string): ParsedOutput | null {
 export function parseConfigText(text: string): unknown | null {
   try {
     // Strip // line comments
-    let cleaned = text.replace(/\/\/[^\n]*/g, '');
+    let cleaned = text.replace(/\/\/[^\n]*/g, "");
     // Strip trailing commas before } or ]
-    cleaned = cleaned.replace(/,\s*([\]}])/g, '$1');
+    cleaned = cleaned.replace(/,\s*([\]}])/g, "$1");
     return JSON.parse(cleaned);
   } catch {
     return null;
@@ -63,21 +64,22 @@ export function ansiToSpans(raw: string): AnsiSpan[] {
   const spans: AnsiSpan[] = [];
   const re = /\x1b\[(\d*)m/g;
   let lastIndex = 0;
-  let currentCls = '';
+  let currentCls = "";
 
   let match: RegExpExecArray | null;
   while ((match = re.exec(raw)) !== null) {
     if (match.index > lastIndex) {
       spans.push({ text: raw.slice(lastIndex, match.index), cls: currentCls });
     }
-    const code = parseInt(match[1] || '0', 10);
-    if (code === 0 || isNaN(code)) currentCls = '';
-    else if (code === 1) currentCls = currentCls ? currentCls + ' ansi-bold' : 'ansi-bold';
-    else if (code === 31) currentCls = 'ansi-error';
-    else if (code === 32) currentCls = 'ansi-safe';
-    else if (code === 33) currentCls = 'ansi-warn';
-    else if (code === 34 || code === 36) currentCls = 'ansi-info';
-    else if (code === 35) currentCls = 'ansi-domain';
+    const code = parseInt(match[1] || "0", 10);
+    if (code === 0 || isNaN(code)) currentCls = "";
+    else if (code === 1)
+      currentCls = currentCls ? currentCls + " ansi-bold" : "ansi-bold";
+    else if (code === 31) currentCls = "ansi-error";
+    else if (code === 32) currentCls = "ansi-safe";
+    else if (code === 33) currentCls = "ansi-warn";
+    else if (code === 34 || code === 36) currentCls = "ansi-info";
+    else if (code === 35) currentCls = "ansi-domain";
     lastIndex = re.lastIndex;
   }
   if (lastIndex < raw.length) {
@@ -91,10 +93,18 @@ export function ansiToSpans(raw: string): AnsiSpan[] {
 export function computeOptionsFlags(values: Record<string, unknown>): string[] {
   const flags: string[] = [];
   for (const [flag, value] of Object.entries(values)) {
-    if (flag === '__raw') continue;
-    if (value === false || value === '' || value === null || value === undefined) continue;
+    if (flag === "__raw") continue;
+    if (
+      value === false ||
+      value === "" ||
+      value === null ||
+      value === undefined
+    )
+      continue;
     if (value === true) {
       flags.push(flag);
+    } else if (SELECT_FLAGS.has(flag)) {
+      flags.push(`${flag}=${String(value)}`);
     } else {
       flags.push(flag, String(value));
     }
@@ -104,13 +114,24 @@ export function computeOptionsFlags(values: Record<string, unknown>): string[] {
 
 // ── Main analysis function ────────────────────────────────────────────────────
 
-export async function analyzeJson(extraOptions: string[]): Promise<AnalysisResult> {
-  const isHelp = extraOptions.includes('-help');
-  const baseOptions = isHelp ? [] : ['-format=json', '-show-safe-checks'];
-  const options = [...baseOptions, ...extraOptions];
+export async function analyzeJson(
+  extraOptions: string[],
+): Promise<AnalysisResult> {
+  let isHelp =
+    extraOptions.includes("-help") ||
+    extraOptions.includes("--help") ||
+    extraOptions.includes("-h");
+  const options = isHelp
+    ? [
+        "-help",
+        ...extraOptions.filter(
+          (o) => o !== "-help" && o !== "--help" && o !== "-h",
+        ),
+      ]
+    : [...extraOptions];
 
   const t0 = performance.now();
-  let raw = '';
+  let raw = "";
   try {
     raw = await mopsaJs.analyze(options);
   } catch (e) {
@@ -128,23 +149,23 @@ export async function analyzeJson(extraOptions: string[]): Promise<AnalysisResul
 // ── Virtual filesystem helpers ────────────────────────────────────────────────
 
 export function listFiles(): string[] {
-  const result = mopsaJs.listDir('/');
+  const result = mopsaJs.listDir("/");
   const [, ...names] = result;
-  return names.filter((n) => n !== 'dev' && n !== 'config.json');
+  return names.filter((n) => n !== "dev" && n !== "config.json");
 }
 
 export function writeFile(path: string, content: string): void {
-  const normalised = path.startsWith('/') ? path : '/' + path;
+  const normalised = path.startsWith("/") ? path : "/" + path;
   mopsaJs.writeFile(normalised, content);
 }
 
 export function readFile(path: string): string {
-  const normalised = path.startsWith('/') ? path : '/' + path;
+  const normalised = path.startsWith("/") ? path : "/" + path;
   return mopsaJs.readFile(normalised);
 }
 
 export function deleteFile(path: string): void {
-  const normalised = path.startsWith('/') ? path : '/' + path;
+  const normalised = path.startsWith("/") ? path : "/" + path;
   mopsaJs.deleteFile(normalised);
 }
 
@@ -160,9 +181,9 @@ export function setCodeFilePath(path: string): void {
 
 export function detectLanguage(configText: string): SupportedLanguage {
   const match = configText.match(/"language"\s*:\s*"(\w+)"/);
-  if (!match) return 'universal';
+  if (!match) return "universal";
   const lang = match[1];
-  if (lang === 'c') return 'c';
-  if (lang === 'python') return 'python';
-  return 'universal';
+  if (lang === "c") return "c";
+  if (lang === "python") return "python";
+  return "universal";
 }

@@ -183,6 +183,29 @@ function OptionInput({
     );
   }
 
+  if (spec.type === 'select') {
+    return (
+      <select
+        value={String(value ?? spec.default)}
+        onChange={(e) => onChange(e.target.value)}
+        style={{
+          padding: '2px 6px',
+          background: 'var(--bg-elevated)',
+          border: '1px solid var(--border)',
+          borderRadius: 4,
+          color: 'var(--text-primary)',
+          fontSize: 12,
+          fontFamily: "'JetBrains Mono', monospace",
+          cursor: 'pointer',
+        }}
+      >
+        {spec.choices?.map((c) => (
+          <option key={c} value={c}>{c}</option>
+        ))}
+      </select>
+    );
+  }
+
   // text
   return (
     <input
