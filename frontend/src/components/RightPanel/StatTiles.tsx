@@ -45,7 +45,8 @@ function Tile({ label, value, accent }: TileProps) {
 export function StatTiles({ checks, selectivity, analysisTime }: StatTilesProps) {
   const total = checks.length;
   const safe = checks.filter((c) => c.kind === 'safe').length;
-  const warnings = checks.filter((c) => c.kind === 'warning' || c.kind === 'error').length;
+  const warnings = checks.filter((c) => c.kind === 'warning').length;
+  const errors = checks.filter((c) => c.kind === 'error').length;
 
   const timeStr = analysisTime !== null ? `${analysisTime.toFixed(2)}s` : '—';
   const selStr = selectivity ?? '—';
@@ -55,6 +56,7 @@ export function StatTiles({ checks, selectivity, analysisTime }: StatTilesProps)
       <Tile label="Total" value={total} accent="#8891a8" />
       <Tile label="Safe" value={safe} accent="#4ade80" />
       <Tile label="Warnings" value={warnings} accent="#f5b544" />
+      <Tile label="Errors" value={errors} accent="#f87171" />
       <Tile label="Selectivity" value={selStr} accent="#60a5fa" />
       <Tile label="Time" value={timeStr} accent="#a78bfa" />
     </div>

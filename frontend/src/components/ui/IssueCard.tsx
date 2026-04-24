@@ -7,10 +7,18 @@ interface IssueCardProps {
   onClick?: () => void;
 }
 
+const KIND_COLOR: Record<string, { border: string; bg: string; bgHover: string }> = {
+  error:   { border: '#f87171', bg: 'rgba(248,113,113,.04)', bgHover: 'rgba(248,113,113,.08)' },
+  warning: { border: '#f5b544', bg: 'rgba(245,181,68,.04)',  bgHover: 'rgba(245,181,68,.08)' },
+  safe:    { border: '#4ade80', bg: 'rgba(74,222,128,.04)',  bgHover: 'rgba(74,222,128,.08)' },
+  info:    { border: '#60a5fa', bg: 'rgba(96,165,250,.04)',  bgHover: 'rgba(96,165,250,.08)' },
+};
+
 export function IssueCard({ check, index, onClick }: IssueCardProps) {
   const { start } = check.range;
   const filename = start.file.split('/').pop() ?? start.file;
   const location = `${filename}:${start.line}.${start.column}`;
+  const color = KIND_COLOR[check.kind] ?? KIND_COLOR.warning;
 
   return (
     <div
@@ -20,17 +28,17 @@ export function IssueCard({ check, index, onClick }: IssueCardProps) {
         alignItems: 'flex-start',
         gap: 8,
         padding: '8px 12px',
-        borderLeft: '2px solid var(--color-warn)',
-        background: 'rgba(245,181,68,.04)',
+        borderLeft: `2px solid ${color.border}`,
+        background: color.bg,
         borderRadius: '0 4px 4px 0',
         cursor: onClick ? 'pointer' : 'default',
         transition: 'background 120ms',
       }}
       onMouseEnter={(e) => {
-        if (onClick) (e.currentTarget as HTMLDivElement).style.background = 'rgba(245,181,68,.08)';
+        if (onClick) (e.currentTarget as HTMLDivElement).style.background = color.bgHover;
       }}
       onMouseLeave={(e) => {
-        (e.currentTarget as HTMLDivElement).style.background = 'rgba(245,181,68,.04)';
+        (e.currentTarget as HTMLDivElement).style.background = color.bg;
       }}
     >
       <span style={{ color: 'var(--text-muted)', fontSize: 12, flexShrink: 0, paddingTop: 1 }}>

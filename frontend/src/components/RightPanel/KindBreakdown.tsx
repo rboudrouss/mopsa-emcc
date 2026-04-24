@@ -48,14 +48,15 @@ export function KindBreakdown({ checks }: KindBreakdownProps) {
               >
                 {title}
               </span>
-              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                {counts.warn + counts.error > 0 ? (
-                  <span style={{ color: '#f5b544', fontWeight: 600 }}>
-                    ⚠{counts.warn + counts.error}
-                  </span>
-                ) : null}
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', gap: 4 }}>
+                {counts.error > 0 && (
+                  <span style={{ color: '#f87171', fontWeight: 600 }}>✕{counts.error}</span>
+                )}
+                {counts.warn > 0 && (
+                  <span style={{ color: '#f5b544', fontWeight: 600 }}>⚠{counts.warn}</span>
+                )}
                 {counts.safe > 0 && (
-                  <span style={{ color: '#4ade80', marginLeft: 4 }}>✓{counts.safe}</span>
+                  <span style={{ color: '#4ade80' }}>✓{counts.safe}</span>
                 )}
               </span>
             </div>
