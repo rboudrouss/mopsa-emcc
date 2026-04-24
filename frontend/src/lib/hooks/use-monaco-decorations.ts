@@ -66,7 +66,7 @@ export function useMonacoDecorations(
             inlineClassName: 'mopsa-callsite-span',
             isWholeLine: false,
             hoverMessage: {
-              value: `**↳ \`${frame.function}\`** : call site\n\nLeads to: **${c.title}**${c.messages ? '\n\n' + c.messages : ''}`,
+              value: `**↳ \`${frame.function}\`** : call site\n\nLeads to: **${c.title}** (line ${c.range.start.line})${c.messages ? '\n\n' + c.messages : ''}`,
               isTrusted: false,
             },
           },
