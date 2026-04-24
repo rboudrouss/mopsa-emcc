@@ -105,7 +105,8 @@ export function computeOptionsFlags(values: Record<string, unknown>): string[] {
 // ── Main analysis function ────────────────────────────────────────────────────
 
 export async function analyzeJson(extraOptions: string[]): Promise<AnalysisResult> {
-  const baseOptions = ['-format=json', '-show-safe-checks'];
+  const isHelp = extraOptions.includes('-help');
+  const baseOptions = isHelp ? [] : ['-format=json', '-show-safe-checks'];
   const options = [...baseOptions, ...extraOptions];
 
   const t0 = performance.now();
