@@ -18,6 +18,8 @@ declare global {
     getConfig: () => string;
     listDir: (dir: string) => [number, ...string[]];
     deleteFile: (filename: string) => void;
+    changeCodeFilePath: (path: string) => void;
+    getCodeFilePath: () => [0, string];
   };
 
   interface unknownFolder {
@@ -38,9 +40,8 @@ declare global {
     };
   }
 
-  // Populated at startup by mopsaJs.ts from the bundled share.json.
+  // Populated at startup by mopsa-client.ts from the bundled share.json.
   var shareData: shareData;
 }
 
 export {};
-
