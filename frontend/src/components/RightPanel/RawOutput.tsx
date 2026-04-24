@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { ansiToSpans } from '@/lib/mopsa-client';
 
 interface RawOutputProps {
@@ -5,9 +6,19 @@ interface RawOutputProps {
 }
 
 export function RawOutput({ raw }: RawOutputProps) {
+  const [copied, setCopied] = useState(false);
+
   if (!raw) return null;
 
   const spans = ansiToSpans(raw);
+
+  const handleCopy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(raw).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  };
 
   return (
     <details style={{ display: 'flex', flexDirection: 'column' }}>
@@ -29,6 +40,21 @@ export function RawOutput({ raw }: RawOutputProps) {
       >
         <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>▶</span>
         Raw Output
+        <button
+          onClick={handleCopy}
+          title="Copy raw output"
+          style={{
+            marginLeft: 'auto',
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            color: copied ? 'var(--text-accent, #4ade80)' : 'var(--text-muted)',
+            fontSize: 11,
+            padding: '0 4px',
+          }}
+        >
+          {copied ? '✓ Copied' : 'Copy'}
+        </button>
       </summary>
       <pre
         style={{
