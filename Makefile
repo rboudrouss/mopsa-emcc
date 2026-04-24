@@ -52,7 +52,7 @@ CCX=g++-11
 
 # Phony targets
 .PHONY: all final final-node final-web deps gmp mpfr camlidl gmp_caml zarith apron apron_caml \
-        mopsa_floats stubs libcamlrun prims mopsa-bc \
+        mopsa_floats libcamlrun prims mopsa-bc \
         llvm-tblgen clang-wasm clang_to_ml clang-resource-headers \
         docker-image-32bc mopsa-bc-32 \
         clean clean-project clean-ocaml clean-mopsa clean-gmp clean-mpfr clean-apron clean-llvm \
@@ -93,7 +93,6 @@ $(BUILD_DIR)/prims.o: | $(BUILD_DIR)
 	$(EMCC) $(EMCC_FLAGS) -c -I $(OCAML_STDLIB) -o $(BUILD_DIR)/prims.o $(BUILD_DIR)/prims.c
 
 # Build deps
-
 deps: gmp mpfr camlidl gmp_caml zarith apron apron_caml mopsa_floats stubs clang_to_ml
 
 gmp: $(LIBS_DIR)/libgmp.a
@@ -321,13 +320,6 @@ $(DEPS_BIN_DIR)/libmopsa_c_parser.a: $(CLANG_TO_ML_SRC) $(LLVM_WASM_BUILD)/lib/l
 	$(EMAR) rcs $@ $(BUILD_DIR)/clang_to_ml.o
 	cp $(LLVM_WASM_BUILD)/lib/libclang*.a $(DEPS_BIN_DIR)/
 	cp $(LLVM_WASM_BUILD)/lib/libLLVM*.a  $(DEPS_BIN_DIR)/
-
-STUB_LIBS := libunix.a
-
-stubs: $(addprefix $(DEPS_BIN_DIR)/,$(STUB_LIBS))
-
-$(DEPS_BIN_DIR)/lib%.a: backend/wasm/stubs/empty.o | $(DEPS_BIN_DIR)
-	$(EMAR) rcs $@ $<
 
 # Mopsa with deps
 
