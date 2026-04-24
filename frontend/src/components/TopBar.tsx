@@ -213,21 +213,5 @@ export function TopBar({ isAnalyzing, onRunClick, resolvedTheme, onThemeToggle, 
 }
 
 function MopsaLogo() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <polygon
-        points="11,2 20,7 20,15 11,20 2,15 2,7"
-        fill="none"
-        stroke="#f5b544"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-      />
-      <polygon
-        points="11,6 16,9 16,13 11,16 6,13 6,9"
-        fill="#f5b544"
-        opacity="0.25"
-      />
-      <circle cx="11" cy="11" r="2" fill="#f5b544" />
-    </svg>
-  );
+  return <img src="/mopsa.png" alt="Mopsa" width={24} height={24} style={{ objectFit: 'contain' }} />;
 }
