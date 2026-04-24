@@ -92,7 +92,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       checks: p?.checks ?? [],
       assumptions: p?.assumptions ?? [],
       selectivity: p?.selectivity ?? null,
-      analysisTime: p?.time ?? null,
+      analysisTime: r.durationMs / 1000,
       analysisSuccess: p?.success ?? null,
       analysisError: error,
     });
