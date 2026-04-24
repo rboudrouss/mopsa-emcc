@@ -24,6 +24,8 @@ export interface ParsedOutput {
   selectivity: string;
   checks: CheckItem[];
   assumptions: unknown[];
+  exception?: string;
+  backtrace?: string;
 }
 
 export interface AnalysisResult {

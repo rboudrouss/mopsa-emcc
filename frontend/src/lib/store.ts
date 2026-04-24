@@ -21,6 +21,7 @@ interface AppStore {
   selectivity: string | null;
   analysisTime: number | null;
   analysisSuccess: boolean | null;
+  analysisError: string | null;
 
   // ── Layout ───────────────────────────────────────────────────────────────
   activePanel: ActivePanel;
@@ -41,6 +42,10 @@ interface AppStore {
   resetOption: (flag: string) => void;
 }
 
+// Sync the initial code into mopsaJs so the very first analysis
+// matches what the editor displays (mopsa_api.js starts with a different default).
+mopsaJs.setCode(DEFAULT_CODE.c);
+
 export const useAppStore = create<AppStore>((set, get) => ({
   lang: 'c',
   code: DEFAULT_CODE.c,
@@ -54,6 +59,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   selectivity: null,
   analysisTime: null,
   analysisSuccess: null,
+  analysisError: null,
   activePanel: null,
   activeTab: 'source',
   optionValues: { ...DEFAULT_OPTION_VALUES },
@@ -74,13 +80,21 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   setAnalysisResult: (r) => {
+    const p = r.parsed;
+    let error: string | null = null;
+    if (!p) {
+      error = r.raw ? 'Could not parse analysis output' : null;
+    } else if (!p.success) {
+      error = p.exception ?? 'Analysis failed';
+    }
     set({
       rawOutput: r.raw,
-      checks: r.parsed?.checks ?? [],
-      assumptions: r.parsed?.assumptions ?? [],
-      selectivity: r.parsed?.selectivity ?? null,
-      analysisTime: r.parsed?.time ?? null,
-      analysisSuccess: r.parsed?.success ?? null,
+      checks: p?.checks ?? [],
+      assumptions: p?.assumptions ?? [],
+      selectivity: p?.selectivity ?? null,
+      analysisTime: p?.time ?? null,
+      analysisSuccess: p?.success ?? null,
+      analysisError: error,
     });
   },
 
@@ -108,6 +122,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
       rawOutput: '',
       selectivity: null,
       analysisTime: null,
+      analysisSuccess: null,
+      analysisError: null,
     });
   },
 

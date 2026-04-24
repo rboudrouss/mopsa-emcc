@@ -2,12 +2,14 @@ import type { AnalysisResult, ParsedOutput, SupportedLanguage } from './types';
 
 // ── Default code snippets per language ───────────────────────────────────────
 export const DEFAULT_CODE: Record<SupportedLanguage, string> = {
-  c: `#include <stdio.h>
+  c: `int divide(int a, int b) {
+  return a / b;
+}
 
 int main() {
-  int x = 42;
-  printf("Hello, Mopsa! x = %d\\n", x);
-  return 0;
+  int x = divide(10, 2);  // safe: result = 5
+  int y = divide(x, 0);   // alarm: division by zero
+  return y;
 }
 `,
   python: `def main():
