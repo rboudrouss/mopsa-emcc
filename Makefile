@@ -93,7 +93,7 @@ $(BUILD_DIR)/prims.o: | $(BUILD_DIR)
 	$(EMCC) $(EMCC_FLAGS) -c -I $(OCAML_STDLIB) -o $(BUILD_DIR)/prims.o $(BUILD_DIR)/prims.c
 
 # Build deps
-deps: gmp mpfr camlidl gmp_caml zarith apron apron_caml mopsa_floats stubs clang_to_ml
+deps: gmp mpfr camlidl gmp_caml zarith apron apron_caml mopsa_floats clang_to_ml
 
 gmp: $(LIBS_DIR)/libgmp.a
 
