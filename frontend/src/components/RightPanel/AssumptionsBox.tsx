@@ -36,9 +36,15 @@ export function AssumptionsBox({ assumptions }: AssumptionsBoxProps) {
             fontSize: 12,
             color: 'var(--text-secondary)',
             fontFamily: "'JetBrains Mono', monospace",
+            overflowWrap: 'break-word',
+            wordBreak: 'break-word',
           }}
         >
-          {typeof a === 'string' ? a : JSON.stringify(a)}
+          {typeof a === 'string'
+            ? a
+            : (a as Record<string, unknown>).message !== undefined
+              ? String((a as Record<string, unknown>).message)
+              : JSON.stringify(a)}
         </div>
       ))}
     </div>
