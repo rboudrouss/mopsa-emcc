@@ -10,6 +10,8 @@ export function RightPanel() {
   const rawOutput = useAppStore((s) => s.rawOutput);
   const selectivity = useAppStore((s) => s.selectivity);
   const analysisTime = useAppStore((s) => s.analysisTime);
+  const analysisError = useAppStore((s) => s.analysisError);
+  const analysisSuccess = useAppStore((s) => s.analysisSuccess);
 
   return (
     <div
@@ -23,8 +25,39 @@ export function RightPanel() {
         padding: 16,
       }}
     >
-      <SectionHeader title="Summary" />
-      <StatTiles checks={checks} selectivity={selectivity} analysisTime={analysisTime} />
+      {analysisError && (
+        <div
+          style={{
+            padding: '10px 12px',
+            background: 'rgba(248,113,113,.08)',
+            border: '1px solid rgba(248,113,113,.3)',
+            borderRadius: 6,
+            fontSize: 12,
+            color: '#f87171',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 4,
+          }}
+        >
+          <span style={{ fontWeight: 600 }}>Analysis failed — see Raw output below</span>
+          <span style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-code, monospace)', wordBreak: 'break-word' }}>
+            {analysisError}
+          </span>
+        </div>
+      )}
+
+      {analysisSuccess === true && (
+        <>
+          <SectionHeader title="Summary" />
+          <StatTiles checks={checks} selectivity={selectivity} analysisTime={analysisTime} />
+        </>
+      )}
+
+      {analysisSuccess === null && !rawOutput && (
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', paddingTop: 32 }}>
+          Run analysis to see results
+        </div>
+      )}
 
       {checks.length > 0 && (
         <>

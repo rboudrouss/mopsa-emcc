@@ -89,9 +89,10 @@ body {
 .ansi-bold   { font-weight: 600; }
 
 /* ── Monaco editor decorations ───────────────────────────────────────────── */
-.mopsa-warn-span  { text-decoration: underline wavy #f5b544; }
-.mopsa-error-span { text-decoration: underline wavy #f87171; }
-.mopsa-warn-line  { background: rgba(245, 181, 68, 0.07); width: 100% !important; }
+.mopsa-warn-span     { text-decoration: underline wavy #f5b544; }
+.mopsa-error-span    { text-decoration: underline wavy #f87171; }
+.mopsa-callsite-span { text-decoration: underline dotted rgba(245,181,68,0.55); }
+.mopsa-warn-line     { background: rgba(245, 181, 68, 0.07); width: 100% !important; }
 
 /* ── Sidebar slide animation ─────────────────────────────────────────────── */
 .sidebar-slide {
