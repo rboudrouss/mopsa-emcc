@@ -16,6 +16,7 @@ export function RightPanel() {
   return (
     <div
       style={{
+        height: '100%',
         background: 'var(--bg-surface)',
         borderLeft: '1px solid var(--border)',
         overflowY: 'auto',
@@ -23,6 +24,7 @@ export function RightPanel() {
         flexDirection: 'column',
         gap: 16,
         padding: 16,
+        boxSizing: 'border-box',
       }}
     >
       {analysisError && (
@@ -66,7 +68,7 @@ export function RightPanel() {
         </>
       )}
 
-      <WarningsBox warnings={warnings} />
+      {!analysisError && <WarningsBox warnings={warnings} />}
 
       <RawOutput raw={rawOutput} />
     </div>

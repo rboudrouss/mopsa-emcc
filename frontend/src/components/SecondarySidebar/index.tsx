@@ -8,20 +8,18 @@ export function SecondarySidebar() {
 
   return (
     <div
-      className="sidebar-slide"
       style={{
-        width: activePanel ? 280 : 0,
+        width: '100%',
+        height: '100%',
         background: 'var(--bg-surface)',
         borderRight: '1px solid var(--border)',
-        overflowY: activePanel ? 'auto' : 'hidden',
+        overflowY: 'auto',
+        boxSizing: 'border-box',
       }}
     >
-      {/* Inner wrapper fixed at 280px so content doesn't reflow during animation */}
-      <div style={{ width: 280, overflowY: 'auto', height: '100%' }}>
-        {activePanel === 'files' && <FilesPanel />}
-        {activePanel === 'domains' && <DomainsPanel />}
-        {activePanel === 'options' && <OptionsPanel />}
-      </div>
+      {activePanel === 'files' && <FilesPanel />}
+      {activePanel === 'domains' && <DomainsPanel />}
+      {activePanel === 'options' && <OptionsPanel />}
     </div>
   );
 }

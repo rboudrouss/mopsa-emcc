@@ -29,10 +29,12 @@ export function CenterPane({ resolvedTheme }: CenterPaneProps) {
       style={{
         display: 'flex',
         flexDirection: 'column',
+        height: '100%',
         background: 'var(--bg-base)',
         overflow: 'hidden',
         borderLeft: '1px solid var(--border)',
         borderRight: '1px solid var(--border)',
+        boxSizing: 'border-box',
       }}
     >
       {/* Tab bar */}

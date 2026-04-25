@@ -7,7 +7,14 @@ interface WarningsBoxProps {
 export function WarningsBox({ warnings }: WarningsBoxProps) {
   if (!warnings) return null;
 
-  const spans = ansiToSpans(warnings);
+  // Split into paragraphs (blank-line separated), falling back to individual lines
+  const rawBlocks = warnings.split(/\n\n+/);
+  const blocks = rawBlocks.length > 1
+    ? rawBlocks
+    : warnings.split('\n');
+
+  const nonEmptyBlocks = blocks.filter((b) => b.trim());
+  if (nonEmptyBlocks.length === 0) return null;
 
   return (
     <div
@@ -33,23 +40,31 @@ export function WarningsBox({ warnings }: WarningsBoxProps) {
       >
         Warnings
       </div>
-      <pre
-        style={{
-          margin: 0,
-          fontSize: 12,
-          fontFamily: "'JetBrains Mono', monospace",
-          whiteSpace: 'pre-wrap',
-          wordBreak: 'break-word',
-          color: 'var(--text-secondary)',
-          lineHeight: 1.6,
-        }}
-      >
-        {spans.map((span, i) => (
-          <span key={i} className={span.cls || undefined}>
-            {span.text}
-          </span>
-        ))}
-      </pre>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {nonEmptyBlocks.map((block, i) => {
+          const spans = ansiToSpans(block);
+          return (
+            <pre
+              key={i}
+              style={{
+                margin: 0,
+                fontSize: 12,
+                fontFamily: "'JetBrains Mono', monospace",
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+                color: 'var(--text-secondary)',
+                lineHeight: 1.6,
+              }}
+            >
+              {spans.map((span, j) => (
+                <span key={j} className={span.cls || undefined}>
+                  {span.text}
+                </span>
+              ))}
+            </pre>
+          );
+        })}
+      </div>
     </div>
   );
 }
