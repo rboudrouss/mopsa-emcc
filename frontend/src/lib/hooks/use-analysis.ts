@@ -45,10 +45,14 @@ export function useAnalysis() {
       if (!['c', 'h', 'u'].includes(activeExt)) return Promise.resolve({ raw: '', parsed: null, durationMs: 0 });
 
       const effectiveLang = activeExt === 'h' ? 'c' : lang;
+
+      if (effectiveLang !== 'c') {
+        return analyzeJson([...flags, activeCodePath]);
+      }
+
       const extraSourceFiles = allFiles.filter((p) => {
         if (p === activeCodePath) return false;
-        if (effectiveLang === 'c') return p.endsWith('.c') || p.endsWith('.h');
-        return p.endsWith('.u') || p.endsWith('.uni');
+        return p.endsWith('.c') || p.endsWith('.h');
       });
 
       return analyzeJson([...flags, ...extraSourceFiles, activeCodePath]);
