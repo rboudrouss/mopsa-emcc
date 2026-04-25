@@ -66,8 +66,6 @@ export function RawOutput({ raw }: RawOutputProps) {
           fontFamily: "'JetBrains Mono', monospace",
           lineHeight: 1.6,
           overflowX: 'auto',
-          overflowY: 'auto',
-          maxHeight: 400,
           color: 'var(--text-secondary)',
           whiteSpace: 'pre-wrap',
           wordBreak: 'break-all',
