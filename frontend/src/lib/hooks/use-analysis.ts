@@ -9,7 +9,7 @@ export function useAnalysis() {
   const mutation = useMutation({
     mutationFn: () => {
       // Read current state at call time to avoid stale closures
-      const { optionValues, fileTree, activeFile, lang } = useAppStore.getState();
+      const { optionValues, fileTree, activeFile, lang, crossLanguage } = useAppStore.getState();
 
       const flags = [
         ...computeOptionsFlags(optionValues),
@@ -22,6 +22,7 @@ export function useAnalysis() {
       const activeExt = activeCodePath.split('.').pop() ?? '';
       if (!['c', 'h', 'py', 'u'].includes(activeExt)) return Promise.resolve({ raw: '', parsed: null, durationMs: 0 });
 
+      const SUPPORTED_EXTS = ['c', 'h', 'py', 'uni'];
       const activeIsHeader = activeExt === 'h';
       // Treat .h as C for the purpose of choosing which siblings to include.
       const effectiveLang = activeIsHeader ? 'c' : lang;
@@ -29,6 +30,7 @@ export function useAnalysis() {
       const extraSourceFiles = getAllFilePaths(fileTree)
         .filter(({ id, path }) => {
           if (id === activeFile || '/' + path === activeCodePath) return false;
+          if (crossLanguage) return SUPPORTED_EXTS.some((e) => path.endsWith('.' + e));
           if (path.endsWith('.' + sourceExt)) return true;
           if (effectiveLang === 'c' && path.endsWith('.h')) return true;
           return false;

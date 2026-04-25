@@ -4,6 +4,9 @@ import { DEFAULT_OPTION_VALUES, OPTIONS_SCHEMA, type OptionSpec } from '@/lib/op
 import { useAppStore } from '@/lib/store';
 
 export function OptionsPanel() {
+  const crossLanguage = useAppStore((s) => s.crossLanguage);
+  const toggleCrossLanguage = useAppStore((s) => s.toggleCrossLanguage);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column' }}>
       <div
@@ -18,6 +21,60 @@ export function OptionsPanel() {
       >
         Options
       </div>
+
+      {/* Frontend-only options */}
+      <div
+        style={{
+          padding: '8px 12px 8px 16px',
+          borderLeft: crossLanguage ? '2px solid var(--color-accent)' : '2px solid transparent',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 8,
+          background: crossLanguage ? 'rgba(245,181,68,.03)' : 'transparent',
+          borderBottom: '1px solid var(--border)',
+        }}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <span style={{ fontSize: 12, color: 'var(--text-primary)', fontWeight: 500 }}>
+            Cross-language analysis
+          </span>
+          <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+            Disable file filtering passed to Mopsa to same-language only and automatic per-language configuration switching
+          </span>
+        </div>
+        <button
+          role="switch"
+          aria-checked={crossLanguage}
+          onClick={toggleCrossLanguage}
+          style={{
+            width: 32,
+            height: 18,
+            borderRadius: 9,
+            background: crossLanguage ? 'var(--color-accent)' : 'var(--bg-elevated)',
+            border: `1px solid ${crossLanguage ? 'var(--color-accent)' : 'var(--border)'}`,
+            cursor: 'pointer',
+            position: 'relative',
+            transition: 'background 150ms, border-color 150ms',
+            flexShrink: 0,
+            padding: 0,
+          }}
+        >
+          <span
+            style={{
+              position: 'absolute',
+              top: 2,
+              left: crossLanguage ? 14 : 2,
+              width: 12,
+              height: 12,
+              borderRadius: '50%',
+              background: crossLanguage ? '#0f1117' : 'var(--text-muted)',
+              transition: 'left 150ms',
+            }}
+          />
+        </button>
+      </div>
+
       {OPTIONS_SCHEMA.map((group) => (
         <OptionsGroup key={group.group} group={group.group} options={group.options} />
       ))}

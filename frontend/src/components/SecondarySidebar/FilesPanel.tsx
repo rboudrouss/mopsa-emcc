@@ -328,13 +328,6 @@ export function FilesPanel() {
   const rowHeight = 26;
   const treeHeight = Math.max(rowHeight, countAllNodes(fileTree) * rowHeight);
 
-  function getSelectedFolderId(): string | null {
-    const selected = treeRef.current?.selectedNodes[0];
-    if (!selected) return null;
-    if (selected.data.children !== undefined) return selected.id;
-    return selected.parent?.id ?? null;
-  }
-
   // parentId === undefined → let react-arborist pick based on focused node (toolbar buttons)
   // parentId === null | string → explicit parent (context menu)
   function handleNewFile(parentId?: string | null) {

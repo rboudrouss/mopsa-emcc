@@ -77,6 +77,7 @@ interface AppStore {
 
   // ── Options ──────────────────────────────────────────────────────────────
   optionValues: Record<string, unknown>;
+  crossLanguage: boolean;
 
   // ── Actions ──────────────────────────────────────────────────────────────
   setCode: (code: string) => void;
@@ -88,6 +89,7 @@ interface AppStore {
   setActiveTab: (tab: ActiveTab) => void;
   setOptionValue: (flag: string, value: unknown) => void;
   resetOption: (flag: string) => void;
+  toggleCrossLanguage: () => void;
 
   // ── File tree actions ────────────────────────────────────────────────────
   selectFile: (id: string) => void;
@@ -126,6 +128,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   activePanel: null,
   activeTab: 'source',
   optionValues: { ...DEFAULT_OPTION_VALUES },
+  crossLanguage: false,
   fileTree: _initialTree,
   activeFile: _initialActiveFile,
 
@@ -218,6 +221,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
       optionValues: { ...s.optionValues, [flag]: DEFAULT_OPTION_VALUES[flag] },
     }));
   },
+
+  toggleCrossLanguage: () => set((s) => ({ crossLanguage: !s.crossLanguage })),
 
   // ── File tree actions ──────────────────────────────────────────────────
 
