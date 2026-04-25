@@ -1,12 +1,12 @@
 import { useAppStore } from '@/lib/store';
-import { AssumptionsBox } from './AssumptionsBox';
 import { KindBreakdown } from './KindBreakdown';
 import { RawOutput } from './RawOutput';
 import { StatTiles } from './StatTiles';
+import { WarningsBox } from './WarningsBox';
 
 export function RightPanel() {
   const checks = useAppStore((s) => s.checks);
-  const assumptions = useAppStore((s) => s.assumptions);
+  const warnings = useAppStore((s) => s.warnings);
   const rawOutput = useAppStore((s) => s.rawOutput);
   const selectivity = useAppStore((s) => s.selectivity);
   const analysisTime = useAppStore((s) => s.analysisTime);
@@ -66,7 +66,7 @@ export function RightPanel() {
         </>
       )}
 
-      <AssumptionsBox assumptions={assumptions} />
+      <WarningsBox warnings={warnings} />
 
       <RawOutput raw={rawOutput} />
     </div>

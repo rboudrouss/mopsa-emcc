@@ -41,6 +41,12 @@ export function parseOutput(raw: string): ParsedOutput | null {
   }
 }
 
+export function extractPreJson(raw: string): string {
+  const idx = raw.search(/^\{/m);
+  const text = idx === -1 ? raw : raw.slice(0, idx);
+  return text.trimEnd();
+}
+
 export function parseConfigText(text: string): unknown | null {
   try {
     // Strip // line comments

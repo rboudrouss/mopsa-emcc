@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { DEFAULT_CODE, FILE_EXTENSIONS, setCodeFilePath } from './mopsa-client';
+import { DEFAULT_CODE, FILE_EXTENSIONS, extractPreJson, setCodeFilePath } from './mopsa-client';
 import { DEFAULT_OPTION_VALUES } from './options-schema';
 import type { ActivePanel, ActiveTab, AnalysisResult, CheckItem, SupportedLanguage } from './types';
 
@@ -16,7 +16,7 @@ interface AppStore {
 
   // ── Analysis results ─────────────────────────────────────────────────────
   checks: CheckItem[];
-  assumptions: unknown[];
+  warnings: string;
   rawOutput: string;
   selectivity: string | null;
   analysisTime: number | null;
@@ -54,7 +54,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   configDirty: false,
   codeByLang: {},
   checks: [],
-  assumptions: [],
+  warnings: '',
   rawOutput: '',
   selectivity: null,
   analysisTime: null,
@@ -90,7 +90,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set({
       rawOutput: r.raw,
       checks: p?.checks ?? [],
-      assumptions: p?.assumptions ?? [],
+      warnings: extractPreJson(r.raw),
       selectivity: p?.selectivity ?? null,
       analysisTime: r.durationMs / 1000,
       analysisSuccess: p?.success ?? null,
@@ -118,7 +118,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       configPreset: 'default.json',
       configDirty: false,
       checks: [],
-      assumptions: [],
+      warnings: '',
       rawOutput: '',
       selectivity: null,
       analysisTime: null,
