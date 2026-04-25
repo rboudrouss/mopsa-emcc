@@ -23,10 +23,11 @@ const LANG_CHIP: Record<SupportedLanguage, { bg: string; color: string; label: s
   universal: { bg: 'rgba(167,139,250,.15)', color: '#a78bfa', label: 'UNI' },
 };
 
-function getFileLang(filename: string): SupportedLanguage {
+function getFileLang(filename: string): SupportedLanguage | null {
   if (filename.endsWith('.py')) return 'python';
-  if (filename.endsWith('.uni')) return 'universal';
-  return 'c';
+  if (filename.endsWith('.u')) return 'universal';
+  if (filename.endsWith('.c') || filename.endsWith('.h')) return 'c';
+  return null;
 }
 
 // ── Context menu state ────────────────────────────────────────────────────────

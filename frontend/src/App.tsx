@@ -21,16 +21,18 @@ export default function App() {
   const configText = useAppStore((s) => s.configText);
   const optionValues = useAppStore((s) => s.optionValues);
   const applyPreset = useAppStore((s) => s.applyPreset);
+  const setPresets = useAppStore((s) => s.setPresets);
 
   // Initialise config from presets once they load
   useEffect(() => {
     if (!isSuccess || !presets) return;
-    const firstConfig = Object.values(presets.configs.c ?? {})[0] ?? mopsaJs.configUni;
+    setPresets(presets);
+    const firstConfig = presets.configs.c['default.json'] ?? mopsaJs.configUni;
     if (!useAppStore.getState().configText) {
       mopsaJs.setConfig(firstConfig);
       applyPreset('default.json', firstConfig);
     }
-  }, [isSuccess, presets, applyPreset]);
+  }, [isSuccess, presets, applyPreset, setPresets]);
 
   const debouncedRun = useDebouncedFn(runAnalysis, 300);
 
@@ -57,7 +59,6 @@ export default function App() {
         onRunClick={runAnalysis}
         resolvedTheme={resolved}
         onThemeToggle={toggle}
-        presets={presets}
       />
       <ActivityBar />
       <PanelGroup
