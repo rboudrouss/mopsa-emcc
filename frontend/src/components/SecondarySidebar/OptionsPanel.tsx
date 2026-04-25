@@ -37,7 +37,7 @@ export function OptionsPanel() {
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
           <span style={{ fontSize: 12, color: 'var(--text-primary)', fontWeight: 500 }}>
-            Cross-language analysis
+            C & Python analysis
           </span>
           <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
             Disable file filtering passed to Mopsa to same-language only and automatic per-language configuration switching

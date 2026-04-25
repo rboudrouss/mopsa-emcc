@@ -1,6 +1,7 @@
 import { MoonIcon, PlayIcon, SunIcon } from 'lucide-react';
 import { PulseDot } from '@/components/ui/PulseDot';
 import { useAppStore } from '@/lib/store';
+import { EntryPointPicker } from '@/components/TopBar/EntryPointPicker';
 
 interface TopBarProps {
   isAnalyzing: boolean;
@@ -79,6 +80,8 @@ export function TopBar({ isAnalyzing, onRunClick, resolvedTheme, onThemeToggle }
       )}
 
       <PulseDot active={isAnalyzing} label="Analyzing…" />
+
+      <EntryPointPicker />
 
       {/* Run button */}
       <button

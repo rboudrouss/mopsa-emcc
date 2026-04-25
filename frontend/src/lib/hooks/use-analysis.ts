@@ -1,5 +1,5 @@
 import { useMutation } from '@tanstack/react-query';
-import { analyzeJson, computeOptionsFlags, FILE_EXTENSIONS } from '../mopsa-client';
+import { analyzeJson, computeOptionsFlags } from '../mopsa-client';
 import { useAppStore } from '../store';
 import { getAllFilePaths } from '../tree';
 
@@ -8,8 +8,7 @@ export function useAnalysis() {
 
   const mutation = useMutation({
     mutationFn: () => {
-      // Read current state at call time to avoid stale closures
-      const { optionValues, fileTree, activeFile, lang, crossLanguage } = useAppStore.getState();
+      const { optionValues, fileTree, lang, crossLanguage, pyEntryPoint } = useAppStore.getState();
 
       const flags = [
         ...computeOptionsFlags(optionValues),
@@ -20,24 +19,39 @@ export function useAnalysis() {
 
       const activeCodePath = mopsaJs.getCodeFilePath()[1];
       const activeExt = activeCodePath.split('.').pop() ?? '';
-      if (!['c', 'h', 'py', 'u'].includes(activeExt)) return Promise.resolve({ raw: '', parsed: null, durationMs: 0 });
 
-      const SUPPORTED_EXTS = ['c', 'h', 'py', 'uni'];
-      const activeIsHeader = activeExt === 'h';
-      // Treat .h as C for the purpose of choosing which siblings to include.
-      const effectiveLang = activeIsHeader ? 'c' : lang;
-      const sourceExt = FILE_EXTENSIONS[effectiveLang];
-      const extraSourceFiles = getAllFilePaths(fileTree)
-        .filter(({ id, path }) => {
-          if (id === activeFile || '/' + path === activeCodePath) return false;
-          if (crossLanguage) return SUPPORTED_EXTS.some((e) => path.endsWith('.' + e));
-          if (path.endsWith('.' + sourceExt)) return true;
-          if (effectiveLang === 'c' && path.endsWith('.h')) return true;
-          return false;
-        })
-        .map(({ path }) => '/' + path);
+      const allFiles = getAllFilePaths(fileTree).map(({ path }) => '/' + path);
 
-      return analyzeJson([...flags, ...extraSourceFiles]);
+      if (crossLanguage) {
+        // Entry point must be a .py file
+        const entryPoint = pyEntryPoint ?? (activeCodePath.endsWith('.py') ? activeCodePath : null);
+        if (!entryPoint) return Promise.resolve({ raw: '', parsed: null, durationMs: 0 });
+
+        const cFiles = allFiles.filter((p) => p.endsWith('.c') || p.endsWith('.h'));
+        // Pass C/H files first so the worker can build mopsa.db, then the py entry point last
+        return analyzeJson([...flags, ...cFiles, entryPoint]);
+      }
+
+      if (lang === 'python') {
+        const entryPoint = pyEntryPoint ?? activeCodePath;
+        if (!entryPoint.endsWith('.py')) return Promise.resolve({ raw: '', parsed: null, durationMs: 0 });
+
+        // Other .py files go into the virtual FS via extraFiles (already written by the editor),
+        // but we only pass the entry point as a CLI arg — Mopsa follows imports automatically.
+        return analyzeJson([...flags, entryPoint]);
+      }
+
+      // C / universal mode: pass the active file last (entry point), all same-lang siblings before it
+      if (!['c', 'h', 'u'].includes(activeExt)) return Promise.resolve({ raw: '', parsed: null, durationMs: 0 });
+
+      const effectiveLang = activeExt === 'h' ? 'c' : lang;
+      const extraSourceFiles = allFiles.filter((p) => {
+        if (p === activeCodePath) return false;
+        if (effectiveLang === 'c') return p.endsWith('.c') || p.endsWith('.h');
+        return p.endsWith('.u') || p.endsWith('.uni');
+      });
+
+      return analyzeJson([...flags, ...extraSourceFiles, activeCodePath]);
     },
     onSuccess: setAnalysisResult,
   });

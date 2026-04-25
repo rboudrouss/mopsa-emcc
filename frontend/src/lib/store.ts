@@ -87,6 +87,7 @@ interface AppStore {
   // ── Options ──────────────────────────────────────────────────────────────
   optionValues: Record<string, unknown>;
   crossLanguage: boolean;
+  pyEntryPoint: string | null; // null = auto (active file)
 
   // ── Actions ──────────────────────────────────────────────────────────────
   setPresets: (presets: shareData) => void;
@@ -100,6 +101,7 @@ interface AppStore {
   setOptionValue: (flag: string, value: unknown) => void;
   resetOption: (flag: string) => void;
   toggleCrossLanguage: () => void;
+  setPyEntryPoint: (path: string | null) => void;
 
   // ── File tree actions ────────────────────────────────────────────────────
   selectFile: (id: string) => void;
@@ -142,6 +144,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   activeTab: 'source',
   optionValues: { ...DEFAULT_OPTION_VALUES },
   crossLanguage: false,
+  pyEntryPoint: null,
   fileTree: _initialTree,
   activeFile: _initialActiveFile,
 
@@ -269,6 +272,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
       optionValues: { ...s.optionValues, [flag]: DEFAULT_OPTION_VALUES[flag] },
     }));
   },
+
+  setPyEntryPoint: (path) => set({ pyEntryPoint: path }),
 
   toggleCrossLanguage: () => {
     const { crossLanguage, lang, configText, configPreset, configDirty, configByLang, configXL, presets } = get();

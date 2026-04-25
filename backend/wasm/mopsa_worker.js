@@ -56,7 +56,7 @@ self.onmessage = function (event) {
     "-share-dir", "/share/mopsa",
     "-I", "/clang-headers",
     "-I", "/usr/include",
-  ]).concat(options).concat(isHelp ? [] : [codeFile]);
+  ]).concat(options);
 
   Promise.all([_wasmModulePromise, _dataBufferPromise]).then(function (results) {
     var wasmModule = results[0];
