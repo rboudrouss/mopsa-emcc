@@ -19,7 +19,15 @@ int main() {
 
 main()
 `,
-  universal: `S = fun x -> x + 1
+  universal: `int x;
+int y = 10;
+
+int add(int a, int b) {
+  return a + b;
+};
+
+x = add(y, 5);
+assert(x == 15);
 `,
 };
 

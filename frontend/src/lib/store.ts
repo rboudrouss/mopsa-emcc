@@ -115,6 +115,8 @@ interface AppStore {
 // ── Sync initial code ─────────────────────────────────────────────────────────
 
 mopsaJs.setCode(DEFAULT_CODE.c);
+mopsaJs.writeFile('/example.py', DEFAULT_CODE.python);
+mopsaJs.writeFile('/example.u', DEFAULT_CODE.universal);
 
 // ── Initial tree ──────────────────────────────────────────────────────────────
 
@@ -140,7 +142,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   analysisTime: null,
   analysisSuccess: null,
   analysisError: null,
-  activePanel: null,
+  activePanel: 'files',
   activeTab: 'source',
   optionValues: { ...DEFAULT_OPTION_VALUES },
   crossLanguage: false,
