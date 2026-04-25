@@ -35,12 +35,12 @@ export function TopBar({ isAnalyzing, onRunClick, resolvedTheme, onThemeToggle, 
     const val = e.target.value;
     if (val.startsWith('lang:')) {
       const newLang = val.slice(5) as SupportedLanguage;
-      const langPresets = presets?.configs[newLang] ?? {};
+      const langPresets = presets?.configs[newLang] ?? {} as Record<string, string>;
       const firstConfig = Object.values(langPresets)[0] ?? mopsaJs.configUni;
       setLang(newLang, firstConfig);
     } else {
       const [, presetName] = val.split('|');
-      const langPresets = presets?.configs[lang] ?? {};
+      const langPresets = presets?.configs[lang] ?? {} as Record<string, string>;
       const text = langPresets[presetName] ?? '';
       if (text) applyPreset(presetName, text);
     }

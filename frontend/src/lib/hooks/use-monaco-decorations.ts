@@ -51,8 +51,6 @@ export function useMonacoDecorations(
           inlineClassName: isError ? 'mopsa-error-span' : 'mopsa-warn-span',
           isWholeLine: false,
           hoverMessage: { value: hoverLines.join('\n'), isTrusted: false },
-          overviewRulerColor: isError ? '#f87171' : '#f5b544',
-          overviewRulerLane: 1,
           minimap: { color: isError ? '#f87171' : '#f5b544', position: 1 },
         },
       });

@@ -26,7 +26,7 @@ dist-ssr
 # Compiled Mopsa
 /public/mopsaJs.bc.js
 /public/primitives.js
-/src/lib/share.json
+/public/share.json
 /public/floats_round.js
 
 # dev bins of PWA
