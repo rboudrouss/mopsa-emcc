@@ -4,15 +4,20 @@ import { useRef } from 'react';
 import { useMonacoDecorations } from '@/lib/hooks/use-monaco-decorations';
 import { getCodeFilePath } from '@/lib/mopsa-client';
 import { findById } from '@/lib/tree';
-import { getLanguageFromFileExtension } from '@/lib/index';
 import { useAppStore } from '@/lib/store';
-import type { SupportedLanguage } from '@/lib/types';
 
-const MONACO_LANG: Record<SupportedLanguage, string> = {
-  c: 'c',
-  python: 'python',
-  universal: 'c',
-};
+function getMonacoLanguage(ext: string): string {
+  switch (ext) {
+    case 'c':
+    case 'h':
+    case 'u':
+      return 'c';
+    case 'py':
+      return 'python';
+    default:
+      return 'plaintext';
+  }
+}
 
 function defineThemes(monaco: typeof MonacoNS) {
   monaco.editor.defineTheme('mopsa-dark', {
@@ -67,10 +72,9 @@ export function CodeEditor({ resolvedTheme }: CodeEditorProps) {
   const editorRef = useRef<MonacoNS.editor.IStandaloneCodeEditor | null>(null);
   const codeFilePath = getCodeFilePath();
 
-  // Detect language from the active file's extension; fall back to store lang
   const activeName = activeFile ? findById(fileTree, activeFile)?.name : null;
   const ext = activeName?.split('.').pop() ?? '';
-  const lang: SupportedLanguage = ext ? getLanguageFromFileExtension(ext) : useAppStore.getState().lang;
+  const monacoLang = getMonacoLanguage(ext);
 
   useMonacoDecorations(editorRef, checks, codeFilePath);
 
@@ -85,7 +89,7 @@ export function CodeEditor({ resolvedTheme }: CodeEditorProps) {
   return (
     <MonacoEditor
       height="100%"
-      language={MONACO_LANG[lang]}
+      language={monacoLang}
       value={code}
       theme={resolvedTheme === 'dark' ? 'mopsa-dark' : 'mopsa-light'}
       beforeMount={handleBeforeMount}
