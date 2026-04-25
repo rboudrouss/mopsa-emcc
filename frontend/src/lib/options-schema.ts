@@ -39,7 +39,7 @@ export const OPTIONS_SCHEMA: { group: string; options: OptionSpec[] }[] = [
         type: 'select',
         default: 'json',
         label: 'Format',
-        hint: 'Output format — changing to "text" will break the results panel',
+        hint: 'Output format. Changing to "text" will break the results panel',
         choices: ['json', 'text'],
       },
       {
