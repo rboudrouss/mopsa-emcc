@@ -26,7 +26,7 @@ main()
 export const FILE_EXTENSIONS: Record<SupportedLanguage, string> = {
   c: "c",
   python: "py",
-  universal: "uni",
+  universal: "u",
 };
 
 // ── Output parsing ────────────────────────────────────────────────────────────

@@ -15,6 +15,8 @@ export function SecondarySidebar() {
         borderRight: '1px solid var(--border)',
         overflowY: 'auto',
         boxSizing: 'border-box',
+        display: 'flex',
+        flexDirection: 'column',
       }}
     >
       {activePanel === 'files' && <FilesPanel />}

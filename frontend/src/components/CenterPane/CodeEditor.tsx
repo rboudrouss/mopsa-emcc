@@ -3,6 +3,8 @@ import type * as MonacoNS from 'monaco-editor';
 import { useRef } from 'react';
 import { useMonacoDecorations } from '@/lib/hooks/use-monaco-decorations';
 import { getCodeFilePath } from '@/lib/mopsa-client';
+import { findById } from '@/lib/tree';
+import { getLanguageFromFileExtension } from '@/lib/index';
 import { useAppStore } from '@/lib/store';
 import type { SupportedLanguage } from '@/lib/types';
 
@@ -57,12 +59,18 @@ interface CodeEditorProps {
 
 export function CodeEditor({ resolvedTheme }: CodeEditorProps) {
   const code = useAppStore((s) => s.code);
-  const lang = useAppStore((s) => s.lang);
   const checks = useAppStore((s) => s.checks);
   const setCode = useAppStore((s) => s.setCode);
+  const fileTree = useAppStore((s) => s.fileTree);
+  const activeFile = useAppStore((s) => s.activeFile);
 
   const editorRef = useRef<MonacoNS.editor.IStandaloneCodeEditor | null>(null);
   const codeFilePath = getCodeFilePath();
+
+  // Detect language from the active file's extension; fall back to store lang
+  const activeName = activeFile ? findById(fileTree, activeFile)?.name : null;
+  const ext = activeName?.split('.').pop() ?? '';
+  const lang: SupportedLanguage = ext ? getLanguageFromFileExtension(ext) : useAppStore.getState().lang;
 
   useMonacoDecorations(editorRef, checks, codeFilePath);
 

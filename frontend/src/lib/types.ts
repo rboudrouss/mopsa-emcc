@@ -33,3 +33,9 @@ export interface AnalysisResult {
   parsed: ParsedOutput | null;
   durationMs: number;
 }
+
+export interface FileTreeNode {
+  id: string;
+  name: string;
+  children?: FileTreeNode[];
+}

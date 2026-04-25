@@ -1,0 +1,136 @@
+import type { FileTreeNode } from './types';
+
+export function genId(): string {
+  return Math.random().toString(36).slice(2, 10);
+}
+
+export function insertNode(
+  tree: FileTreeNode[],
+  parentId: string | null,
+  node: FileTreeNode,
+): FileTreeNode[] {
+  if (parentId === null) return [...tree, node];
+  return tree.map((n) => {
+    if (n.id === parentId && n.children !== undefined) {
+      return { ...n, children: [...n.children, node] };
+    }
+    if (n.children) return { ...n, children: insertNode(n.children, parentId, node) };
+    return n;
+  });
+}
+
+export function removeNodes(tree: FileTreeNode[], ids: Set<string>): FileTreeNode[] {
+  return tree
+    .filter((n) => !ids.has(n.id))
+    .map((n) => (n.children ? { ...n, children: removeNodes(n.children, ids) } : n));
+}
+
+export function findById(tree: FileTreeNode[], id: string): FileTreeNode | null {
+  for (const n of tree) {
+    if (n.id === id) return n;
+    if (n.children) {
+      const found = findById(n.children, id);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+export function getNodePath(tree: FileTreeNode[], id: string, prefix = ''): string | null {
+  for (const n of tree) {
+    const path = prefix ? `${prefix}/${n.name}` : n.name;
+    if (n.id === id) return path;
+    if (n.children) {
+      const found = getNodePath(n.children, id, path);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+export function renameNodeById(
+  tree: FileTreeNode[],
+  id: string,
+  newName: string,
+): FileTreeNode[] {
+  return tree.map((n) => {
+    if (n.id === id) return { ...n, name: newName };
+    if (n.children) return { ...n, children: renameNodeById(n.children, id, newName) };
+    return n;
+  });
+}
+
+export function moveNodesInTree(
+  tree: FileTreeNode[],
+  dragIds: string[],
+  parentId: string | null,
+): FileTreeNode[] {
+  const dragSet = new Set(dragIds);
+  const dragged: FileTreeNode[] = [];
+
+  function extract(nodes: FileTreeNode[]): FileTreeNode[] {
+    return nodes
+      .map((n): FileTreeNode | null => {
+        if (dragSet.has(n.id)) {
+          dragged.push(n);
+          return null;
+        }
+        if (n.children) return { ...n, children: extract(n.children) };
+        return n;
+      })
+      .filter((n): n is FileTreeNode => n !== null);
+  }
+
+  const pruned = extract(tree);
+
+  if (parentId === null) return [...pruned, ...dragged];
+
+  function insert(nodes: FileTreeNode[]): FileTreeNode[] {
+    return nodes.map((n) => {
+      if (n.id === parentId && n.children !== undefined) {
+        return { ...n, children: [...n.children, ...dragged] };
+      }
+      if (n.children) return { ...n, children: insert(n.children) };
+      return n;
+    });
+  }
+
+  return insert(pruned);
+}
+
+export function getDescendantFiles(node: FileTreeNode): FileTreeNode[] {
+  if (!node.children) return [node];
+  return node.children.flatMap(getDescendantFiles);
+}
+
+export function countAllNodes(nodes: FileTreeNode[]): number {
+  return nodes.reduce(
+    (acc, n) => acc + 1 + (n.children ? countAllNodes(n.children) : 0),
+    0,
+  );
+}
+
+export function findFirstFile(tree: FileTreeNode[]): string | null {
+  for (const n of tree) {
+    if (!n.children) return n.id;
+    const found = findFirstFile(n.children);
+    if (found) return found;
+  }
+  return null;
+}
+
+export function getAllFilePaths(
+  nodes: FileTreeNode[],
+  prefix = '',
+): { id: string; path: string }[] {
+  const result: { id: string; path: string }[] = [];
+  for (const n of nodes) {
+    const path = prefix ? `${prefix}/${n.name}` : n.name;
+    if (!n.children) {
+      result.push({ id: n.id, path });
+    } else {
+      result.push(...getAllFilePaths(n.children, path));
+    }
+  }
+  return result;
+}

@@ -24,7 +24,7 @@ export function getFileExtensionFromLangage(lang: SupportedLanguage): string {
     case "python":
       return "py";
     case "universal":
-      return "uni";
+      return "u";
     default:
       return "";
   }
@@ -36,7 +36,7 @@ export function getLanguageFromFileExtension(ext: string): SupportedLanguage {
       return "c";
     case "py":
       return "python";
-    case "uni":
+    case "u":
       return "universal";
     default:
       return "universal";

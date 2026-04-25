@@ -1,5 +1,6 @@
 import { useAppStore } from '@/lib/store';
 import { getCodeFilePath } from '@/lib/mopsa-client';
+import { findById } from '@/lib/tree';
 import { IssueCard } from '@/components/ui/IssueCard';
 import { CodeEditor } from './CodeEditor';
 import { ConfigEditor } from './ConfigEditor';
@@ -13,7 +14,8 @@ export function CenterPane({ resolvedTheme }: CenterPaneProps) {
   const configDirty = useAppStore((s) => s.configDirty);
   const setActiveTab = useAppStore((s) => s.setActiveTab);
   const checks = useAppStore((s) => s.checks);
-  const lang = useAppStore((s) => s.lang);
+  const fileTree = useAppStore((s) => s.fileTree);
+  const activeFile = useAppStore((s) => s.activeFile);
 
   const codeFilePath = getCodeFilePath();
   const localChecks = checks.filter(
@@ -21,8 +23,7 @@ export function CenterPane({ resolvedTheme }: CenterPaneProps) {
   );
   const warnChecks = localChecks.filter((c) => c.kind === 'warning' || c.kind === 'error');
 
-  const ext = { c: '.c', python: '.py', universal: '.uni' }[lang];
-  const fileName = `code${ext}`;
+  const fileName = (activeFile ? findById(fileTree, activeFile)?.name : null) ?? 'untitled';
 
   return (
     <div
