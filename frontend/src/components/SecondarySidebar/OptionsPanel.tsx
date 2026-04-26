@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { ChevronDownIcon, ChevronRightIcon, XIcon } from 'lucide-react';
+import { ChevronDownIcon, ChevronRightIcon, RotateCcwIcon, XIcon } from 'lucide-react';
 import { DEFAULT_OPTION_VALUES, OPTIONS_SCHEMA, type OptionSpec } from '@/lib/options-schema';
+import { clearState } from '@/lib/persistence';
 import { useAppStore } from '@/lib/store';
 
 export function OptionsPanel() {
@@ -20,6 +21,35 @@ export function OptionsPanel() {
         }}
       >
         Options
+      </div>
+
+      {/* Reset */}
+      <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)' }}>
+        <button
+          onClick={() => {
+            if (window.confirm('Reset Mopsa to its default state? This will clear all saved files, configs and options.')) {
+              clearState();
+              window.location.reload();
+            }
+          }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            width: '100%',
+            padding: '6px 10px',
+            background: 'none',
+            border: '1px solid var(--border)',
+            borderRadius: 4,
+            cursor: 'pointer',
+            color: 'var(--text-muted)',
+            fontSize: 12,
+            justifyContent: 'center',
+          }}
+        >
+          <RotateCcwIcon size={12} />
+          Reset to defaults
+        </button>
       </div>
 
       {/* Frontend-only options */}

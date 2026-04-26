@@ -10,6 +10,7 @@ import {
   setCodeFilePath,
 } from './mopsa-client';
 import { DEFAULT_OPTION_VALUES } from './options-schema';
+import { loadAndRestoreState, saveState } from './persistence';
 import { getLanguageFromFileExtension } from './index';
 import {
   genId,
@@ -28,6 +29,7 @@ import type {
   AnalysisResult,
   CheckItem,
   FileTreeNode,
+  SavedConfig,
   SupportedLanguage,
 } from './types';
 
@@ -45,8 +47,6 @@ function buildInitialTree(): FileTreeNode[] {
     .filter((n) => n !== 'dev' && n !== 'config.json')
     .map((name) => makeFileNode(name));
 }
-
-type SavedConfig = { preset: string; text: string; dirty: boolean };
 
 // ── Store interface ───────────────────────────────────────────────────────────
 
@@ -128,23 +128,27 @@ mopsaJs.setCode(DEFAULT_CODE.c);
 mopsaJs.writeFile('/example.py', DEFAULT_CODE.python);
 mopsaJs.writeFile('/example.u', DEFAULT_CODE.universal);
 
+// ── Restore from localStorage (overwrites WASM defaults if saved state exists) ─
+
+const _restored = loadAndRestoreState();
+
 // ── Initial tree ──────────────────────────────────────────────────────────────
 
-const _initialTree = buildInitialTree();
-const _initialActiveFile = findFirstFile(_initialTree);
+const _initialTree = _restored?.fileTree ?? buildInitialTree();
+const _initialActiveFile = _restored?.activeFile ?? findFirstFile(_initialTree);
 
 // ── Store ─────────────────────────────────────────────────────────────────────
 
 export const useAppStore = create<AppStore>((set, get) => ({
-  lang: 'c',
-  code: DEFAULT_CODE.c,
-  configText: '',
-  configPreset: 'default.json',
-  configDirty: false,
-  codeByLang: {},
-  configByLang: {},
-  configXL: null,
-  customConfigs: {},
+  lang: _restored?.lang ?? 'c',
+  code: _restored?.code ?? DEFAULT_CODE.c,
+  configText: _restored?.configText ?? '',
+  configPreset: _restored?.configPreset ?? 'default.json',
+  configDirty: _restored?.configDirty ?? false,
+  codeByLang: _restored?.codeByLang ?? {},
+  configByLang: _restored?.configByLang ?? {},
+  configXL: _restored?.configXL ?? null,
+  customConfigs: _restored?.customConfigs ?? {},
   presets: null,
   checks: [],
   warnings: '',
@@ -153,14 +157,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
   analysisTime: null,
   analysisSuccess: null,
   analysisError: null,
-  activePanel: 'files',
+  activePanel: _restored?.activePanel ?? 'files',
   activeTab: 'source',
-  optionValues: { ...DEFAULT_OPTION_VALUES },
-  crossLanguage: false,
-  pyEntryPoint: null,
+  optionValues: _restored?.optionValues ?? { ...DEFAULT_OPTION_VALUES },
+  crossLanguage: _restored?.crossLanguage ?? false,
+  pyEntryPoint: _restored?.pyEntryPoint ?? null,
   fileTree: _initialTree,
   activeFile: _initialActiveFile,
-  autoRun: true,
+  autoRun: _restored?.autoRun ?? true,
 
   // ── Presets ────────────────────────────────────────────────────────────
   setPresets: (presets) => set({ presets }),
@@ -685,3 +689,26 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set({ fileTree: newTree });
   },
 }));
+
+// ── Persist state to localStorage (debounced) ─────────────────────────────────
+
+let _saveTimer: ReturnType<typeof setTimeout> | null = null;
+useAppStore.subscribe((state) => {
+  if (_saveTimer) clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(() => {
+    saveState({
+      lang: state.lang,
+      fileTree: state.fileTree,
+      activeFile: state.activeFile,
+      codeByLang: state.codeByLang,
+      configByLang: state.configByLang,
+      configXL: state.configXL,
+      customConfigs: state.customConfigs,
+      optionValues: state.optionValues,
+      crossLanguage: state.crossLanguage,
+      pyEntryPoint: state.pyEntryPoint,
+      autoRun: state.autoRun,
+      activePanel: state.activePanel,
+    });
+  }, 1000);
+});

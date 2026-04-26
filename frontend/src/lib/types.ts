@@ -1,6 +1,7 @@
 export type SupportedLanguage = 'c' | 'python' | 'universal';
 export type ActivePanel = 'files' | 'domains' | 'options' | null;
 export type ActiveTab = 'source' | 'config';
+export type SavedConfig = { preset: string; text: string; dirty: boolean };
 
 export interface CheckRange {
   file: string;
