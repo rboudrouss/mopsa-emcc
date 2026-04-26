@@ -42,6 +42,7 @@ DOCKER := docker
 DOCKER_IMAGE_32BC := mopsa-emcc-32bc
 
 FRONTEND_DIR := $(CURDIR)/frontend
+LINUX32_INCLUDE_DIR := $(BUILD_DIR)/linux32-include
 
 NPROC := $(shell nproc 2>/dev/null || echo 1)
 
@@ -55,7 +56,7 @@ CCX=g++-11
 .PHONY: all final final-node final-web deps gmp mpfr camlidl gmp_caml zarith apron apron_caml \
         mopsa_floats libcamlrun prims mopsa-bc \
         llvm-tblgen clang-wasm clang_to_ml clang-resource-headers \
-        docker-image-32bc mopsa-bc-32 \
+        docker-image-32bc mopsa-bc-32 extract-32-headers \
         clean clean-project clean-ocaml clean-mopsa clean-gmp clean-mpfr clean-apron clean-llvm \
         clean-docker-32bc
 
@@ -359,6 +360,25 @@ clean-docker-32bc:
 	$(DOCKER) volume rm mopsa-emcc-opam-32 2>/dev/null || true
 	rm -f $(BUILD_DIR)/.docker-32bc-stamp $(BUILD_DIR)/mopsa-32.bc
 
+# Extract 32-bit Linux system headers from the Docker image.
+extract-32-headers: $(BUILD_DIR)/.linux32-headers-stamp
+
+$(BUILD_DIR)/.linux32-headers-stamp: $(BUILD_DIR)/.docker-32bc-stamp | $(BUILD_DIR)
+	mkdir -p $(LINUX32_INCLUDE_DIR)
+	# Top-level *.h (stdio.h, stdlib.h, …) + subdirs useful for C analysis
+	$(DOCKER) run --rm --platform linux/386 $(DOCKER_IMAGE_32BC) \
+		sh -c 'cd /usr/include && tar -c \
+			$$(find . -maxdepth 1 -name "*.h") \
+			asm-generic arpa netinet net linux' \
+		| tar -x -C $(LINUX32_INCLUDE_DIR)
+	# Arch-specific 32-bit headers: bits/ sys/ gnu/ asm/ + top-level *.h
+	$(DOCKER) run --rm --platform linux/386 $(DOCKER_IMAGE_32BC) \
+		sh -c 'cd /usr/include/i386-linux-gnu && tar -c \
+			$$(find . -maxdepth 1 -name "*.h") \
+			bits sys gnu asm' \
+		| tar -x -C $(LINUX32_INCLUDE_DIR)
+	touch $@
+
 # Build final binary
 final: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o deps | $(DIST_DIR)
 	$(EMCC) -Wall -Oz -fno-strict-aliasing -fwrapv \
@@ -396,7 +416,7 @@ final-node: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o
 #
 # The mopsa share directory is preloaded at /share/mopsa so C/Python stubs
 # are available to Mopsa inside the virtual filesystem.
-final-web: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o deps | $(DIST_DIR)
+final-web: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o deps $(BUILD_DIR)/.linux32-headers-stamp | $(DIST_DIR)
 	$(EMCC) -Wall -Oz -fno-strict-aliasing -fwrapv \
 	-ffunction-sections -o $(DIST_DIR)/ocamlrun.js \
 	-s ENVIRONMENT='web' \
@@ -404,8 +424,7 @@ final-web: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o 
 	-s EXPORT_NAME='createMopsaModule' \
 	--preload-file $(BUILD_DIR)/mopsa.bc@/build/mopsa.bc \
 	--preload-file $(INSTALL_DIR)/lib/clang/9.0.1/include@/clang-headers/include \
-	--preload-file $(EMSDK_SYSROOT)/include@/usr/include \
-	--exclude-file "$(EMSDK_SYSROOT)/include/c++" \
+	--preload-file $(LINUX32_INCLUDE_DIR)@/usr/include \
 	--preload-file $(DEPS_DIR)/mopsa-analyzer/share/mopsa@/share/mopsa \
 	-s EXPORTED_RUNTIME_METHODS="['FS']" \
 	--pre-js backend/wasm/pre.js --post-js backend/wasm/post.js -L$(LIBS_DIR) \
