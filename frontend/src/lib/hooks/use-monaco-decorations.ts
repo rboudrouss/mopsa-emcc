@@ -18,7 +18,8 @@ function toRange(r: CheckItem['range']): Monaco.IRange {
 export function useMonacoDecorations(
   editorRef: React.RefObject<Monaco.editor.IStandaloneCodeEditor | null>,
   checks: CheckItem[],
-  codeFilePath: string
+  codeFilePath: string,
+  mountKey: number
 ) {
   const collectionRef = useRef<Monaco.editor.IEditorDecorationsCollection | null>(null);
 
@@ -74,5 +75,5 @@ export function useMonacoDecorations(
 
     collectionRef.current?.clear();
     collectionRef.current = editor.createDecorationsCollection(decorations);
-  }, [checks, codeFilePath, editorRef]);
+  }, [checks, codeFilePath, editorRef, mountKey]);
 }

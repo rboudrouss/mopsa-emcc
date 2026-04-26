@@ -172,7 +172,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   // ── Code / config ──────────────────────────────────────────────────────
   setCode: (code) => {
-    mopsaJs.setCode(code);
+    mopsaJs.setCode(code.endsWith('\n') ? code : code + '\n');
     set({ code });
   },
 

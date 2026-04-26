@@ -41,7 +41,6 @@ export function useAnalysis() {
         return analyzeJson([...flags, entryPoint]);
       }
 
-      // C / universal mode: pass the active file last (entry point), all same-lang siblings before it
       if (!['c', 'h', 'u'].includes(activeExt)) return Promise.resolve({ raw: '', parsed: null, durationMs: 0 });
 
       const effectiveLang = activeExt === 'h' ? 'c' : lang;
@@ -52,10 +51,10 @@ export function useAnalysis() {
 
       const extraSourceFiles = allFiles.filter((p) => {
         if (p === activeCodePath) return false;
-        return p.endsWith('.c') || p.endsWith('.h');
+        return p.endsWith('.c');
       });
 
-      return analyzeJson([...flags, ...extraSourceFiles, activeCodePath]);
+      return analyzeJson([...flags, ...extraSourceFiles, ...(activeExt === "h" ? [] : [activeCodePath])]);
     },
     onSuccess: setAnalysisResult,
   });

@@ -33,6 +33,7 @@ export function getFileExtensionFromLangage(lang: SupportedLanguage): string {
 export function getLanguageFromFileExtension(ext: string): SupportedLanguage {
   switch (ext) {
     case "c":
+    case "h":
       return "c";
     case "py":
       return "python";

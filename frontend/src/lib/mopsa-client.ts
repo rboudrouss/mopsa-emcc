@@ -212,7 +212,8 @@ export function listFiles(): string[] {
 
 export function writeFile(path: string, content: string): void {
   const normalised = path.startsWith("/") ? path : "/" + path;
-  mopsaJs.writeFile(normalised, content);
+  const withNewline = content.endsWith('\n') ? content : content + '\n';
+  mopsaJs.writeFile(normalised, withNewline);
 }
 
 export function readFile(path: string): string {

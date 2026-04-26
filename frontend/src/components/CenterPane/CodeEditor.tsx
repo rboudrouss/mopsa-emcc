@@ -1,6 +1,6 @@
 import MonacoEditor, { type BeforeMount, type OnMount } from '@monaco-editor/react';
 import type * as MonacoNS from 'monaco-editor';
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { useMonacoDecorations } from '@/lib/hooks/use-monaco-decorations';
 import { getCodeFilePath } from '@/lib/mopsa-client';
 import { findById } from '@/lib/tree';
@@ -70,13 +70,14 @@ export function CodeEditor({ resolvedTheme }: CodeEditorProps) {
   const activeFile = useAppStore((s) => s.activeFile);
 
   const editorRef = useRef<MonacoNS.editor.IStandaloneCodeEditor | null>(null);
+  const [mountKey, setMountKey] = useState(0);
   const codeFilePath = getCodeFilePath();
 
   const activeName = activeFile ? findById(fileTree, activeFile)?.name : null;
   const ext = activeName?.split('.').pop() ?? '';
   const monacoLang = getMonacoLanguage(ext);
 
-  useMonacoDecorations(editorRef, checks, codeFilePath);
+  useMonacoDecorations(editorRef, checks, codeFilePath, mountKey);
 
   const handleBeforeMount: BeforeMount = (monaco) => {
     defineThemes(monaco);
@@ -84,6 +85,7 @@ export function CodeEditor({ resolvedTheme }: CodeEditorProps) {
 
   const handleMount: OnMount = (editor) => {
     editorRef.current = editor;
+    setMountKey((k) => k + 1);
   };
 
   return (
