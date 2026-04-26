@@ -390,6 +390,7 @@ export function ConfigEditor({ resolvedTheme }: ConfigEditorProps) {
             wordWrap: 'off',
             folding: true,
             readOnly: isBlocked,
+            fixedOverflowWidgets: true,
           }}
         />
       </div>

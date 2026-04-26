@@ -31,7 +31,7 @@ export function CenterPane({ resolvedTheme }: CenterPaneProps) {
         flexDirection: 'column',
         height: '100%',
         background: 'var(--bg-base)',
-        overflow: 'hidden',
+
         borderLeft: '1px solid var(--border)',
         borderRight: '1px solid var(--border)',
         boxSizing: 'border-box',
@@ -60,7 +60,7 @@ export function CenterPane({ resolvedTheme }: CenterPaneProps) {
       </div>
 
       {/* Editor area */}
-      <div style={{ flex: 1, overflow: 'hidden' }}>
+      <div style={{ flex: 1 }}>
         {activeTab === 'source' ? (
           <CodeEditor resolvedTheme={resolvedTheme} />
         ) : (
