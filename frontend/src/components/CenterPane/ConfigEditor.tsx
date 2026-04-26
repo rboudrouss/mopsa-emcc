@@ -4,6 +4,238 @@ import { useEffect, useState } from 'react';
 import { parseConfigText } from '@/lib/mopsa-client';
 import { useAppStore } from '@/lib/store';
 
+const DOMAIN_NAMES = [
+  'c.memory.lowlevel.smashing',
+  'c.memory.lowlevel.cells',
+  'cpython.cmodule',
+  'cpython.callstack_tracking',
+  'c.memory.scalars.pointer',
+  'c.libs.clib.file_descriptor',
+  'c.iterators.interproc',
+  'python.desugar.import',
+  'python.types.polymorphism',
+  'python.types.structural_types',
+  'python.types.type_annot',
+  'python.types.addr_env',
+  'python.objects.constant_dict',
+  'universal.heap.recency',
+  'universal.numeric.collecting',
+  'universal.numeric.relational',
+  'cfg.iterators.intraproc',
+  'c.memory.variable_length_array',
+  'c.memory.symbolic.rewriting',
+  'c.memory.lowlevel.string_length',
+  'c.memory.protection',
+  'c.memory.lowlevel.pointer_sentinel',
+  'c.memory.scalars.machine_numbers',
+  'c.memory.aggregates',
+  'c.libs.mopsalib',
+  'c.libs.variadic',
+  'c.libs.clib.formatted_io.fscanf',
+  'c.libs.clib.formatted_io.fprint',
+  'c.libs.compiler',
+  'c.iterators.switch',
+  'c.iterators.program',
+  'c.iterators.loops',
+  'c.iterators.intraproc',
+  'c.iterators.goto',
+  'c.cstubs.resources',
+  'c.cstubs.builtins',
+  'c.cstubs.assigns',
+  'python.flows.exceptions',
+  'python.flows.generators',
+  'python.libs.math',
+  'python.libs.mopsa',
+  'python.libs.stdlib',
+  'python.libs.typing',
+  'python.libs.unittest',
+  'python.desugar.with',
+  'python.desugar.loops',
+  'python.desugar.iterable_assign',
+  'python.desugar.if',
+  'python.desugar.comprehensions',
+  'python.desugar.bool',
+  'python.desugar.assert',
+  'python.types.nominal_types',
+  'python.types.t_complex',
+  'python.types.t_float',
+  'python.types.t_int',
+  'python.types.t_string',
+  'python.objects.range',
+  'python.objects.set',
+  'python.objects.object',
+  'python.objects.lambda',
+  'python.objects.iterable',
+  'python.objects.tuple',
+  'python.objects.function',
+  'python.objects.dict',
+  'python.objects.list',
+  'python.objects.class',
+  'python.data_model.subscript',
+  'python.data_model.compare_ops',
+  'python.data_model.callable',
+  'python.data_model.aug_assign',
+  'python.data_model.attribute',
+  'python.data_model.arith_ops',
+  'python.program',
+  'universal.repl',
+  'stubs.iterators.body',
+  'stubs.iterators.fallback',
+  'universal.iterators.interproc.inlining',
+  'universal.iterators.interproc.sequential_cache',
+  'universal.iterators.intraproc',
+  'universal.iterators.loops',
+  'universal.iterators.program',
+  'universal.iterators.unittest',
+  'universal.toy.string_length',
+  'universal.toy.string_summarization',
+  'python.types.dummy_numeric',
+  'universal.strings.powerset',
+  'universal.numeric.values.zero',
+  'universal.numeric.values.powersets.standard',
+  'universal.numeric.values.powersets.excluded',
+  'universal.numeric.values.congruences',
+  'universal.numeric.values.intervals.integer',
+  'universal.numeric.values.intervals.float',
+  'universal.numeric.values.bitmask',
+  'c.memory.packing.static_scope',
+  'python.packing.static_scope',
+  'universal.partitioning.int-var',
+  'universal.partitioning.tail-markers',
+] as const;
+
+function registerMopsaConfigSchema(monaco: typeof MonacoNS) {
+  const ref = (name: string) => ({ $ref: `#/definitions/${name}` });
+
+  const domainExpr = {
+    oneOf: [
+      ref('domainName'),
+      ref('switchObject'),
+      ref('composeObject'),
+      ref('nonrelObject'),
+      ref('unionObject'),
+      ref('productObject'),
+      ref('applyObject'),
+    ],
+  };
+
+  monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
+    validate: true,
+    comments: 'ignore' as 'ignore',
+    trailingCommas: 'ignore' as 'ignore',
+    schemas: [
+      {
+        uri: 'http://mopsa/config-schema.json',
+        fileMatch: ['**'],
+        schema: {
+          type: 'object',
+          required: ['language', 'domain'],
+          properties: {
+            language: {
+              type: 'string',
+              enum: ['c', 'python', 'universal', 'cfg'],
+              description: 'Target language for analysis',
+            },
+            domain: domainExpr,
+          },
+          definitions: {
+            domainName: {
+              type: 'string',
+              enum: [...DOMAIN_NAMES],
+              description: 'Name of an abstract domain',
+            },
+            domainExpr,
+            switchObject: {
+              type: 'object',
+              required: ['switch'],
+              additionalProperties: false,
+              properties: {
+                semantic: {
+                  type: 'string',
+                  enum: ['C', 'Python', 'Universal', 'C/Scalar'],
+                  description: 'Semantic context',
+                },
+                switch: {
+                  type: 'array',
+                  items: domainExpr,
+                  description: 'Priority switch: first matching domain handles the query',
+                },
+              },
+            },
+            composeObject: {
+              type: 'object',
+              required: ['compose'],
+              additionalProperties: false,
+              properties: {
+                compose: {
+                  type: 'array',
+                  items: domainExpr,
+                  description: 'Sequential composition of domains',
+                },
+              },
+            },
+            nonrelObject: {
+              type: 'object',
+              required: ['nonrel'],
+              additionalProperties: false,
+              properties: {
+                nonrel: {
+                  ...domainExpr,
+                  description: 'Non-relational lifting of a value domain',
+                },
+              },
+            },
+            unionObject: {
+              type: 'object',
+              required: ['union'],
+              additionalProperties: false,
+              properties: {
+                union: {
+                  type: 'array',
+                  items: domainExpr,
+                  description: 'Union of value domains',
+                },
+              },
+            },
+            productObject: {
+              type: 'object',
+              required: ['product'],
+              additionalProperties: false,
+              properties: {
+                product: {
+                  type: 'array',
+                  items: domainExpr,
+                  description: 'Reduced product of domains',
+                },
+                reductions: {
+                  type: 'array',
+                  items: { type: 'string' },
+                  description: 'Reduction operators between product components',
+                },
+              },
+            },
+            applyObject: {
+              type: 'object',
+              required: ['apply', 'on'],
+              additionalProperties: false,
+              properties: {
+                apply: {
+                  ...domainExpr,
+                  description: 'Functor domain to apply',
+                },
+                on: {
+                  ...domainExpr,
+                  description: 'Domain to apply the functor on',
+                },
+              },
+            },
+          },
+        },
+      },
+    ],
+  });
+}
+
 function defineThemes(monaco: typeof MonacoNS) {
   monaco.editor.defineTheme('mopsa-dark', {
     base: 'vs-dark',
@@ -58,6 +290,7 @@ export function ConfigEditor({ resolvedTheme }: ConfigEditorProps) {
 
   const handleBeforeMount: BeforeMount = (monaco) => {
     defineThemes(monaco);
+    registerMopsaConfigSchema(monaco);
   };
 
   return (
