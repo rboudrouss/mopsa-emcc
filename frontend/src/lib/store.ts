@@ -119,6 +119,7 @@ interface AppStore {
   deleteNodes: (ids: string[]) => void;
   moveNodes: (dragIds: string[], parentId: string | null) => void;
   renameNode: (id: string, newName: string) => void;
+  importFiles: (files: { path: string; content: string }[], parentId?: string | null) => void;
 }
 
 // ── Sync initial code ─────────────────────────────────────────────────────────
@@ -570,6 +571,40 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
 
     const newTree = moveNodesInTree(fileTree, dragIds, parentId);
+    set({ fileTree: newTree });
+  },
+
+  importFiles: (files, parentId = null) => {
+    const { fileTree } = get();
+    const newTree: FileTreeNode[] = JSON.parse(JSON.stringify(fileTree));
+
+    const basePath = parentId ? (getNodePath(newTree, parentId) ?? '') : '';
+
+    function insertIntoLevel(level: FileTreeNode[], parts: string[]): void {
+      const name = parts[0];
+      const isFile = parts.length === 1;
+      if (isFile) {
+        if (!level.find((n) => n.name === name && !n.children)) {
+          level.push({ id: genId(), name });
+        }
+        return;
+      }
+      let folder = level.find((n) => n.name === name && n.children !== undefined) as FileTreeNode | undefined;
+      if (!folder) {
+        folder = { id: genId(), name, children: [] };
+        level.push(folder);
+      }
+      insertIntoLevel(folder.children!, parts.slice(1));
+    }
+
+    for (const { path, content } of files) {
+      const fullPath = basePath ? `${basePath}/${path}` : path;
+      const parts = fullPath.split('/').filter(Boolean);
+      if (parts.length === 0) continue;
+      writeFile('/' + fullPath, content);
+      insertIntoLevel(newTree, parts);
+    }
+
     set({ fileTree: newTree });
   },
 

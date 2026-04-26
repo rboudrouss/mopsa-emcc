@@ -10,9 +10,12 @@ import {
   FolderOpen,
   Pencil,
   Trash2,
+  Upload,
+  Download,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
-import { countAllNodes } from '@/lib/tree';
+import { countAllNodes, getAllFilePaths, getNodePath } from '@/lib/tree';
+import { readFile } from '@/lib/mopsa-client';
 import type { FileTreeNode, SupportedLanguage } from '@/lib/types';
 
 // ── Language chip ─────────────────────────────────────────────────────────────
@@ -28,6 +31,42 @@ function getFileLang(filename: string): SupportedLanguage | null {
   if (filename.endsWith('.u')) return 'universal';
   if (filename.endsWith('.c') || filename.endsWith('.h')) return 'c';
   return null;
+}
+
+// ── Import / download helpers ─────────────────────────────────────────────────
+
+const SUPPORTED_IMPORT_EXTS = new Set(['.c', '.h', '.py', '.u']);
+
+function triggerDownload(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+async function readImportFiles(
+  fileList: FileList,
+  useRelativePath: boolean,
+): Promise<{ path: string; content: string }[]> {
+  const results: { path: string; content: string }[] = [];
+  for (const file of Array.from(fileList)) {
+    const dotIdx = file.name.lastIndexOf('.');
+    const ext = dotIdx >= 0 ? file.name.slice(dotIdx) : '';
+    if (!SUPPORTED_IMPORT_EXTS.has(ext)) continue;
+    try {
+      const content = await file.text();
+      if (content.includes('\0')) continue;
+      const path = useRelativePath
+        ? ((file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name)
+        : file.name;
+      results.push({ path, content });
+    } catch { /* skip unreadable */ }
+  }
+  return results;
 }
 
 // ── Context menu state ────────────────────────────────────────────────────────
@@ -188,13 +227,25 @@ interface ContextMenuProps {
   onNewFile: (parentId: string | null) => void;
   onNewFolder: (parentId: string | null) => void;
   onDelete: (id: string) => void;
+  onImportFiles: (parentId: string | null) => void;
+  onImportFolder: (parentId: string | null) => void;
+  onDownloadFile: (id: string) => void;
   onClose: () => void;
 }
 
-function ContextMenu({ state, treeRef, onNewFile, onNewFolder, onDelete, onClose }: ContextMenuProps) {
+function ContextMenu({
+  state,
+  treeRef,
+  onNewFile,
+  onNewFolder,
+  onDelete,
+  onImportFiles,
+  onImportFolder,
+  onDownloadFile,
+  onClose,
+}: ContextMenuProps) {
   const ref = useRef<HTMLDivElement>(null);
 
-  // Close on outside click or Escape
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) onClose();
@@ -210,13 +261,11 @@ function ContextMenu({ state, treeRef, onNewFile, onNewFolder, onDelete, onClose
     };
   }, [onClose]);
 
-  // Adjust position so menu doesn't overflow viewport
   const menuWidth = 180;
-  const menuHeight = 140;
+  const menuHeight = 260;
   const x = Math.min(state.x, window.innerWidth - menuWidth - 4);
   const y = Math.min(state.y, window.innerHeight - menuHeight - 4);
 
-  // The "parent" for new nodes: if right-clicked on a folder, use it; else use its parent
   const newParentId = state.nodeId && state.isFolder ? state.nodeId : (
     state.nodeId ? treeRef.current?.get(state.nodeId)?.parent?.id ?? null : null
   );
@@ -257,6 +306,8 @@ function ContextMenu({ state, treeRef, onNewFile, onNewFolder, onDelete, onClose
     );
   }
 
+  const sep = <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />;
+
   return (
     <div
       ref={ref}
@@ -276,16 +327,22 @@ function ContextMenu({ state, treeRef, onNewFile, onNewFolder, onDelete, onClose
       {item(<FilePlus size={13} />, 'New File', () => onNewFile(newParentId))}
       {item(<FolderPlus size={13} />, 'New Folder', () => onNewFolder(newParentId))}
 
+      {sep}
+      {item(<Upload size={13} />, 'Import files…', () => onImportFiles(newParentId))}
+      {item(<Upload size={13} />, 'Import folder…', () => onImportFolder(newParentId))}
+
       {state.nodeId && (
         <>
-          <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
-          {item(
-            <Pencil size={13} />,
-            'Rename',
-            () => {
-              if (state.nodeId) treeRef.current?.edit(state.nodeId);
-            },
+          {sep}
+          {item(<Pencil size={13} />, 'Rename', () => {
+            if (state.nodeId) treeRef.current?.edit(state.nodeId);
+          })}
+          {!state.isFolder && item(
+            <Download size={13} />,
+            'Download file',
+            () => { if (state.nodeId) onDownloadFile(state.nodeId); },
           )}
+          {sep}
           {item(
             <Trash2 size={13} />,
             'Delete',
@@ -294,6 +351,89 @@ function ContextMenu({ state, treeRef, onNewFile, onNewFolder, onDelete, onClose
           )}
         </>
       )}
+    </div>
+  );
+}
+
+// ── Import dropdown (header button) ──────────────────────────────────────────
+
+interface ImportMenuState { x: number; y: number; }
+
+function ImportMenu({ state, onClose, onImportFiles, onImportFolder }: {
+  state: ImportMenuState;
+  onClose: () => void;
+  onImportFiles: () => void;
+  onImportFolder: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    }
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    document.addEventListener('mousedown', handleClick);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      document.removeEventListener('keydown', handleKey);
+    };
+  }, [onClose]);
+
+  const menuWidth = 160;
+  const x = Math.min(state.x, window.innerWidth - menuWidth - 4);
+
+  return (
+    <div
+      ref={ref}
+      style={{
+        position: 'fixed',
+        top: state.y,
+        left: x,
+        width: menuWidth,
+        background: 'var(--bg-surface)',
+        border: '1px solid var(--border)',
+        borderRadius: 6,
+        boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+        padding: 4,
+        zIndex: 1000,
+      }}
+    >
+      {(['files', 'folder'] as const).map((type) => (
+        <button
+          key={type}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            width: '100%',
+            padding: '6px 12px',
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            fontSize: 12,
+            color: 'var(--text-primary)',
+            textAlign: 'left',
+            borderRadius: 4,
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-hover)';
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background = 'none';
+          }}
+          onClick={() => {
+            if (type === 'files') onImportFiles();
+            else onImportFolder();
+            onClose();
+          }}
+        >
+          <Upload size={13} />
+          {type === 'files' ? 'Import files…' : 'Import folder…'}
+        </button>
+      ))}
     </div>
   );
 }
@@ -313,6 +453,17 @@ const iconBtnStyle: React.CSSProperties = {
   transition: 'color 120ms',
 };
 
+function hoverHandlers() {
+  return {
+    onMouseEnter: (e: React.MouseEvent<HTMLButtonElement>) => {
+      (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)';
+    },
+    onMouseLeave: (e: React.MouseEvent<HTMLButtonElement>) => {
+      (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)';
+    },
+  };
+}
+
 export function FilesPanel() {
   const fileTree = useAppStore((s) => s.fileTree);
   const activeFile = useAppStore((s) => s.activeFile);
@@ -322,15 +473,27 @@ export function FilesPanel() {
   const deleteNodes = useAppStore((s) => s.deleteNodes);
   const moveNodes = useAppStore((s) => s.moveNodes);
   const renameNode = useAppStore((s) => s.renameNode);
+  const importFiles = useAppStore((s) => s.importFiles);
 
   const treeRef = useRef<TreeApi<FileTreeNode>>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const [importMenu, setImportMenu] = useState<ImportMenuState | null>(null);
+
+  // Hidden file inputs
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
+  // Tracks parentId for context-menu-triggered imports
+  const importParentIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (folderInputRef.current) {
+      folderInputRef.current.setAttribute('webkitdirectory', '');
+    }
+  }, []);
 
   const rowHeight = 26;
   const treeHeight = Math.max(rowHeight, countAllNodes(fileTree) * rowHeight);
 
-  // parentId === undefined → let react-arborist pick based on focused node (toolbar buttons)
-  // parentId === null | string → explicit parent (context menu)
   function handleNewFile(parentId?: string | null) {
     if (parentId === undefined) {
       treeRef.current?.create({ type: 'leaf' });
@@ -351,7 +514,78 @@ export function FilesPanel() {
     deleteNodes([id]);
   }
 
-  // Close context menu on right-click on empty space
+  const [status, setStatus] = useState<string | null>(null);
+
+  // ── Import handlers ─────────────────────────────────────────────────────────
+
+  function openFileImport(parentId: string | null) {
+    importParentIdRef.current = parentId;
+    fileInputRef.current?.click();
+  }
+
+  function openFolderImport(parentId: string | null) {
+    importParentIdRef.current = parentId;
+    folderInputRef.current?.click();
+  }
+
+  async function handleFilesInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!e.target.files) return;
+    setStatus('Importing…');
+    try {
+      const results = await readImportFiles(e.target.files, false);
+      if (results.length > 0) importFiles(results, importParentIdRef.current);
+    } finally {
+      setStatus(null);
+      e.target.value = '';
+    }
+  }
+
+  async function handleFolderInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!e.target.files) return;
+    setStatus('Importing…');
+    try {
+      const results = await readImportFiles(e.target.files, true);
+      if (results.length > 0) importFiles(results, importParentIdRef.current);
+    } finally {
+      setStatus(null);
+      e.target.value = '';
+    }
+  }
+
+  // ── Download handlers ────────────────────────────────────────────────────────
+
+  async function handleDownloadProject() {
+    const allPaths = getAllFilePaths(fileTree);
+    if (allPaths.length === 0) return;
+
+    // Collect contents on main thread (mopsaJs is synchronous, must stay here)
+    const files = allPaths.flatMap(({ path }) => {
+      try { return [{ path, content: readFile('/' + path) }]; }
+      catch { return []; }
+    });
+
+    setStatus('Compressing…');
+    const worker = new Worker(
+      new URL('../../workers/zip.worker.ts', import.meta.url),
+      { type: 'module' },
+    );
+    worker.onmessage = (ev: MessageEvent<{ buffer: ArrayBuffer }>) => {
+      triggerDownload(new Blob([ev.data.buffer], { type: 'application/zip' }), 'project.zip');
+      worker.terminate();
+      setStatus(null);
+    };
+    worker.onerror = () => { worker.terminate(); setStatus(null); };
+    worker.postMessage({ files });
+  }
+
+  function handleDownloadFile(nodeId: string) {
+    const path = getNodePath(fileTree, nodeId);
+    if (!path) return;
+    const content = readFile('/' + path);
+    const name = path.split('/').pop() ?? path;
+    triggerDownload(new Blob([content], { type: 'text/plain' }), name);
+  }
+
   function handlePanelContextMenu(e: React.MouseEvent) {
     e.preventDefault();
     setContextMenu({ x: e.clientX, y: e.clientY, nodeId: null, isFolder: false });
@@ -359,6 +593,22 @@ export function FilesPanel() {
 
   return (
     <SetContextMenuCtx.Provider value={setContextMenu}>
+      {/* Hidden file inputs */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        accept=".c,.h,.py,.u"
+        style={{ display: 'none' }}
+        onChange={handleFilesInputChange}
+      />
+      <input
+        ref={folderInputRef}
+        type="file"
+        style={{ display: 'none' }}
+        onChange={handleFolderInputChange}
+      />
+
       <div
         style={{ display: 'flex', flexDirection: 'column', flex: 1 }}
         onContextMenu={handlePanelContextMenu}
@@ -376,13 +626,17 @@ export function FilesPanel() {
             }}
           >
             Files
+            {status && (
+              <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontStyle: 'italic', marginLeft: 6 }}>
+                — {status}
+              </span>
+            )}
           </span>
           <button
             title="New file"
             onClick={() => handleNewFile()}
             style={iconBtnStyle}
-            onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)')}
-            onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)')}
+            {...hoverHandlers()}
           >
             <FilePlus size={14} />
           </button>
@@ -390,10 +644,28 @@ export function FilesPanel() {
             title="New folder"
             onClick={() => handleNewFolder()}
             style={iconBtnStyle}
-            onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)')}
-            onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)')}
+            {...hoverHandlers()}
           >
             <FolderPlus size={14} />
+          </button>
+          <button
+            title="Import files or folder"
+            onClick={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              setImportMenu({ x: rect.left, y: rect.bottom + 4 });
+            }}
+            style={iconBtnStyle}
+            {...hoverHandlers()}
+          >
+            <Upload size={14} />
+          </button>
+          <button
+            title="Download project as ZIP"
+            onClick={handleDownloadProject}
+            style={iconBtnStyle}
+            {...hoverHandlers()}
+          >
+            <Download size={14} />
           </button>
         </div>
 
@@ -439,7 +711,20 @@ export function FilesPanel() {
           onNewFile={handleNewFile}
           onNewFolder={handleNewFolder}
           onDelete={handleDelete}
+          onImportFiles={(parentId) => { openFileImport(parentId); setContextMenu(null); }}
+          onImportFolder={(parentId) => { openFolderImport(parentId); setContextMenu(null); }}
+          onDownloadFile={handleDownloadFile}
           onClose={() => setContextMenu(null)}
+        />
+      )}
+
+      {/* Import dropdown (header button) */}
+      {importMenu && (
+        <ImportMenu
+          state={importMenu}
+          onClose={() => setImportMenu(null)}
+          onImportFiles={() => openFileImport(null)}
+          onImportFolder={() => openFolderImport(null)}
         />
       )}
     </SetContextMenuCtx.Provider>
