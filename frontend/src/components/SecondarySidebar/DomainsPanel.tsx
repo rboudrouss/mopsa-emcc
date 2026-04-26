@@ -26,11 +26,16 @@ export function DomainsPanel() {
   const configDirty = useAppStore((s) => s.configDirty);
   const lang = useAppStore((s) => s.lang);
   const crossLanguage = useAppStore((s) => s.crossLanguage);
+  const customConfigs = useAppStore((s) => s.customConfigs);
   const applyPreset = useAppStore((s) => s.applyPreset);
+  const applyCustom = useAppStore((s) => s.applyCustom);
   const setLang = useAppStore((s) => s.setLang);
   const setActiveTab = useAppStore((s) => s.setActiveTab);
   const fileTree = useAppStore((s) => s.fileTree);
   const activeFile = useAppStore((s) => s.activeFile);
+
+  const configKey = crossLanguage ? 'multilanguage' : lang;
+  const hasCustom = !!customConfigs[configKey];
 
   const { data: presets } = usePresets();
 
@@ -44,7 +49,11 @@ export function DomainsPanel() {
 
   const handlePresetChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value;
-    if (!val || val === 'custom') return;
+    if (!val) return;
+    if (val === 'custom') {
+      applyCustom(configKey);
+      return;
+    }
     const [presetLang, presetName] = val.split('|') as [SupportedLanguage, string];
     const langConfigs = presets?.configs[presetLang as 'c' | 'python' | 'universal' | 'cfg'] ?? {};
     const text = (langConfigs as Record<string, string>)[presetName] ?? '';
@@ -156,19 +165,19 @@ export function DomainsPanel() {
               style={{
                 appearance: 'none',
                 width: '100%',
-                background: configDirty ? 'rgba(245,181,68,.1)' : 'var(--bg-elevated)',
-                border: `1px solid ${configDirty ? 'rgba(245,181,68,.4)' : 'var(--border)'}`,
+                background: 'var(--bg-elevated)',
+                border: '1px solid var(--border)',
                 borderRadius: 6,
-                color: configDirty ? '#f5b544' : 'var(--text-primary)',
+                color: 'var(--text-primary)',
                 fontSize: 12,
                 padding: '4px 28px 4px 10px',
                 cursor: 'pointer',
-                fontWeight: configDirty ? 600 : 400,
               }}
             >
-              {configDirty && (
-                <option value="custom" disabled>
-                  {configPreset} ✎ custom
+              {/* "custom" option: selected when editing, selectable when a saved custom exists */}
+              {(configDirty || hasCustom) && (
+                <option value="custom" disabled={configDirty}>
+                  {configDirty ? 'custom *' : '↩ custom'}
                 </option>
               )}
               {renderOptions()}

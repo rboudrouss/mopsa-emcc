@@ -11,7 +11,6 @@ interface CenterPaneProps {
 
 export function CenterPane({ resolvedTheme }: CenterPaneProps) {
   const activeTab = useAppStore((s) => s.activeTab);
-  const configDirty = useAppStore((s) => s.configDirty);
   const setActiveTab = useAppStore((s) => s.setActiveTab);
   const checks = useAppStore((s) => s.checks);
   const fileTree = useAppStore((s) => s.fileTree);
@@ -56,7 +55,6 @@ export function CenterPane({ resolvedTheme }: CenterPaneProps) {
         <Tab
           label="config.json"
           active={activeTab === 'config'}
-          dirty={configDirty}
           onClick={() => setActiveTab('config')}
         />
       </div>
@@ -109,11 +107,10 @@ export function CenterPane({ resolvedTheme }: CenterPaneProps) {
 interface TabProps {
   label: string;
   active: boolean;
-  dirty?: boolean;
   onClick: () => void;
 }
 
-function Tab({ label, active, dirty, onClick }: TabProps) {
+function Tab({ label, active, onClick }: TabProps) {
   return (
     <button
       onClick={onClick}
@@ -136,18 +133,6 @@ function Tab({ label, active, dirty, onClick }: TabProps) {
       }}
     >
       {label}
-      {dirty && (
-        <span
-          style={{
-            width: 6,
-            height: 6,
-            borderRadius: '50%',
-            background: 'var(--color-accent)',
-            display: 'inline-block',
-            flexShrink: 0,
-          }}
-        />
-      )}
     </button>
   );
 }

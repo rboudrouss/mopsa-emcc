@@ -3,6 +3,7 @@ import {
   DEFAULT_CODE,
   FILE_EXTENSIONS,
   extractPreJson,
+  parseConfigText,
   readFile,
   writeFile,
   deleteFile,
@@ -89,11 +90,15 @@ interface AppStore {
   crossLanguage: boolean;
   pyEntryPoint: string | null; // null = auto (active file)
 
+  // ── Custom configs (saved per language/mode) ─────────────────────────────
+  customConfigs: Partial<Record<string, string>>;
+
   // ── Actions ──────────────────────────────────────────────────────────────
   setPresets: (presets: shareData) => void;
   setCode: (code: string) => void;
   setConfigText: (text: string, dirty?: boolean) => void;
   applyPreset: (name: string, text: string) => void;
+  applyCustom: (key: string) => void;
   setAnalysisResult: (r: AnalysisResult) => void;
   setLang: (lang: SupportedLanguage, defaultConfig: string) => void;
   togglePanel: (panel: Exclude<ActivePanel, null>) => void;
@@ -134,6 +139,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   codeByLang: {},
   configByLang: {},
   configXL: null,
+  customConfigs: {},
   presets: null,
   checks: [],
   warnings: '',
@@ -160,15 +166,43 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   setConfigText: (text, dirty = true) => {
-    const { crossLanguage, lang, configPreset, configByLang, configXL } = get();
-    if (!dirty) mopsaJs.setConfig(text);
+    const { crossLanguage, lang, configPreset, configByLang, configXL, customConfigs, configText: currentText } = get();
+    // If the content hasn't meaningfully changed, ignore (handles Monaco's programmatic echo).
+    if (dirty && text.trim() === currentText.trim()) return;
+    const key = crossLanguage ? 'multilanguage' : lang;
+    let customUpdate: Partial<AppStore> = {};
+    if (!dirty) {
+      mopsaJs.setConfig(text);
+    } else if (parseConfigText(text) !== null) {
+      mopsaJs.setConfig(text);
+      customUpdate = { customConfigs: { ...customConfigs, [key]: text } };
+    }
     const saved: SavedConfig = { preset: configPreset, text, dirty };
     if (crossLanguage) {
-      set({ configText: text, configDirty: dirty, configXL: { ...configXL, ...saved } });
+      set({ configText: text, configDirty: dirty, configXL: { ...configXL, ...saved }, ...customUpdate });
     } else {
       set({
         configText: text,
         configDirty: dirty,
+        configByLang: { ...configByLang, [lang]: saved },
+        ...customUpdate,
+      });
+    }
+  },
+
+  applyCustom: (key) => {
+    const { customConfigs, crossLanguage, lang, configByLang } = get();
+    const text = customConfigs[key];
+    if (!text) return;
+    mopsaJs.setConfig(text);
+    const saved: SavedConfig = { preset: 'custom', text, dirty: true };
+    if (crossLanguage) {
+      set({ configText: text, configPreset: 'custom', configDirty: true, configXL: saved });
+    } else {
+      set({
+        configText: text,
+        configPreset: 'custom',
+        configDirty: true,
         configByLang: { ...configByLang, [lang]: saved },
       });
     }

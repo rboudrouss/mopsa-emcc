@@ -7,7 +7,6 @@ export function ActivityBar() {
   const activePanel = useAppStore((s) => s.activePanel);
   const togglePanel = useAppStore((s) => s.togglePanel);
   const checks = useAppStore((s) => s.checks);
-  const configDirty = useAppStore((s) => s.configDirty);
   const optionValues = useAppStore((s) => s.optionValues);
 
   const warnCount = checks.filter((c) => c.kind === 'warning' || c.kind === 'error').length;
@@ -40,8 +39,6 @@ export function ActivityBar() {
         icon={<NetworkIcon size={20} />}
         panel="domains"
         active={activePanel === 'domains'}
-        badge={configDirty ? '●' : undefined}
-        badgeColor="#f5b544"
         onClick={() => togglePanel('domains')}
         title="Domains"
       />
@@ -63,7 +60,7 @@ interface ActivityIconProps {
   panel: Exclude<ActivePanel, null>;
   active: boolean;
   badge?: number | string;
-  badgeColor: string;
+  badgeColor?: string;
   onClick: () => void;
   title: string;
 }

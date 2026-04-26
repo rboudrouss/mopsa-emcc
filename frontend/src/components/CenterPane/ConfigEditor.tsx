@@ -1,8 +1,8 @@
 import MonacoEditor, { type BeforeMount } from '@monaco-editor/react';
 import type * as MonacoNS from 'monaco-editor';
+import { useEffect, useState } from 'react';
 import { parseConfigText } from '@/lib/mopsa-client';
 import { useAppStore } from '@/lib/store';
-import { useAnalysis } from '@/lib/hooks/use-analysis';
 
 function defineThemes(monaco: typeof MonacoNS) {
   monaco.editor.defineTheme('mopsa-dark', {
@@ -34,42 +34,46 @@ interface ConfigEditorProps {
 
 export function ConfigEditor({ resolvedTheme }: ConfigEditorProps) {
   const configText = useAppStore((s) => s.configText);
-  const configPreset = useAppStore((s) => s.configPreset);
   const configDirty = useAppStore((s) => s.configDirty);
+  const lang = useAppStore((s) => s.lang);
+  const crossLanguage = useAppStore((s) => s.crossLanguage);
+  const customConfigs = useAppStore((s) => s.customConfigs);
   const setConfigText = useAppStore((s) => s.setConfigText);
-  const applyPreset = useAppStore((s) => s.applyPreset);
-  const { run: runAnalysis } = useAnalysis();
+  const applyCustom = useAppStore((s) => s.applyCustom);
 
+  const configKey = crossLanguage ? 'multilanguage' : lang;
+  const hasCustom = !!customConfigs[configKey];
   const isValidJson = parseConfigText(configText) !== null;
+
+  // user explicitly chose to overwrite the existing custom
+  const [userAccepted, setUserAccepted] = useState(false);
+
+  // Reset acceptance when leaving custom
+  useEffect(() => {
+    if (!configDirty) setUserAccepted(false);
+  }, [configDirty, configKey]);
+
+  // Editor is blocked when NOT on custom AND a saved custom exists AND user hasn't accepted
+  const isBlocked = !configDirty && hasCustom && !userAccepted;
 
   const handleBeforeMount: BeforeMount = (monaco) => {
     defineThemes(monaco);
   };
 
-  const handleApply = () => {
-    applyPreset(configPreset, configText);
-    runAnalysis();
-  };
-
-  const handleRevert = () => {
-    setConfigText(configText, false);
-  };
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      {/* Toolbar */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          padding: '6px 12px',
-          background: 'var(--bg-surface)',
-          borderBottom: '1px solid var(--border)',
-          flexShrink: 0,
-        }}
-      >
-        {!isValidJson && (
+      {/* Toolbar — only visible when JSON is invalid */}
+      {!isValidJson && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            padding: '6px 12px',
+            background: 'var(--bg-surface)',
+            borderBottom: '1px solid var(--border)',
+            flexShrink: 0,
+          }}
+        >
           <span
             style={{
               fontSize: 11,
@@ -82,55 +86,56 @@ export function ConfigEditor({ resolvedTheme }: ConfigEditorProps) {
           >
             Invalid JSON
           </span>
-        )}
-        {isValidJson && configDirty && (
-          <span
+        </div>
+      )}
+
+      {isBlocked && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '6px 12px',
+            background: 'rgba(251,191,36,.08)',
+            borderBottom: '1px solid rgba(251,191,36,.3)',
+            flexShrink: 0,
+          }}
+        >
+          <span style={{ flex: 1, fontSize: 11, color: '#fbbf24' }}>
+            ⚠ Un config custom existe pour ce mode, éditer va l'écraser.
+          </span>
+          <button
+            onClick={() => applyCustom(configKey)}
             style={{
               fontSize: 11,
-              color: '#4ade80',
-              background: 'rgba(74,222,128,.12)',
-              padding: '2px 8px',
+              color: '#fbbf24',
+              background: 'rgba(251,191,36,.15)',
+              border: '1px solid rgba(251,191,36,.4)',
               borderRadius: 4,
+              padding: '2px 8px',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
             }}
           >
-            Modified
-          </span>
-        )}
-        <div style={{ flex: 1 }} />
-        {configDirty && (
+            Restaurer le custom
+          </button>
           <button
-            onClick={handleRevert}
+            onClick={() => setUserAccepted(true)}
             style={{
-              fontSize: 12,
+              fontSize: 11,
               color: 'var(--text-secondary)',
               background: 'var(--bg-elevated)',
               border: '1px solid var(--border)',
               borderRadius: 4,
-              padding: '3px 10px',
+              padding: '2px 8px',
               cursor: 'pointer',
+              whiteSpace: 'nowrap',
             }}
           >
-            Revert
+            Écraser
           </button>
-        )}
-        <button
-          onClick={handleApply}
-          disabled={!isValidJson}
-          style={{
-            fontSize: 12,
-            color: isValidJson ? '#0f1117' : 'var(--text-muted)',
-            background: isValidJson ? '#f5b544' : 'var(--bg-elevated)',
-            border: 'none',
-            borderRadius: 4,
-            padding: '3px 12px',
-            cursor: isValidJson ? 'pointer' : 'not-allowed',
-            fontWeight: 600,
-            transition: 'opacity 120ms',
-          }}
-        >
-          Apply &amp; Re-run
-        </button>
-      </div>
+        </div>
+      )}
 
       {/* Editor */}
       <div style={{ flex: 1 }}>
@@ -151,6 +156,7 @@ export function ConfigEditor({ resolvedTheme }: ConfigEditorProps) {
             tabSize: 2,
             wordWrap: 'off',
             folding: true,
+            readOnly: isBlocked,
           }}
         />
       </div>
