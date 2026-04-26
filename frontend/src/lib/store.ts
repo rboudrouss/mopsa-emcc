@@ -377,7 +377,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const wPath = '/' + path;
 
     const currentPath = mopsaJs.getCodeFilePath()[1];
-    if (wPath === currentPath) { set({ activeFile: id }); return; }
+    if (wPath === currentPath) { set({ activeFile: id, activeTab: 'source' }); return; }
 
     // 1. Read the new file's content BEFORE changing _codeFile, otherwise
     //    readFile(wPath) would match _codeFile and return the old _code.
@@ -428,7 +428,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       }
     }
 
-    set({ activeFile: id, code: newContent, lang: newLang, ...configUpdates });
+    set({ activeFile: id, activeTab: 'source', code: newContent, lang: newLang, ...configUpdates });
   },
 
   createFileNode: (parentId) => {
