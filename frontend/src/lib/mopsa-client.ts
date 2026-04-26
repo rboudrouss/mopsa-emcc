@@ -3,31 +3,47 @@ import { SELECT_FLAGS } from "./options-schema";
 
 // ── Default code snippets per language ───────────────────────────────────────
 export const DEFAULT_CODE: Record<SupportedLanguage, string> = {
-  c: `int divide(int a, int b) {
-  return a / b;
+  c: `int tab[10];
+
+/* off-by-one: i <= n writes tab[10], out of bounds! */
+void fill(int n) {
+  for (int i = 0; i <= n; i++)
+    tab[i] = i * 2;
 }
 
 int main() {
-  int x = divide(10, 2);  // safe: result = 5
-  int y = divide(x, 0);   // alarm: division by zero
-  return y;
+  fill(10);
+  return tab[0];
 }
 `,
-  python: `def main():
-    x = 42
-    print(f"Hello, Mopsa! x = {x}")
+  python: `def average(values):
+    total = 0
+    for v in values:
+        total += v
+    return total / len(values)  # ZeroDivisionError if values is []
 
-main()
+def above_threshold(data, threshold):
+    filtered = [x for x in data if x > threshold]
+    return average(filtered)  # alarm: filtered may be empty!
+
+result = above_threshold([1, 2, 3], 10)
 `,
-  universal: `int x;
-int y = 10;
+  universal: `int n;
+int i;
+int count;
 
-int add(int a, int b) {
-  return a + b;
+n = rand(1, 10);
+i = 0;
+count = 0;
+
+while (i < n) {
+  if (rand(0, 1) == 0) {
+    count = count + 1;
+  };
+  i = i + 1;
 };
 
-x = add(y, 5);
-assert(x == 15);
+assert(count == n);
 `,
 };
 
