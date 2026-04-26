@@ -93,8 +93,12 @@ interface AppStore {
   // ── Custom configs (saved per language/mode) ─────────────────────────────
   customConfigs: Partial<Record<string, string>>;
 
+  // ── Auto-run ─────────────────────────────────────────────────────────────
+  autoRun: boolean;
+
   // ── Actions ──────────────────────────────────────────────────────────────
   setPresets: (presets: shareData) => void;
+  toggleAutoRun: () => void;
   setCode: (code: string) => void;
   setConfigText: (text: string, dirty?: boolean) => void;
   applyPreset: (name: string, text: string) => void;
@@ -155,9 +159,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
   pyEntryPoint: null,
   fileTree: _initialTree,
   activeFile: _initialActiveFile,
+  autoRun: true,
 
   // ── Presets ────────────────────────────────────────────────────────────
   setPresets: (presets) => set({ presets }),
+  toggleAutoRun: () => set((s) => ({ autoRun: !s.autoRun })),
 
   // ── Code / config ──────────────────────────────────────────────────────
   setCode: (code) => {

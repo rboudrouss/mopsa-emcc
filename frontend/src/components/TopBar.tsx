@@ -1,4 +1,4 @@
-import { MoonIcon, PlayIcon, SunIcon } from 'lucide-react';
+import { MoonIcon, PlayIcon, SunIcon, ZapIcon, ZapOffIcon } from 'lucide-react';
 import { PulseDot } from '@/components/ui/PulseDot';
 import { useAppStore } from '@/lib/store';
 import { EntryPointPicker } from '@/components/TopBar/EntryPointPicker';
@@ -14,6 +14,8 @@ export function TopBar({ isAnalyzing, onRunClick, resolvedTheme, onThemeToggle }
   const checks = useAppStore((s) => s.checks);
   const selectivity = useAppStore((s) => s.selectivity);
   const analysisTime = useAppStore((s) => s.analysisTime);
+  const autoRun = useAppStore((s) => s.autoRun);
+  const toggleAutoRun = useAppStore((s) => s.toggleAutoRun);
 
   const safe = checks.filter((c) => c.kind === 'safe').length;
   const total = checks.length;
@@ -82,6 +84,28 @@ export function TopBar({ isAnalyzing, onRunClick, resolvedTheme, onThemeToggle }
       <PulseDot active={isAnalyzing} label="Analyzing…" />
 
       <EntryPointPicker />
+
+      {/* Auto-run toggle */}
+      <button
+        onClick={toggleAutoRun}
+        title={autoRun ? 'Disable auto-run' : 'Enable auto-run'}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: 32,
+          height: 32,
+          background: autoRun ? 'color-mix(in srgb, #f5b544 15%, transparent)' : 'none',
+          border: `1px solid ${autoRun ? '#f5b544' : 'var(--border)'}`,
+          borderRadius: 6,
+          cursor: 'pointer',
+          color: autoRun ? '#f5b544' : 'var(--text-muted)',
+          flexShrink: 0,
+          transition: 'all 150ms',
+        }}
+      >
+        {autoRun ? <ZapIcon size={14} /> : <ZapOffIcon size={14} />}
+      </button>
 
       {/* Run button */}
       <button

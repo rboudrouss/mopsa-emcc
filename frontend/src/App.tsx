@@ -22,6 +22,7 @@ export default function App() {
   const optionValues = useAppStore((s) => s.optionValues);
   const applyPreset = useAppStore((s) => s.applyPreset);
   const setPresets = useAppStore((s) => s.setPresets);
+  const autoRun = useAppStore((s) => s.autoRun);
 
   // Initialise config from presets once they load
   useEffect(() => {
@@ -36,11 +37,11 @@ export default function App() {
 
   const debouncedRun = useDebouncedFn(runAnalysis, 300);
 
-  // Auto-run whenever code, config, or options change
+  // Auto-run whenever code, config, or options change (if enabled)
   useEffect(() => {
-    debouncedRun();
+    if (autoRun) debouncedRun();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [code, configText, JSON.stringify(optionValues)]);
+  }, [autoRun, code, configText, JSON.stringify(optionValues)]);
 
   return (
     <div
