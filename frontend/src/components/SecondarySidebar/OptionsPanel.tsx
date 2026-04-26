@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ChevronDownIcon, ChevronRightIcon, RotateCcwIcon, XIcon } from 'lucide-react';
 import { DEFAULT_OPTION_VALUES, OPTIONS_SCHEMA, type OptionSpec } from '@/lib/options-schema';
 import { clearState } from '@/lib/persistence';
-import { useAppStore } from '@/lib/store';
+import { cancelPendingSave, useAppStore } from '@/lib/store';
 
 export function OptionsPanel() {
   const crossLanguage = useAppStore((s) => s.crossLanguage);
@@ -28,6 +28,7 @@ export function OptionsPanel() {
         <button
           onClick={() => {
             if (window.confirm('Reset Mopsa to its default state? This will clear all saved files, configs and options.')) {
+              cancelPendingSave();
               clearState();
               window.location.reload();
             }

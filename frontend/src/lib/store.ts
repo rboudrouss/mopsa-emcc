@@ -693,6 +693,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
 // ── Persist state to localStorage (debounced) ─────────────────────────────────
 
 let _saveTimer: ReturnType<typeof setTimeout> | null = null;
+
+export function cancelPendingSave(): void {
+  if (_saveTimer) {
+    clearTimeout(_saveTimer);
+    _saveTimer = null;
+  }
+}
+
 useAppStore.subscribe((state) => {
   if (_saveTimer) clearTimeout(_saveTimer);
   _saveTimer = setTimeout(() => {
