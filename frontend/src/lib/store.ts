@@ -479,10 +479,45 @@ export const useAppStore = create<AppStore>((set, get) => ({
       if (newActiveFile) {
         const path = getNodePath(newTree, newActiveFile);
         if (path) {
-          setCodeFilePath('/' + path);
           const content = readFile('/' + path);
+          setCodeFilePath('/' + path);
           mopsaJs.setCode(content);
-          set({ code: content });
+
+          const ext = path.split('.').pop() ?? '';
+          const newLang = getLanguageFromFileExtension(ext);
+          const { lang: currentLang, crossLanguage, configByLang, configText, configPreset, configDirty, presets } = get();
+
+          let configUpdates: Partial<AppStore> = {};
+          if (!crossLanguage && newLang !== currentLang) {
+            const newConfigByLang = {
+              ...configByLang,
+              [currentLang]: { preset: configPreset, text: configText, dirty: configDirty },
+            };
+            const savedLangConfig = configByLang[newLang];
+            if (savedLangConfig) {
+              mopsaJs.setConfig(savedLangConfig.text);
+              configUpdates = {
+                configText: savedLangConfig.text,
+                configPreset: savedLangConfig.preset,
+                configDirty: savedLangConfig.dirty,
+                configByLang: newConfigByLang,
+              };
+            } else {
+              const langConfigs = presets?.configs[newLang as 'c' | 'python' | 'universal' | 'cfg'];
+              const defaultText = langConfigs?.['default.json'];
+              if (defaultText) {
+                mopsaJs.setConfig(defaultText);
+                configUpdates = {
+                  configText: defaultText,
+                  configPreset: 'default.json',
+                  configDirty: false,
+                  configByLang: newConfigByLang,
+                };
+              }
+            }
+          }
+
+          set({ code: content, lang: newLang, activeTab: 'source', ...configUpdates });
         }
       }
     }
@@ -564,7 +599,40 @@ export const useAppStore = create<AppStore>((set, get) => ({
       if (id === activeFile) {
         setCodeFilePath('/' + newPath);
         const ext = newName.split('.').pop() ?? '';
-        set({ lang: getLanguageFromFileExtension(ext) });
+        const newLang = getLanguageFromFileExtension(ext);
+        const { lang: currentLang, crossLanguage, configByLang, configText, configPreset, configDirty, presets } = get();
+
+        let configUpdates: Partial<AppStore> = {};
+        if (!crossLanguage && newLang !== currentLang) {
+          const newConfigByLang = {
+            ...configByLang,
+            [currentLang]: { preset: configPreset, text: configText, dirty: configDirty },
+          };
+          const savedLangConfig = configByLang[newLang];
+          if (savedLangConfig) {
+            mopsaJs.setConfig(savedLangConfig.text);
+            configUpdates = {
+              configText: savedLangConfig.text,
+              configPreset: savedLangConfig.preset,
+              configDirty: savedLangConfig.dirty,
+              configByLang: newConfigByLang,
+            };
+          } else {
+            const langConfigs = presets?.configs[newLang as 'c' | 'python' | 'universal' | 'cfg'];
+            const defaultText = langConfigs?.['default.json'];
+            if (defaultText) {
+              mopsaJs.setConfig(defaultText);
+              configUpdates = {
+                configText: defaultText,
+                configPreset: 'default.json',
+                configDirty: false,
+                configByLang: newConfigByLang,
+              };
+            }
+          }
+        }
+
+        set({ lang: newLang, ...configUpdates });
       } else {
         const content = readFile('/' + oldPath);
         writeFile('/' + newPath, content);
