@@ -2,6 +2,7 @@ import { MoonIcon, PlayIcon, SunIcon, ZapIcon, ZapOffIcon } from 'lucide-react';
 import { PulseDot } from '@/components/ui/PulseDot';
 import { useAppStore } from '@/lib/store';
 import { EntryPointPicker } from '@/components/TopBar/EntryPointPicker';
+import { Languages } from 'lucide-react';
 
 interface TopBarProps {
   isAnalyzing: boolean;
@@ -16,6 +17,7 @@ export function TopBar({ isAnalyzing, onRunClick, resolvedTheme, onThemeToggle }
   const analysisTime = useAppStore((s) => s.analysisTime);
   const autoRun = useAppStore((s) => s.autoRun);
   const toggleAutoRun = useAppStore((s) => s.toggleAutoRun);
+  const crossLanguage = useAppStore((s) => s.crossLanguage);
 
   const safe = checks.filter((c) => c.kind === 'safe').length;
   const total = checks.length;
@@ -78,6 +80,28 @@ export function TopBar({ isAnalyzing, onRunClick, resolvedTheme, onThemeToggle }
           {selectivity && (
             <span style={{ color: 'var(--text-muted)' }}>{selectivity}</span>
           )}
+        </div>
+      )}
+
+      {crossLanguage && (
+        <div
+          title="Cross-language analysis enabled"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            padding: '2px 8px',
+            background: 'color-mix(in srgb, #818cf8 15%, transparent)',
+            border: '1px solid #818cf8',
+            borderRadius: 12,
+            fontSize: 11,
+            fontWeight: 500,
+            color: '#818cf8',
+            flexShrink: 0,
+          }}
+        >
+          <Languages size={11} />
+          Cross-language
         </div>
       )}
 
