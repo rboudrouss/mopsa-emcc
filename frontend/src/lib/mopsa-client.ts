@@ -1,5 +1,5 @@
 import type { AnalysisResult, ParsedOutput, SupportedLanguage } from "./types";
-import { SELECT_FLAGS } from "./options-schema";
+import { BOOL_ARG_FLAGS, MOPSA_DEFAULT_VALUES, SELECT_FLAGS } from "./options-schema";
 
 // ── Default code snippets per language ───────────────────────────────────────
 export const DEFAULT_CODE: Record<SupportedLanguage, string> = {
@@ -150,14 +150,13 @@ export function computeOptionsFlags(values: Record<string, unknown>): string[] {
   const flags: string[] = [];
   for (const [flag, value] of Object.entries(values)) {
     if (flag === "__raw") continue;
-    if (
-      value === false ||
-      value === "" ||
-      value === null ||
-      value === undefined
-    )
+    if (value === null || value === undefined) continue;
+    if (value === MOPSA_DEFAULT_VALUES[flag]) continue;
+    if (BOOL_ARG_FLAGS.has(flag)) {
+      flags.push(flag, value ? "true" : "false");
+    } else if (value === false || value === "") {
       continue;
-    if (value === true) {
+    } else if (value === true) {
       flags.push(flag);
     } else if (SELECT_FLAGS.has(flag)) {
       flags.push(`${flag}=${String(value)}`);

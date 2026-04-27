@@ -213,7 +213,7 @@ function OptionInput({
   value: unknown;
   onChange: (v: unknown) => void;
 }) {
-  if (spec.type === 'bool') {
+  if (spec.type === 'bool' || spec.type === 'boolArg') {
     const checked = Boolean(value);
     return (
       <button
