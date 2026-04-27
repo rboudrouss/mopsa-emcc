@@ -16,8 +16,8 @@ const KIND_COLOR: Record<string, { border: string; bg: string; bgHover: string }
 
 export function IssueCard({ check, index, onClick }: IssueCardProps) {
   const { start } = check.range;
-  const filename = start.file.split('/').pop() ?? start.file;
-  const location = `${filename}:${start.line}.${start.column}`;
+  const filename = start ? (start.file.split('/').pop() ?? start.file) : '?';
+  const location = start ? `${filename}:${start.line}.${start.column}` : filename;
   const color = KIND_COLOR[check.kind] ?? KIND_COLOR.warning;
 
   return (
