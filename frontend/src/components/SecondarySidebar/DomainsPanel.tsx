@@ -95,7 +95,8 @@ export function DomainsPanel() {
     ));
   };
 
-  const currentValue = configDirty ? 'custom' : `${lang}|${configPreset}`;
+  const currentLang = crossLanguage ? 'python' : lang;
+  const currentValue = configDirty ? 'custom' : `${currentLang}|${configPreset}`;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column' }}>

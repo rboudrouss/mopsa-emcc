@@ -22,6 +22,10 @@ import {
   moveNodesInTree,
   getDescendantFiles,
   findFirstFile,
+  sortNodes,
+  getSiblings,
+  getChildrenOf,
+  uniqueNameInLevel,
 } from './tree';
 import type {
   ActivePanel,
@@ -118,7 +122,7 @@ interface AppStore {
   createFolderNode: (parentId: string | null) => string;
   deleteNodes: (ids: string[]) => void;
   moveNodes: (dragIds: string[], parentId: string | null) => void;
-  renameNode: (id: string, newName: string) => void;
+  renameNode: (id: string, newName: string) => boolean;
   importFiles: (files: { path: string; content: string }[], parentId?: string | null) => void;
 }
 
@@ -337,7 +341,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
         // Default: first multilanguage config from python section
         const pythonConfigs = presets?.configs.python;
         const xlKey = pythonConfigs
-          ? (Object.keys(pythonConfigs).find((k) => k.toLowerCase().includes('multilanguage'))
+          ? (Object.keys(pythonConfigs).find((k) => k === 'multilanguage.json')
+            ?? Object.keys(pythonConfigs).find((k) => k.toLowerCase().includes('multilanguage'))
             ?? Object.keys(pythonConfigs)[0])
           : undefined;
         const xlText = xlKey && pythonConfigs ? (pythonConfigs[xlKey] ?? configText) : configText;
@@ -445,20 +450,24 @@ export const useAppStore = create<AppStore>((set, get) => ({
   createFileNode: (parentId) => {
     const { fileTree } = get();
     const id = genId();
-    const node: FileTreeNode = { id, name: 'new_file' };
-    // Compute the path and write an empty file to mopsaJs
+    const siblings = getChildrenOf(fileTree, parentId);
+    const name = uniqueNameInLevel(siblings, 'new_file');
+    const node: FileTreeNode = { id, name };
     const parentPath = parentId ? getNodePath(fileTree, parentId) : null;
-    const filePath = parentPath ? `${parentPath}/new_file` : 'new_file';
+    const filePath = parentPath ? `${parentPath}/${name}` : name;
     writeFile('/' + filePath, '');
-    const newTree = insertNode(fileTree, parentId, node);
+    const newTree = sortNodes(insertNode(fileTree, parentId, node));
     set({ fileTree: newTree });
     return id;
   },
 
   createFolderNode: (parentId) => {
+    const { fileTree } = get();
     const id = genId();
-    const node: FileTreeNode = { id, name: 'new_folder', children: [] };
-    const newTree = insertNode(get().fileTree, parentId, node);
+    const siblings = getChildrenOf(fileTree, parentId);
+    const name = uniqueNameInLevel(siblings, 'new_folder');
+    const node: FileTreeNode = { id, name, children: [] };
+    const newTree = sortNodes(insertNode(fileTree, parentId, node));
     set({ fileTree: newTree });
     return id;
   },
@@ -574,7 +583,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       }
     }
 
-    const newTree = moveNodesInTree(fileTree, dragIds, parentId);
+    const newTree = sortNodes(moveNodesInTree(fileTree, dragIds, parentId));
     set({ fileTree: newTree });
   },
 
@@ -609,16 +618,19 @@ export const useAppStore = create<AppStore>((set, get) => ({
       insertIntoLevel(newTree, parts);
     }
 
-    set({ fileTree: newTree });
+    set({ fileTree: sortNodes(newTree) });
   },
 
   renameNode: (id, newName) => {
     const { fileTree, activeFile } = get();
     const node = findById(fileTree, id);
-    if (!node || node.name === newName) return;
+    if (!node || node.name === newName) return true;
+
+    const siblings = getSiblings(fileTree, id);
+    if (siblings && siblings.some((n) => n.id !== id && n.name === newName)) return false;
 
     const oldPath = getNodePath(fileTree, id);
-    if (!oldPath) return;
+    if (!oldPath) return true;
     const parentPath = oldPath.includes('/')
       ? oldPath.slice(0, oldPath.lastIndexOf('/'))
       : null;
@@ -685,8 +697,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
       }
     }
 
-    const newTree = renameNodeById(fileTree, id, newName);
+    const newTree = sortNodes(renameNodeById(fileTree, id, newName));
     set({ fileTree: newTree });
+    return true;
   },
 }));
 

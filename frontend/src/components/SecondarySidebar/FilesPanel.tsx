@@ -695,7 +695,12 @@ export function FilesPanel() {
                 : createFolderNode(parentId ?? null);
               return { id };
             }}
-            onRename={({ id, name }) => renameNode(id, name)}
+            onRename={({ id, name }) => {
+              if (!renameNode(id, name)) {
+                setStatus('Name already exists');
+                setTimeout(() => setStatus(null), 2000);
+              }
+            }}
             onMove={({ dragIds, parentId }) => moveNodes(dragIds, parentId)}
             onDelete={({ ids }) => deleteNodes(ids)}
           >

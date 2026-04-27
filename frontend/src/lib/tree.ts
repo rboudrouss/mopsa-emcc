@@ -119,6 +119,45 @@ export function findFirstFile(tree: FileTreeNode[]): string | null {
   return null;
 }
 
+export function sortNodes(nodes: FileTreeNode[]): FileTreeNode[] {
+  const sorted = [...nodes].sort((a, b) => {
+    const aFolder = a.children !== undefined;
+    const bFolder = b.children !== undefined;
+    if (aFolder !== bFolder) return aFolder ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+  return sorted.map((n) =>
+    n.children ? { ...n, children: sortNodes(n.children) } : n,
+  );
+}
+
+export function getSiblings(tree: FileTreeNode[], id: string): FileTreeNode[] | null {
+  if (tree.some((n) => n.id === id)) return tree;
+  for (const n of tree) {
+    if (n.children) {
+      const found = getSiblings(n.children, id);
+      if (found !== null) return found;
+    }
+  }
+  return null;
+}
+
+export function getChildrenOf(tree: FileTreeNode[], parentId: string | null): FileTreeNode[] {
+  if (parentId === null) return tree;
+  const parent = findById(tree, parentId);
+  return parent?.children ?? [];
+}
+
+export function uniqueNameInLevel(level: FileTreeNode[], baseName: string, excludeId?: string): string {
+  const taken = new Set(
+    level.filter((n) => n.id !== excludeId).map((n) => n.name),
+  );
+  if (!taken.has(baseName)) return baseName;
+  let i = 1;
+  while (taken.has(`${baseName}_${i}`)) i++;
+  return `${baseName}_${i}`;
+}
+
 export function getAllFilePaths(
   nodes: FileTreeNode[],
   prefix = '',
