@@ -28,8 +28,11 @@ export default function App() {
   useEffect(() => {
     if (!isSuccess || !presets) return;
     setPresets(presets);
-    const firstConfig = presets.configs.c['default.json'] ?? mopsaJs.configUni;
-    if (!useAppStore.getState().configText) {
+    const state = useAppStore.getState();
+    if (!state.configText) {
+      const langKey = state.lang as keyof typeof presets.configs;
+      const langConfigs = presets.configs[langKey] ?? presets.configs.c;
+      const firstConfig = langConfigs['default.json'] ?? mopsaJs.configUni;
       mopsaJs.setConfig(firstConfig);
       applyPreset('default.json', firstConfig);
     }

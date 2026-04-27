@@ -96,11 +96,6 @@ export function loadAndRestoreState(): RestoredState | null {
     const saved = JSON.parse(raw) as PersistedState;
     if (saved.version !== STORAGE_VERSION) return null;
 
-    // Restore all files into the WASM filesystem
-    for (const [path, content] of Object.entries(saved.fileContents)) {
-      writeFile('/' + path, content);
-    }
-
     // Determine active file and code
     let code = DEFAULT_CODE[saved.lang] ?? '';
     let activeFile = saved.activeFile;
@@ -116,7 +111,17 @@ export function loadAndRestoreState(): RestoredState | null {
     if (resolved) {
       activeFile = resolved.id;
       code = resolved.content;
+      // Set the active file path BEFORE writing file contents so that
+      // non-active files land in _extraFiles (not overwrite _code).
       setCodeFilePath('/' + resolved.path);
+    }
+
+    // Restore all files into the WASM filesystem
+    for (const [path, content] of Object.entries(saved.fileContents)) {
+      writeFile('/' + path, content);
+    }
+
+    if (resolved) {
       mopsaJs.setCode(code);
     }
 
