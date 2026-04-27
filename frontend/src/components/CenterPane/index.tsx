@@ -18,7 +18,7 @@ export function CenterPane({ resolvedTheme }: CenterPaneProps) {
 
   const codeFilePath = getCodeFilePath();
   const localChecks = checks.filter(
-    (c) => c.range.start.file === codeFilePath || c.range.start.file.endsWith(codeFilePath.replace(/^\//, ''))
+    (c) => c.range?.start && (c.range.start.file === codeFilePath || c.range.start.file.endsWith(codeFilePath.replace(/^\//, '')))
   );
   const warnChecks = localChecks.filter((c) => c.kind === 'warning' || c.kind === 'error');
 

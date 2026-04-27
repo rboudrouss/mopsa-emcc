@@ -91,6 +91,7 @@ function FileRow({ node, style, dragHandle }: NodeRendererProps<FileTreeNode>) {
   const warnings = !isFolder
     ? checks.filter(
         (c) =>
+          c.range?.start &&
           (c.range.start.file.endsWith(node.data.name) ||
             c.range.start.file.endsWith('/' + node.data.name)) &&
           (c.kind === 'warning' || c.kind === 'error'),

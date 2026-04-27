@@ -8,10 +8,10 @@ function inFile(file: string, codeFilePath: string): boolean {
 
 function toRange(r: CheckItem['range']): Monaco.IRange {
   return {
-    startLineNumber: r.start.line,
-    startColumn: r.start.column,
-    endLineNumber: r.end.line,
-    endColumn: r.end.column + 1,
+    startLineNumber: r.start!.line,
+    startColumn: r.start!.column,
+    endLineNumber: r.end!.line,
+    endColumn: r.end!.column + 1,
   };
 }
 
@@ -28,7 +28,7 @@ export function useMonacoDecorations(
     if (!editor) return;
 
     const alarms = checks.filter(
-      (c) => (c.kind === 'warning' || c.kind === 'error') && inFile(c.range.start.file, codeFilePath)
+      (c) => (c.kind === 'warning' || c.kind === 'error') && c.range?.start && inFile(c.range.start.file, codeFilePath)
     );
 
     const decorations: Monaco.editor.IModelDeltaDecoration[] = [];
@@ -41,6 +41,7 @@ export function useMonacoDecorations(
       if (c.callstack.length > 0) {
         hoverLines.push('', '**Call stack:**');
         for (const frame of c.callstack) {
+          if (!frame.range?.start) continue;
           hoverLines.push(`- \`${frame.function}\` : ${frame.range.start.file}:${frame.range.start.line}`);
         }
       }
@@ -58,14 +59,14 @@ export function useMonacoDecorations(
 
       // Call-site frames in this file
       for (const frame of c.callstack) {
-        if (!inFile(frame.range.start.file, codeFilePath)) continue;
+        if (!frame.range?.start || !inFile(frame.range.start.file, codeFilePath)) continue;
         decorations.push({
           range: toRange(frame.range),
           options: {
             inlineClassName: 'mopsa-callsite-span',
             isWholeLine: false,
             hoverMessage: {
-              value: `**↳ \`${frame.function}\`** : call site\n\nLeads to: **${c.title}** (line ${c.range.start.line})${c.messages ? '\n\n' + c.messages : ''}`,
+              value: `**↳ \`${frame.function}\`** : call site\n\nLeads to: **${c.title}** (line ${c.range.start!.line})${c.messages ? '\n\n' + c.messages : ''}`,
               isTrusted: false,
             },
           },

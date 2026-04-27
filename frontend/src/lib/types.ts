@@ -13,8 +13,8 @@ export interface CheckItem {
   kind: 'safe' | 'warning' | 'error' | 'info';
   title: string;
   messages: string;
-  range: { start: CheckRange; end: CheckRange };
-  callstack: { function: string; range: { start: CheckRange; end: CheckRange } }[];
+  range: { start: CheckRange | null; end: CheckRange | null };
+  callstack: { function: string; range: { start: CheckRange | null; end: CheckRange | null } }[];
 }
 
 export interface ParsedOutput {
