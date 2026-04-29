@@ -41,6 +41,8 @@ NPM := pnpm
 DOCKER := docker
 DOCKER_IMAGE_32BC := mopsa-emcc-32bc
 
+PYTHON_HEADERS := /usr/include/python3.14
+
 FRONTEND_DIR := $(CURDIR)/frontend
 LINUX32_INCLUDE_DIR := $(BUILD_DIR)/linux32-include
 
@@ -365,18 +367,17 @@ extract-32-headers: $(BUILD_DIR)/.linux32-headers-stamp
 
 $(BUILD_DIR)/.linux32-headers-stamp: $(BUILD_DIR)/.docker-32bc-stamp | $(BUILD_DIR)
 	mkdir -p $(LINUX32_INCLUDE_DIR)
-	# Top-level *.h (stdio.h, stdlib.h, …) + subdirs useful for C analysis
 	$(DOCKER) run --rm --platform linux/386 $(DOCKER_IMAGE_32BC) \
 		sh -c 'cd /usr/include && tar -c \
 			$$(find . -maxdepth 1 -name "*.h") \
 			asm-generic arpa netinet net linux' \
 		| tar -x -C $(LINUX32_INCLUDE_DIR)
-	# Arch-specific 32-bit headers: bits/ sys/ gnu/ asm/ + top-level *.h
 	$(DOCKER) run --rm --platform linux/386 $(DOCKER_IMAGE_32BC) \
 		sh -c 'cd /usr/include/i386-linux-gnu && tar -c \
 			$$(find . -maxdepth 1 -name "*.h") \
 			bits sys gnu asm' \
 		| tar -x -C $(LINUX32_INCLUDE_DIR)
+	cp -r $(PYTHON_HEADERS)/* $(LINUX32_INCLUDE_DIR)/
 	touch $@
 
 # Build final binary
