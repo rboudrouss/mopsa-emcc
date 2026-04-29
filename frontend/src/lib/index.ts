@@ -1,3 +1,10 @@
+// Matches a Mopsa-reported file path against the currently open file path.
+// Handles both absolute (/c-multifile/main.c) and relative (main.c) forms.
+export function inFile(file: string, codeFilePath: string): boolean {
+  const norm = file.startsWith('/') ? file : '/' + file;
+  return codeFilePath === norm || codeFilePath.endsWith('/' + file);
+}
+
 export function parseCommandLineOptions(optionsString: string | undefined) {
   if (!optionsString) return [];
   const regex = /(?:[^\s"]+|"[^"]*")+/g;

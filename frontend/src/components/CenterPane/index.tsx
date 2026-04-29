@@ -1,6 +1,7 @@
 import { useAppStore } from '@/lib/store';
 import { getCodeFilePath } from '@/lib/mopsa-client';
 import { findById } from '@/lib/tree';
+import { inFile } from '@/lib/index';
 import { IssueCard } from '@/components/ui/IssueCard';
 import { CodeEditor } from './CodeEditor';
 import { ConfigEditor } from './ConfigEditor';
@@ -17,10 +18,12 @@ export function CenterPane({ resolvedTheme }: CenterPaneProps) {
   const activeFile = useAppStore((s) => s.activeFile);
 
   const codeFilePath = getCodeFilePath();
-  const localChecks = checks.filter(
-    (c) => c.range?.start && (c.range.start.file === codeFilePath || c.range.start.file.endsWith(codeFilePath.replace(/^\//, '')))
-  );
-  const warnChecks = localChecks.filter((c) => c.kind === 'warning' || c.kind === 'error');
+  const warnChecks = checks.filter((c) => {
+    if (c.kind !== 'warning' && c.kind !== 'error') return false;
+    if (!c.range?.start) return false;
+    if (inFile(c.range.start.file, codeFilePath)) return true;
+    return c.callstack.some((f) => f.range?.start && inFile(f.range.start.file, codeFilePath));
+  });
 
   const fileName = (activeFile ? findById(fileTree, activeFile)?.name : null) ?? 'untitled';
 
@@ -96,7 +99,7 @@ export function CenterPane({ resolvedTheme }: CenterPaneProps) {
             {warnChecks.length} issue{warnChecks.length !== 1 ? 's' : ''}
           </div>
           {warnChecks.map((check, i) => (
-            <IssueCard key={i} check={check} index={i} />
+            <IssueCard key={i} check={check} index={i} codeFilePath={codeFilePath} />
           ))}
         </div>
       )}

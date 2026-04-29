@@ -1,10 +1,7 @@
 import type * as Monaco from 'monaco-editor';
 import { useEffect, useRef } from 'react';
 import type { CheckItem } from '../types';
-
-function inFile(file: string, codeFilePath: string): boolean {
-  return file === codeFilePath || file === codeFilePath.replace(/^\//, '');
-}
+import { inFile } from '../index';
 
 function toRange(r: CheckItem['range']): Monaco.IRange {
   return {
@@ -27,13 +24,19 @@ export function useMonacoDecorations(
     const editor = editorRef.current;
     if (!editor) return;
 
-    const alarms = checks.filter(
-      (c) => (c.kind === 'warning' || c.kind === 'error') && c.range?.start && inFile(c.range.start.file, codeFilePath)
-    );
-
     const decorations: Monaco.editor.IModelDeltaDecoration[] = [];
 
-    for (const c of alarms) {
+    for (const c of checks) {
+      if (c.kind !== 'warning' && c.kind !== 'error') continue;
+      if (!c.range?.start) continue;
+
+      const primaryInFile = inFile(c.range.start.file, codeFilePath);
+      const hasCallsiteInFile = c.callstack.some(
+        (f) => f.range?.start && inFile(f.range.start.file, codeFilePath),
+      );
+
+      if (!primaryInFile && !hasCallsiteInFile) continue;
+
       const isError = c.kind === 'error';
       const label = isError ? '🔴' : '⚠️';
       const hoverLines = [`**${label} ${c.title}**`];
@@ -46,29 +49,35 @@ export function useMonacoDecorations(
         }
       }
 
-      // Primary alarm location
-      decorations.push({
-        range: toRange(c.range),
-        options: {
-          inlineClassName: isError ? 'mopsa-error-span' : 'mopsa-warn-span',
-          isWholeLine: false,
-          hoverMessage: { value: hoverLines.join('\n'), isTrusted: false },
-          minimap: { color: isError ? '#f87171' : '#f5b544', position: 1 },
-        },
-      });
+      // Primary alarm location (only when the alarm itself is in this file)
+      if (primaryInFile) {
+        decorations.push({
+          range: toRange(c.range),
+          options: {
+            inlineClassName: isError ? 'mopsa-error-span' : 'mopsa-warn-span',
+            isWholeLine: false,
+            hoverMessage: { value: hoverLines.join('\n'), isTrusted: false },
+            minimap: { color: isError ? '#f87171' : '#f5b544', position: 1 },
+          },
+        });
+      }
 
-      // Call-site frames in this file
+      // Call-site frames in this file (including cross-file alarms)
       for (const frame of c.callstack) {
         if (!frame.range?.start || !inFile(frame.range.start.file, codeFilePath)) continue;
+        const alarmLocation = primaryInFile
+          ? `line ${c.range.start.line}`
+          : `${c.range.start.file.split('/').pop()}:${c.range.start.line}`;
         decorations.push({
           range: toRange(frame.range),
           options: {
             inlineClassName: 'mopsa-callsite-span',
             isWholeLine: false,
             hoverMessage: {
-              value: `**↳ \`${frame.function}\`** : call site\n\nLeads to: **${c.title}** (line ${c.range.start!.line})${c.messages ? '\n\n' + c.messages : ''}`,
+              value: `**↳ \`${frame.function}\`** : call site\n\nLeads to: **${c.title}** (${alarmLocation})${c.messages ? '\n\n' + c.messages : ''}`,
               isTrusted: false,
             },
+            minimap: { color: isError ? '#f871714d' : '#f5b5444d', position: 1 },
           },
         });
       }
