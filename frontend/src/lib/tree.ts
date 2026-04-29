@@ -158,6 +158,43 @@ export function uniqueNameInLevel(level: FileTreeNode[], baseName: string, exclu
   return `${baseName}_${i}`;
 }
 
+export function toggleWorkspaceById(tree: FileTreeNode[], id: string): FileTreeNode[] {
+  return tree.map((n) => {
+    if (n.id === id) return { ...n, isWorkspace: !n.isWorkspace };
+    if (n.children) return { ...n, children: toggleWorkspaceById(n.children, id) };
+    return n;
+  });
+}
+
+// Returns the path of the deepest workspace ancestor of the given file node,
+// i.e. the first workspace encountered when traversing up from the file.
+export function getWorkspaceForFile(tree: FileTreeNode[], fileId: string): string | null {
+  function findAncestors(
+    nodes: FileTreeNode[],
+    targetId: string,
+    acc: { node: FileTreeNode; path: string }[],
+    prefix: string,
+  ): { node: FileTreeNode; path: string }[] | null {
+    for (const n of nodes) {
+      const path = prefix ? `${prefix}/${n.name}` : n.name;
+      if (n.id === targetId) return acc;
+      if (n.children) {
+        const found = findAncestors(n.children, targetId, [...acc, { node: n, path }], path);
+        if (found) return found;
+      }
+    }
+    return null;
+  }
+
+  const ancestors = findAncestors(tree, fileId, [], '');
+  if (!ancestors) return null;
+
+  for (let i = ancestors.length - 1; i >= 0; i--) {
+    if (ancestors[i].node.isWorkspace) return ancestors[i].path;
+  }
+  return null;
+}
+
 export function getAllFilePaths(
   nodes: FileTreeNode[],
   prefix = '',

@@ -12,6 +12,7 @@ import {
   Trash2,
   Upload,
   Download,
+  Layers,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { countAllNodes, getAllFilePaths, getNodePath } from '@/lib/tree';
@@ -216,6 +217,13 @@ function FileRow({ node, style, dragHandle }: NodeRendererProps<FileTreeNode>) {
           ⚠{warnings}
         </span>
       )}
+
+      {/* Workspace indicator */}
+      {isFolder && node.data.isWorkspace && (
+        <span style={{ display: 'flex', flexShrink: 0, color: '#a78bfa' }} title="Workspace">
+          <Layers size={11} />
+        </span>
+      )}
     </div>
   );
 }
@@ -227,10 +235,12 @@ interface ContextMenuProps {
   treeRef: React.RefObject<TreeApi<FileTreeNode> | null>;
   onNewFile: (parentId: string | null) => void;
   onNewFolder: (parentId: string | null) => void;
+  onNewWorkspace: (parentId: string | null) => void;
   onDelete: (id: string) => void;
   onImportFiles: (parentId: string | null) => void;
   onImportFolder: (parentId: string | null) => void;
   onDownloadFile: (id: string) => void;
+  onToggleWorkspace: (id: string) => void;
   onClose: () => void;
 }
 
@@ -239,10 +249,12 @@ function ContextMenu({
   treeRef,
   onNewFile,
   onNewFolder,
+  onNewWorkspace,
   onDelete,
   onImportFiles,
   onImportFolder,
   onDownloadFile,
+  onToggleWorkspace,
   onClose,
 }: ContextMenuProps) {
   const ref = useRef<HTMLDivElement>(null);
@@ -327,6 +339,7 @@ function ContextMenu({
     >
       {item(<FilePlus size={13} />, 'New File', () => onNewFile(newParentId))}
       {item(<FolderPlus size={13} />, 'New Folder', () => onNewFolder(newParentId))}
+      {item(<Layers size={13} />, 'New Workspace', () => onNewWorkspace(newParentId))}
 
       {sep}
       {item(<Upload size={13} />, 'Import files…', () => onImportFiles(newParentId))}
@@ -343,6 +356,14 @@ function ContextMenu({
             'Download file',
             () => { if (state.nodeId) onDownloadFile(state.nodeId); },
           )}
+          {state.isFolder && (() => {
+            const isWs = treeRef.current?.get(state.nodeId!)?.data.isWorkspace;
+            return item(
+              <Layers size={13} />,
+              isWs ? 'Unmark workspace' : 'Mark as workspace',
+              () => { if (state.nodeId) onToggleWorkspace(state.nodeId); },
+            );
+          })()}
           {sep}
           {item(
             <Trash2 size={13} />,
@@ -475,6 +496,8 @@ export function FilesPanel() {
   const moveNodes = useAppStore((s) => s.moveNodes);
   const renameNode = useAppStore((s) => s.renameNode);
   const importFiles = useAppStore((s) => s.importFiles);
+  const toggleWorkspace = useAppStore((s) => s.toggleWorkspace);
+  const createWorkspaceNode = useAppStore((s) => s.createWorkspaceNode);
 
   const treeRef = useRef<TreeApi<FileTreeNode>>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
@@ -509,6 +532,12 @@ export function FilesPanel() {
     } else {
       treeRef.current?.create({ type: 'internal', parentId });
     }
+  }
+
+  function handleNewWorkspace(parentId?: string | null) {
+    const id = createWorkspaceNode(parentId ?? null);
+    // Trigger rename so the user can pick a name immediately
+    setTimeout(() => treeRef.current?.edit(id), 50);
   }
 
   function handleDelete(id: string) {
@@ -650,6 +679,14 @@ export function FilesPanel() {
             <FolderPlus size={14} />
           </button>
           <button
+            title="New workspace"
+            onClick={() => handleNewWorkspace()}
+            style={iconBtnStyle}
+            {...hoverHandlers()}
+          >
+            <Layers size={14} />
+          </button>
+          <button
             title="Import files or folder"
             onClick={(e) => {
               const rect = e.currentTarget.getBoundingClientRect();
@@ -716,10 +753,12 @@ export function FilesPanel() {
           treeRef={treeRef}
           onNewFile={handleNewFile}
           onNewFolder={handleNewFolder}
+          onNewWorkspace={handleNewWorkspace}
           onDelete={handleDelete}
           onImportFiles={(parentId) => { openFileImport(parentId); setContextMenu(null); }}
           onImportFolder={(parentId) => { openFolderImport(parentId); setContextMenu(null); }}
           onDownloadFile={handleDownloadFile}
+          onToggleWorkspace={toggleWorkspace}
           onClose={() => setContextMenu(null)}
         />
       )}

@@ -26,6 +26,7 @@ import {
   getSiblings,
   getChildrenOf,
   uniqueNameInLevel,
+  toggleWorkspaceById,
 } from './tree';
 import type {
   ActivePanel,
@@ -124,6 +125,8 @@ interface AppStore {
   moveNodes: (dragIds: string[], parentId: string | null) => void;
   renameNode: (id: string, newName: string) => boolean;
   importFiles: (files: { path: string; content: string }[], parentId?: string | null) => void;
+  toggleWorkspace: (id: string) => void;
+  createWorkspaceNode: (parentId: string | null) => string;
 }
 
 // ── Sync initial code ─────────────────────────────────────────────────────────
@@ -700,6 +703,22 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const newTree = sortNodes(renameNodeById(fileTree, id, newName));
     set({ fileTree: newTree });
     return true;
+  },
+
+  toggleWorkspace: (id) => {
+    const { fileTree } = get();
+    set({ fileTree: toggleWorkspaceById(fileTree, id) });
+  },
+
+  createWorkspaceNode: (parentId) => {
+    const { fileTree } = get();
+    const id = genId();
+    const siblings = getChildrenOf(fileTree, parentId);
+    const name = uniqueNameInLevel(siblings, 'workspace');
+    const node: FileTreeNode = { id, name, children: [], isWorkspace: true };
+    const newTree = sortNodes(insertNode(fileTree, parentId, node));
+    set({ fileTree: newTree });
+    return id;
   },
 }));
 

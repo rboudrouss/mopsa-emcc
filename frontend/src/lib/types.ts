@@ -39,4 +39,5 @@ export interface FileTreeNode {
   id: string;
   name: string;
   children?: FileTreeNode[];
+  isWorkspace?: boolean;
 }

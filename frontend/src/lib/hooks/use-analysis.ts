@@ -1,16 +1,19 @@
 import { useMutation } from '@tanstack/react-query';
 import { analyzeJson, computeOptionsFlags } from '../mopsa-client';
 import { useAppStore } from '../store';
-import { getAllFilePaths } from '../tree';
+import { getAllFilePaths, getWorkspaceForFile } from '../tree';
 
 export function useAnalysis() {
   const setAnalysisResult = useAppStore((s) => s.setAnalysisResult);
 
   const mutation = useMutation({
     mutationFn: () => {
-      const { optionValues, fileTree, lang, crossLanguage, pyEntryPoint } = useAppStore.getState();
+      const { optionValues, fileTree, lang, crossLanguage, pyEntryPoint, activeFile } = useAppStore.getState();
+
+      const workspacePath = activeFile ? getWorkspaceForFile(fileTree, activeFile) : null;
 
       const flags = [
+        ...(workspacePath ? ['-working-dir', '/' + workspacePath] : []),
         ...computeOptionsFlags(optionValues),
         ...(optionValues['__raw']
           ? String(optionValues['__raw']).trim().split(/\s+/).filter(Boolean)
@@ -22,12 +25,18 @@ export function useAnalysis() {
 
       const allFiles = getAllFilePaths(fileTree).map(({ path }) => '/' + path);
 
+      // When a workspace is active, restrict analysis to files inside it
+      const workspacePrefix = workspacePath ? '/' + workspacePath + '/' : null;
+      const scopedFiles = workspacePrefix
+        ? allFiles.filter((p) => p.startsWith(workspacePrefix))
+        : allFiles;
+
       if (crossLanguage) {
         // Entry point must be a .py file
         const entryPoint = pyEntryPoint ?? (activeCodePath.endsWith('.py') ? activeCodePath : null);
         if (!entryPoint) return Promise.resolve({ raw: '', parsed: null, durationMs: 0 });
 
-        const cFiles = allFiles.filter((p) => p.endsWith('.c') || p.endsWith('.h'));
+        const cFiles = scopedFiles.filter((p) => p.endsWith('.c') || p.endsWith('.h'));
         // Pass C/H files first so the worker can build mopsa.db, then the py entry point last
         return analyzeJson([...flags, ...cFiles, entryPoint]);
       }
@@ -49,7 +58,7 @@ export function useAnalysis() {
         return analyzeJson([...flags, activeCodePath]);
       }
 
-      const extraSourceFiles = allFiles.filter((p) => {
+      const extraSourceFiles = scopedFiles.filter((p) => {
         if (p === activeCodePath) return false;
         return p.endsWith('.c');
       });
