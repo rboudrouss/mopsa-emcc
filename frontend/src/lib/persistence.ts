@@ -4,7 +4,7 @@ import { findFirstFile, getNodePath } from './tree';
 import type { ActivePanel, FileTreeNode, SavedConfig, SupportedLanguage } from './types';
 
 const STORAGE_KEY = 'mopsa-state';
-const STORAGE_VERSION = 1;
+const STORAGE_VERSION = 2;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

@@ -3,17 +3,18 @@ import { BOOL_ARG_FLAGS, MOPSA_DEFAULT_VALUES, SELECT_FLAGS } from "./options-sc
 
 // ── Default code snippets per language ───────────────────────────────────────
 export const DEFAULT_CODE: Record<SupportedLanguage, string> = {
-  c: `int tab[10];
+  c: `int sign(int x) {
+  if (x > 0) return 1;
+  if (x < 0) return -1;
+  return 0;
+}
 
-/* off-by-one: i <= n writes tab[10], out of bounds! */
-void fill(int n) {
-  for (int i = 0; i <= n; i++)
-    tab[i] = i * 2;
+int classify(int a, int b) {
+  return 10 / sign(a - b);  /* alarm: division by zero when a == b */
 }
 
 int main() {
-  fill(10);
-  return tab[0];
+  return classify(3, 3);
 }
 `,
   python: `def average(values):
@@ -44,6 +45,29 @@ while (i < n) {
 };
 
 assert(count == n);
+`,
+};
+
+// ── Multi-file C example (two-file workspace) ─────────────────────────────────
+
+export const MULTIFILE_C: Record<string, string> = {
+  'main.c': `void fill(int n);
+int read_first();
+
+int main() {
+  fill(5);          /* triggers off-by-one in utils.c */
+  return read_first();
+}
+`,
+  'utils.c': `int buf[5];
+
+/* off-by-one: when n == 5, writes buf[5] — out of bounds! */
+void fill(int n) {
+  for (int i = 0; i <= n; i++)
+    buf[i] = i * 2;
+}
+
+int read_first() { return buf[0]; }
 `,
 };
 

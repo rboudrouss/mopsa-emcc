@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import {
   DEFAULT_CODE,
-  FILE_EXTENSIONS,
+  MULTIFILE_C,
   extractPreJson,
   parseConfigText,
   readFile,
@@ -40,17 +40,14 @@ import type {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function makeFileNode(name: string): FileTreeNode {
-  return { id: genId(), name };
-}
-
 function buildInitialTree(): FileTreeNode[] {
-  // listDir is already called by mopsaJs
-  const result = mopsaJs.listDir('/');
-  const [, ...names] = result;
-  return names
-    .filter((n) => n !== 'dev' && n !== 'config.json')
-    .map((name) => makeFileNode(name));
+  // Order is intentional: c-single first so findFirstFile picks it as active.
+  return [
+    { id: genId(), name: 'c-single',    isWorkspace: true, children: [{ id: genId(), name: 'example.c' }] },
+    { id: genId(), name: 'c-multifile', isWorkspace: true, children: [{ id: genId(), name: 'main.c' }, { id: genId(), name: 'utils.c' }] },
+    { id: genId(), name: 'python',      isWorkspace: true, children: [{ id: genId(), name: 'example.py' }] },
+    { id: genId(), name: 'universal',   isWorkspace: true, children: [{ id: genId(), name: 'example.u' }] },
+  ];
 }
 
 // ── Store interface ───────────────────────────────────────────────────────────
@@ -129,11 +126,14 @@ interface AppStore {
   createWorkspaceNode: (parentId: string | null) => string;
 }
 
-// ── Sync initial code ─────────────────────────────────────────────────────────
+// ── Sync initial code into workspace filesystem ───────────────────────────────
 
+setCodeFilePath('/c-single/example.c');
 mopsaJs.setCode(DEFAULT_CODE.c);
-mopsaJs.writeFile('/example.py', DEFAULT_CODE.python);
-mopsaJs.writeFile('/example.u', DEFAULT_CODE.universal);
+mopsaJs.writeFile('/c-multifile/main.c', MULTIFILE_C['main.c']);
+mopsaJs.writeFile('/c-multifile/utils.c', MULTIFILE_C['utils.c']);
+mopsaJs.writeFile('/python/example.py', DEFAULT_CODE.python);
+mopsaJs.writeFile('/universal/example.u', DEFAULT_CODE.universal);
 
 // ── Restore from localStorage (overwrites WASM defaults if saved state exists) ─
 
@@ -263,15 +263,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   setLang: (lang, defaultConfig) => {
     const current = get();
-    const savedCode: Partial<Record<SupportedLanguage, string>> = {
-      ...current.codeByLang,
-      [current.lang]: current.code,
-    };
-    const newCode = savedCode[lang] ?? DEFAULT_CODE[lang];
-    const ext = FILE_EXTENSIONS[lang];
-    const newPath = `/code.${ext}`;
-    setCodeFilePath(newPath);
-    mopsaJs.setCode(newCode);
 
     // Save current lang config and restore saved config for new lang
     const newConfigByLang: Partial<Record<SupportedLanguage, SavedConfig>> = {
@@ -284,18 +275,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const newDirty = savedLangConfig?.dirty ?? false;
     mopsaJs.setConfig(newText);
 
-    // Keep tree in sync: update the name of the active file node
-    const { fileTree, activeFile } = current;
-    let newTree = fileTree;
-    const newFileName = `code.${ext}`;
-    if (activeFile) {
-      newTree = renameNodeById(fileTree, activeFile, newFileName);
-    }
-
     set({
       lang,
-      code: newCode,
-      codeByLang: savedCode,
       configText: newText,
       configPreset: newPreset,
       configDirty: newDirty,
@@ -307,7 +288,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
       analysisTime: null,
       analysisSuccess: null,
       analysisError: null,
-      fileTree: newTree,
     });
   },
 
