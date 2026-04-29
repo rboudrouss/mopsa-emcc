@@ -3,7 +3,7 @@ export type ActivePanel = 'files' | 'domains' | 'options' | null;
 export type ActiveTab = 'source' | 'config';
 export type SavedConfig = { preset: string; text: string; dirty: boolean };
 
-export interface CheckRange {
+interface CheckRange {
   file: string;
   line: number;
   column: number;

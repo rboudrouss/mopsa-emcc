@@ -25,7 +25,7 @@ interface PersistedState {
   activePanel: ActivePanel;
 }
 
-export interface RestoredState {
+interface RestoredState {
   lang: SupportedLanguage;
   code: string;
   configText: string;
@@ -44,7 +44,7 @@ export interface RestoredState {
   activePanel: ActivePanel;
 }
 
-export interface StateToSave {
+interface StateToSave {
   lang: SupportedLanguage;
   fileTree: FileTreeNode[];
   activeFile: string | null;

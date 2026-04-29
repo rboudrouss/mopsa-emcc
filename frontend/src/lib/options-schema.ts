@@ -1,4 +1,4 @@
-export type OptionType = 'bool' | 'boolArg' | 'int' | 'text' | 'select';
+type OptionType = 'bool' | 'boolArg' | 'int' | 'text' | 'select';
 
 export interface OptionSpec {
   flag: string;

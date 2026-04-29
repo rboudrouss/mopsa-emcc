@@ -71,15 +71,9 @@ int read_first() { return buf[0]; }
 `,
 };
 
-export const FILE_EXTENSIONS: Record<SupportedLanguage, string> = {
-  c: "c",
-  python: "py",
-  universal: "u",
-};
-
 // ── Output parsing ────────────────────────────────────────────────────────────
 
-export function parseOutput(raw: string): ParsedOutput | null {
+function parseOutput(raw: string): ParsedOutput | null {
   const idx = raw.search(/^\{/m);
   if (idx === -1) return null;
   try {
@@ -109,7 +103,7 @@ export function parseConfigText(text: string): unknown | null {
 
 // ── ANSI color mapping ────────────────────────────────────────────────────────
 
-export interface AnsiSpan {
+interface AnsiSpan {
   text: string;
   cls: string;
 }
@@ -227,12 +221,6 @@ export async function analyzeJson(
 
 // ── Virtual filesystem helpers ────────────────────────────────────────────────
 
-export function listFiles(): string[] {
-  const result = mopsaJs.listDir("/");
-  const [, ...names] = result;
-  return names.filter((n) => n !== "dev" && n !== "config.json");
-}
-
 export function writeFile(path: string, content: string): void {
   const normalised = path.startsWith("/") ? path : "/" + path;
   const withNewline = content.endsWith('\n') ? content : content + '\n';
@@ -255,15 +243,4 @@ export function getCodeFilePath(): string {
 
 export function setCodeFilePath(path: string): void {
   mopsaJs.changeCodeFilePath(path);
-}
-
-// ── Language detection from config text ──────────────────────────────────────
-
-export function detectLanguage(configText: string): SupportedLanguage {
-  const match = configText.match(/"language"\s*:\s*"(\w+)"/);
-  if (!match) return "universal";
-  const lang = match[1];
-  if (lang === "c") return "c";
-  if (lang === "python") return "python";
-  return "universal";
 }
