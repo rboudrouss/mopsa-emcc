@@ -1,9 +1,11 @@
-# Dependecies :
+# Dependencies: :
 # - Ocaml 4.12.0
 # - with mopsa pinned at deps/mopsa-analyzer
 # - Docker (for building 32-bit bytecode)
 #   - Build the image with: `docker build -t mopsa-emcc-32bc -f docker/Dockerfile.mopsa-32bc docker/`
+# - Emscripten SDK
 # - gcc-11 and g++-11 (for building old clang & ocaml versions)
+# - Python.h (interface for CPython stubs, needed by some Mopsa analyses, probably installed with python3-dev)
 
 CFLAGS := -Oz -DNDEBUG
 CXXFLAGS := -Oz -DNDEBUG
