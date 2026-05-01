@@ -1,51 +1,66 @@
-import { useState } from 'react';
-import { ChevronDownIcon, ChevronRightIcon, RotateCcwIcon, XIcon } from 'lucide-react';
-import { DEFAULT_OPTION_VALUES, OPTIONS_SCHEMA, type OptionSpec } from '@/lib/options-schema';
-import { clearState } from '@/lib/persistence';
-import { cancelPendingSave, useAppStore } from '@/lib/store';
+import { useState } from "react";
+import {
+  ChevronDownIcon,
+  ChevronRightIcon,
+  RotateCcwIcon,
+  XIcon,
+} from "lucide-react";
+import {
+  DEFAULT_OPTION_VALUES,
+  OPTIONS_SCHEMA,
+  type OptionSpec,
+} from "@/lib/options-schema";
+import { clearState } from "@/lib/persistence";
+import { cancelPendingSave, useAppStore } from "@/lib/store";
 
 export function OptionsPanel() {
   const crossLanguage = useAppStore((s) => s.crossLanguage);
   const toggleCrossLanguage = useAppStore((s) => s.toggleCrossLanguage);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column' }}>
+    <div style={{ display: "flex", flexDirection: "column" }}>
       <div
         style={{
-          padding: '10px 16px 8px',
+          padding: "10px 16px 8px",
           fontSize: 11,
           fontWeight: 600,
-          color: 'var(--text-muted)',
-          textTransform: 'uppercase',
-          letterSpacing: '0.06em',
+          color: "var(--text-muted)",
+          textTransform: "uppercase",
+          letterSpacing: "0.06em",
         }}
       >
         Options
       </div>
 
       {/* Reset */}
-      <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)' }}>
+      <div
+        style={{ padding: "12px 16px", borderTop: "1px solid var(--border)" }}
+      >
         <button
           onClick={() => {
-            if (window.confirm('Reset Mopsa to its default state? This will clear all saved files, configs and options.')) {
+            if (
+              window.confirm(
+                "Reset Mopsa to its default state? This will clear all saved files, configs and options.",
+              )
+            ) {
               cancelPendingSave();
               clearState();
               window.location.reload();
             }
           }}
           style={{
-            display: 'flex',
-            alignItems: 'center',
+            display: "flex",
+            alignItems: "center",
             gap: 6,
-            width: '100%',
-            padding: '6px 10px',
-            background: 'none',
-            border: '1px solid var(--border)',
+            width: "100%",
+            padding: "6px 10px",
+            background: "none",
+            border: "1px solid var(--border)",
             borderRadius: 4,
-            cursor: 'pointer',
-            color: 'var(--text-muted)',
+            cursor: "pointer",
+            color: "var(--text-muted)",
             fontSize: 12,
-            justifyContent: 'center',
+            justifyContent: "center",
           }}
         >
           <RotateCcwIcon size={12} />
@@ -56,22 +71,31 @@ export function OptionsPanel() {
       {/* Frontend-only options */}
       <div
         style={{
-          padding: '8px 12px 8px 16px',
-          borderLeft: crossLanguage ? '2px solid var(--color-accent)' : '2px solid transparent',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
+          padding: "8px 12px 8px 16px",
+          borderLeft: crossLanguage
+            ? "2px solid var(--color-accent)"
+            : "2px solid transparent",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
           gap: 8,
-          background: crossLanguage ? 'rgba(245,181,68,.03)' : 'transparent',
-          borderBottom: '1px solid var(--border)',
+          background: crossLanguage ? "rgba(245,181,68,.03)" : "transparent",
+          borderBottom: "1px solid var(--border)",
         }}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-          <span style={{ fontSize: 12, color: 'var(--text-primary)', fontWeight: 500 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+          <span
+            style={{
+              fontSize: 12,
+              color: "var(--text-primary)",
+              fontWeight: 500,
+            }}
+          >
             C & Python analysis
           </span>
-          <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
-            Disable file filtering passed to Mopsa to same-language only and automatic per-language configuration switching
+          <span style={{ fontSize: 10, color: "var(--text-muted)" }}>
+            Disable file filtering passed to Mopsa to same-language only and
+            automatic per-language configuration switching
           </span>
         </div>
         <button
@@ -82,38 +106,50 @@ export function OptionsPanel() {
             width: 32,
             height: 18,
             borderRadius: 9,
-            background: crossLanguage ? 'var(--color-accent)' : 'var(--bg-elevated)',
-            border: `1px solid ${crossLanguage ? 'var(--color-accent)' : 'var(--border)'}`,
-            cursor: 'pointer',
-            position: 'relative',
-            transition: 'background 150ms, border-color 150ms',
+            background: crossLanguage
+              ? "var(--color-accent)"
+              : "var(--bg-elevated)",
+            border: `1px solid ${crossLanguage ? "var(--color-accent)" : "var(--border)"}`,
+            cursor: "pointer",
+            position: "relative",
+            transition: "background 150ms, border-color 150ms",
             flexShrink: 0,
             padding: 0,
           }}
         >
           <span
             style={{
-              position: 'absolute',
+              position: "absolute",
               top: 2,
               left: crossLanguage ? 14 : 2,
               width: 12,
               height: 12,
-              borderRadius: '50%',
-              background: crossLanguage ? '#0f1117' : 'var(--text-muted)',
-              transition: 'left 150ms',
+              borderRadius: "50%",
+              background: crossLanguage ? "#0f1117" : "var(--text-muted)",
+              transition: "left 150ms",
             }}
           />
         </button>
       </div>
 
       {OPTIONS_SCHEMA.map((group) => (
-        <OptionsGroup key={group.group} group={group.group} options={group.options} />
+        <OptionsGroup
+          key={group.group}
+          group={group.group}
+          options={group.options}
+        />
       ))}
     </div>
   );
 }
 
-function OptionsGroup({ group, options }: { group: string; options: OptionSpec[] }) {
+function OptionsGroup({
+  group,
+  options,
+}: {
+  group: string;
+  options: OptionSpec[];
+}) {
   const [open, setOpen] = useState(true);
 
   return (
@@ -121,16 +157,16 @@ function OptionsGroup({ group, options }: { group: string; options: OptionSpec[]
       <button
         onClick={() => setOpen((o) => !o)}
         style={{
-          display: 'flex',
-          alignItems: 'center',
+          display: "flex",
+          alignItems: "center",
           gap: 6,
-          width: '100%',
-          padding: '6px 16px',
-          background: 'none',
-          border: 'none',
-          cursor: 'pointer',
-          textAlign: 'left',
-          borderBottom: '1px solid var(--border)',
+          width: "100%",
+          padding: "6px 16px",
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          textAlign: "left",
+          borderBottom: "1px solid var(--border)",
         }}
       >
         {open ? (
@@ -138,12 +174,18 @@ function OptionsGroup({ group, options }: { group: string; options: OptionSpec[]
         ) : (
           <ChevronRightIcon size={12} color="var(--text-muted)" />
         )}
-        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)' }}>
+        <span
+          style={{
+            fontSize: 11,
+            fontWeight: 600,
+            color: "var(--text-secondary)",
+          }}
+        >
           {group}
         </span>
       </button>
       {open && (
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: "flex", flexDirection: "column" }}>
           {options.map((opt) => (
             <OptionRow key={opt.flag} spec={opt} />
           ))}
@@ -163,41 +205,69 @@ function OptionRow({ spec }: { spec: OptionSpec }) {
   return (
     <div
       style={{
-        padding: '8px 12px 8px 16px',
-        borderLeft: isModified ? '2px solid var(--color-accent)' : '2px solid transparent',
-        display: 'flex',
-        flexDirection: 'column',
+        padding: "8px 12px 8px 16px",
+        borderLeft: isModified
+          ? "2px solid var(--color-accent)"
+          : "2px solid transparent",
+        display: "flex",
+        flexDirection: "column",
         gap: 4,
-        background: isModified ? 'rgba(245,181,68,.03)' : 'transparent',
+        background: isModified ? "rgba(245,181,68,.03)" : "transparent",
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-          <span style={{ fontSize: 12, color: 'var(--text-primary)', fontWeight: 500 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 8,
+        }}
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+          <span
+            style={{
+              fontSize: 12,
+              color: "var(--text-primary)",
+              fontWeight: 500,
+            }}
+          >
             {spec.label}
           </span>
-          <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{spec.hint}</span>
+          <span style={{ fontSize: 10, color: "var(--text-muted)" }}>
+            {spec.hint}
+          </span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            flexShrink: 0,
+          }}
+        >
           {isModified && (
             <button
               onClick={() => resetOption(spec.flag)}
               title="Reset to default"
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
+                display: "flex",
+                alignItems: "center",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
                 padding: 2,
-                color: 'var(--text-muted)',
+                color: "var(--text-muted)",
                 borderRadius: 3,
               }}
             >
               <XIcon size={12} />
             </button>
           )}
-          <OptionInput spec={spec} value={value} onChange={(v) => setOptionValue(spec.flag, v)} />
+          <OptionInput
+            spec={spec}
+            value={value}
+            onChange={(v) => setOptionValue(spec.flag, v)}
+          />
         </div>
       </div>
     </div>
@@ -213,7 +283,7 @@ function OptionInput({
   value: unknown;
   onChange: (v: unknown) => void;
 }) {
-  if (spec.type === 'bool' || spec.type === 'boolArg') {
+  if (spec.type === "bool" || spec.type === "boolArg") {
     const checked = Boolean(value);
     return (
       <button
@@ -224,32 +294,32 @@ function OptionInput({
           width: 32,
           height: 18,
           borderRadius: 9,
-          background: checked ? 'var(--color-accent)' : 'var(--bg-elevated)',
-          border: `1px solid ${checked ? 'var(--color-accent)' : 'var(--border)'}`,
-          cursor: 'pointer',
-          position: 'relative',
-          transition: 'background 150ms, border-color 150ms',
+          background: checked ? "var(--color-accent)" : "var(--bg-elevated)",
+          border: `1px solid ${checked ? "var(--color-accent)" : "var(--border)"}`,
+          cursor: "pointer",
+          position: "relative",
+          transition: "background 150ms, border-color 150ms",
           flexShrink: 0,
           padding: 0,
         }}
       >
         <span
           style={{
-            position: 'absolute',
+            position: "absolute",
             top: 2,
             left: checked ? 14 : 2,
             width: 12,
             height: 12,
-            borderRadius: '50%',
-            background: checked ? '#0f1117' : 'var(--text-muted)',
-            transition: 'left 150ms',
+            borderRadius: "50%",
+            background: checked ? "#0f1117" : "var(--text-muted)",
+            transition: "left 150ms",
           }}
         />
       </button>
     );
   }
 
-  if (spec.type === 'int') {
+  if (spec.type === "int") {
     return (
       <input
         type="number"
@@ -259,11 +329,11 @@ function OptionInput({
         onChange={(e) => onChange(parseInt(e.target.value, 10))}
         style={{
           width: 56,
-          padding: '2px 6px',
-          background: 'var(--bg-elevated)',
-          border: '1px solid var(--border)',
+          padding: "2px 6px",
+          background: "var(--bg-elevated)",
+          border: "1px solid var(--border)",
           borderRadius: 4,
-          color: 'var(--text-primary)',
+          color: "var(--text-primary)",
           fontSize: 12,
           fontFamily: "'JetBrains Mono', monospace",
         }}
@@ -271,24 +341,26 @@ function OptionInput({
     );
   }
 
-  if (spec.type === 'select') {
+  if (spec.type === "select") {
     return (
       <select
         value={String(value ?? spec.default)}
         onChange={(e) => onChange(e.target.value)}
         style={{
-          padding: '2px 6px',
-          background: 'var(--bg-elevated)',
-          border: '1px solid var(--border)',
+          padding: "2px 6px",
+          background: "var(--bg-elevated)",
+          border: "1px solid var(--border)",
           borderRadius: 4,
-          color: 'var(--text-primary)',
+          color: "var(--text-primary)",
           fontSize: 12,
           fontFamily: "'JetBrains Mono', monospace",
-          cursor: 'pointer',
+          cursor: "pointer",
         }}
       >
         {spec.choices?.map((c) => (
-          <option key={c} value={c}>{c}</option>
+          <option key={c} value={c}>
+            {c}
+          </option>
         ))}
       </select>
     );
@@ -298,15 +370,15 @@ function OptionInput({
   return (
     <input
       type="text"
-      value={String(value ?? '')}
+      value={String(value ?? "")}
       onChange={(e) => onChange(e.target.value)}
       style={{
-        width: spec.flag === '__raw' ? 120 : 80,
-        padding: '2px 6px',
-        background: 'var(--bg-elevated)',
-        border: '1px solid var(--border)',
+        width: spec.flag === "__raw" ? 120 : 80,
+        padding: "2px 6px",
+        background: "var(--bg-elevated)",
+        border: "1px solid var(--border)",
         borderRadius: 4,
-        color: 'var(--text-primary)',
+        color: "var(--text-primary)",
         fontSize: 12,
         fontFamily: "'JetBrains Mono', monospace",
       }}

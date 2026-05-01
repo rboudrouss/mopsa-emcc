@@ -1,65 +1,68 @@
-import MonacoEditor, { type BeforeMount, type OnMount } from '@monaco-editor/react';
-import type * as MonacoNS from 'monaco-editor';
-import { useRef, useState } from 'react';
-import { useMonacoDecorations } from '@/lib/hooks/use-monaco-decorations';
-import { getCodeFilePath } from '@/lib/mopsa-client';
-import { findById } from '@/lib/tree';
-import { useAppStore } from '@/lib/store';
+import MonacoEditor, {
+  type BeforeMount,
+  type OnMount,
+} from "@monaco-editor/react";
+import type * as MonacoNS from "monaco-editor";
+import { useRef, useState } from "react";
+import { useMonacoDecorations } from "@/lib/hooks/use-monaco-decorations";
+import { getCodeFilePath } from "@/lib/mopsa-client";
+import { findById } from "@/lib/tree";
+import { useAppStore } from "@/lib/store";
 
 function getMonacoLanguage(ext: string): string {
   switch (ext) {
-    case 'c':
-    case 'h':
-    case 'u':
-      return 'c';
-    case 'py':
-      return 'python';
+    case "c":
+    case "h":
+    case "u":
+      return "c";
+    case "py":
+      return "python";
     default:
-      return 'plaintext';
+      return "plaintext";
   }
 }
 
 function defineThemes(monaco: typeof MonacoNS) {
-  monaco.editor.defineTheme('mopsa-dark', {
-    base: 'vs-dark',
+  monaco.editor.defineTheme("mopsa-dark", {
+    base: "vs-dark",
     inherit: true,
     rules: [],
     colors: {
-      'editor.background': '#0f1117',
-      'editor.foreground': '#e8eaf0',
-      'editorLineNumber.foreground': '#4a5470',
-      'editorLineNumber.activeForeground': '#8891a8',
-      'editor.lineHighlightBackground': '#161923',
-      'editor.selectionBackground': '#252d42',
-      'editorWidget.background': '#1e2433',
-      'editorSuggestWidget.background': '#1e2433',
-      'editorSuggestWidget.border': '#2a3247',
-      'editorGutter.background': '#0f1117',
-      'scrollbarSlider.background': '#2a3247',
-      'scrollbarSlider.hoverBackground': '#4a5470',
+      "editor.background": "#0f1117",
+      "editor.foreground": "#e8eaf0",
+      "editorLineNumber.foreground": "#4a5470",
+      "editorLineNumber.activeForeground": "#8891a8",
+      "editor.lineHighlightBackground": "#161923",
+      "editor.selectionBackground": "#252d42",
+      "editorWidget.background": "#1e2433",
+      "editorSuggestWidget.background": "#1e2433",
+      "editorSuggestWidget.border": "#2a3247",
+      "editorGutter.background": "#0f1117",
+      "scrollbarSlider.background": "#2a3247",
+      "scrollbarSlider.hoverBackground": "#4a5470",
     },
   });
 
-  monaco.editor.defineTheme('mopsa-light', {
-    base: 'vs',
+  monaco.editor.defineTheme("mopsa-light", {
+    base: "vs",
     inherit: true,
     rules: [],
     colors: {
-      'editor.background': '#ffffff',
-      'editor.foreground': '#1a1e2e',
-      'editorLineNumber.foreground': '#8891a8',
-      'editorLineNumber.activeForeground': '#4a5470',
-      'editor.lineHighlightBackground': '#f8f9fc',
-      'editor.selectionBackground': '#e8eaf0',
-      'editorWidget.background': '#f0f2f7',
-      'editorGutter.background': '#ffffff',
-      'scrollbarSlider.background': '#d0d4e0',
+      "editor.background": "#ffffff",
+      "editor.foreground": "#1a1e2e",
+      "editorLineNumber.foreground": "#8891a8",
+      "editorLineNumber.activeForeground": "#4a5470",
+      "editor.lineHighlightBackground": "#f8f9fc",
+      "editor.selectionBackground": "#e8eaf0",
+      "editorWidget.background": "#f0f2f7",
+      "editorGutter.background": "#ffffff",
+      "scrollbarSlider.background": "#d0d4e0",
     },
   });
 }
 
 interface CodeEditorProps {
-  resolvedTheme: 'light' | 'dark';
+  resolvedTheme: "light" | "dark";
 }
 
 export function CodeEditor({ resolvedTheme }: CodeEditorProps) {
@@ -74,7 +77,7 @@ export function CodeEditor({ resolvedTheme }: CodeEditorProps) {
   const codeFilePath = getCodeFilePath();
 
   const activeName = activeFile ? findById(fileTree, activeFile)?.name : null;
-  const ext = activeName?.split('.').pop() ?? '';
+  const ext = activeName?.split(".").pop() ?? "";
   const monacoLang = getMonacoLanguage(ext);
 
   useMonacoDecorations(editorRef, checks, codeFilePath, mountKey);
@@ -93,10 +96,10 @@ export function CodeEditor({ resolvedTheme }: CodeEditorProps) {
       height="100%"
       language={monacoLang}
       value={code}
-      theme={resolvedTheme === 'dark' ? 'mopsa-dark' : 'mopsa-light'}
+      theme={resolvedTheme === "dark" ? "mopsa-dark" : "mopsa-light"}
       beforeMount={handleBeforeMount}
       onMount={handleMount}
-      onChange={(v) => setCode(v ?? '')}
+      onChange={(v) => setCode(v ?? "")}
       options={{
         fontSize: 13,
         fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
@@ -105,13 +108,13 @@ export function CodeEditor({ resolvedTheme }: CodeEditorProps) {
         minimap: { enabled: true },
         scrollBeyondLastLine: false,
         smoothScrolling: true,
-        cursorSmoothCaretAnimation: 'on',
+        cursorSmoothCaretAnimation: "on",
         padding: { top: 12, bottom: 12 },
         overviewRulerBorder: false,
-        renderLineHighlight: 'gutter',
+        renderLineHighlight: "gutter",
         bracketPairColorization: { enabled: true },
         tabSize: 2,
-        wordWrap: 'off',
+        wordWrap: "off",
         glyphMargin: false,
         folding: true,
       }}

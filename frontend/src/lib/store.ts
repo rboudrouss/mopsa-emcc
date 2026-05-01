@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+import { create } from "zustand";
 import {
   DEFAULT_CODE,
   MULTIFILE_C,
@@ -8,10 +8,10 @@ import {
   writeFile,
   deleteFile,
   setCodeFilePath,
-} from './mopsa-client';
-import { DEFAULT_OPTION_VALUES } from './options-schema';
-import { loadAndRestoreState, saveState } from './persistence';
-import { getLanguageFromFileExtension } from './index';
+} from "./mopsa-client";
+import { DEFAULT_OPTION_VALUES } from "./options-schema";
+import { loadAndRestoreState, saveState } from "./persistence";
+import { getLanguageFromFileExtension } from "./index";
 import {
   genId,
   insertNode,
@@ -27,7 +27,7 @@ import {
   getChildrenOf,
   uniqueNameInLevel,
   toggleWorkspaceById,
-} from './tree';
+} from "./tree";
 import type {
   ActivePanel,
   ActiveTab,
@@ -36,17 +36,40 @@ import type {
   FileTreeNode,
   SavedConfig,
   SupportedLanguage,
-} from './types';
+} from "./types";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function buildInitialTree(): FileTreeNode[] {
   // Order is intentional: c-single first so findFirstFile picks it as active.
   return [
-    { id: genId(), name: 'c-single',    isWorkspace: true, children: [{ id: genId(), name: 'example.c' }] },
-    { id: genId(), name: 'c-multifile', isWorkspace: true, children: [{ id: genId(), name: 'main.c' }, { id: genId(), name: 'utils.c' }] },
-    { id: genId(), name: 'python',      isWorkspace: true, children: [{ id: genId(), name: 'example.py' }] },
-    { id: genId(), name: 'universal',   isWorkspace: true, children: [{ id: genId(), name: 'example.u' }] },
+    {
+      id: genId(),
+      name: "c-single",
+      isWorkspace: true,
+      children: [{ id: genId(), name: "example.c" }],
+    },
+    {
+      id: genId(),
+      name: "c-multifile",
+      isWorkspace: true,
+      children: [
+        { id: genId(), name: "main.c" },
+        { id: genId(), name: "utils.c" },
+      ],
+    },
+    {
+      id: genId(),
+      name: "python",
+      isWorkspace: true,
+      children: [{ id: genId(), name: "example.py" }],
+    },
+    {
+      id: genId(),
+      name: "universal",
+      isWorkspace: true,
+      children: [{ id: genId(), name: "example.u" }],
+    },
   ];
 }
 
@@ -121,19 +144,22 @@ interface AppStore {
   deleteNodes: (ids: string[]) => void;
   moveNodes: (dragIds: string[], parentId: string | null) => void;
   renameNode: (id: string, newName: string) => boolean;
-  importFiles: (files: { path: string; content: string }[], parentId?: string | null) => void;
+  importFiles: (
+    files: { path: string; content: string }[],
+    parentId?: string | null,
+  ) => void;
   toggleWorkspace: (id: string) => void;
   createWorkspaceNode: (parentId: string | null) => string;
 }
 
 // ── Sync initial code into workspace filesystem ───────────────────────────────
 
-setCodeFilePath('/c-single/example.c');
+setCodeFilePath("/c-single/example.c");
 mopsaJs.setCode(DEFAULT_CODE.c);
-mopsaJs.writeFile('/c-multifile/main.c', MULTIFILE_C['main.c']);
-mopsaJs.writeFile('/c-multifile/utils.c', MULTIFILE_C['utils.c']);
-mopsaJs.writeFile('/python/example.py', DEFAULT_CODE.python);
-mopsaJs.writeFile('/universal/example.u', DEFAULT_CODE.universal);
+mopsaJs.writeFile("/c-multifile/main.c", MULTIFILE_C["main.c"]);
+mopsaJs.writeFile("/c-multifile/utils.c", MULTIFILE_C["utils.c"]);
+mopsaJs.writeFile("/python/example.py", DEFAULT_CODE.python);
+mopsaJs.writeFile("/universal/example.u", DEFAULT_CODE.universal);
 
 // ── Restore from localStorage (overwrites WASM defaults if saved state exists) ─
 
@@ -147,10 +173,10 @@ const _initialActiveFile = _restored?.activeFile ?? findFirstFile(_initialTree);
 // ── Store ─────────────────────────────────────────────────────────────────────
 
 export const useAppStore = create<AppStore>((set, get) => ({
-  lang: _restored?.lang ?? 'c',
+  lang: _restored?.lang ?? "c",
   code: _restored?.code ?? DEFAULT_CODE.c,
-  configText: _restored?.configText ?? '',
-  configPreset: _restored?.configPreset ?? 'default.json',
+  configText: _restored?.configText ?? "",
+  configPreset: _restored?.configPreset ?? "default.json",
   configDirty: _restored?.configDirty ?? false,
   codeByLang: _restored?.codeByLang ?? {},
   configByLang: _restored?.configByLang ?? {},
@@ -158,14 +184,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
   customConfigs: _restored?.customConfigs ?? {},
   presets: null,
   checks: [],
-  warnings: '',
-  rawOutput: '',
+  warnings: "",
+  rawOutput: "",
   selectivity: null,
   analysisTime: null,
   analysisSuccess: null,
   analysisError: null,
-  activePanel: _restored?.activePanel ?? 'files',
-  activeTab: 'source',
+  activePanel: _restored?.activePanel ?? "files",
+  activeTab: "source",
   optionValues: _restored?.optionValues ?? { ...DEFAULT_OPTION_VALUES },
   crossLanguage: _restored?.crossLanguage ?? false,
   pyEntryPoint: _restored?.pyEntryPoint ?? null,
@@ -179,15 +205,23 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   // ── Code / config ──────────────────────────────────────────────────────
   setCode: (code) => {
-    mopsaJs.setCode(code.endsWith('\n') ? code : code + '\n');
+    mopsaJs.setCode(code.endsWith("\n") ? code : code + "\n");
     set({ code });
   },
 
   setConfigText: (text, dirty = true) => {
-    const { crossLanguage, lang, configPreset, configByLang, configXL, customConfigs, configText: currentText } = get();
+    const {
+      crossLanguage,
+      lang,
+      configPreset,
+      configByLang,
+      configXL,
+      customConfigs,
+      configText: currentText,
+    } = get();
     // If the content hasn't meaningfully changed, ignore (handles Monaco's programmatic echo).
     if (dirty && text.trim() === currentText.trim()) return;
-    const key = crossLanguage ? 'multilanguage' : lang;
+    const key = crossLanguage ? "multilanguage" : lang;
     let customUpdate: Partial<AppStore> = {};
     if (!dirty) {
       mopsaJs.setConfig(text);
@@ -197,7 +231,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
     const saved: SavedConfig = { preset: configPreset, text, dirty };
     if (crossLanguage) {
-      set({ configText: text, configDirty: dirty, configXL: { ...configXL, ...saved }, ...customUpdate });
+      set({
+        configText: text,
+        configDirty: dirty,
+        configXL: { ...configXL, ...saved },
+        ...customUpdate,
+      });
     } else {
       set({
         configText: text,
@@ -213,13 +252,18 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const text = customConfigs[key];
     if (!text) return;
     mopsaJs.setConfig(text);
-    const saved: SavedConfig = { preset: 'custom', text, dirty: true };
+    const saved: SavedConfig = { preset: "custom", text, dirty: true };
     if (crossLanguage) {
-      set({ configText: text, configPreset: 'custom', configDirty: true, configXL: saved });
+      set({
+        configText: text,
+        configPreset: "custom",
+        configDirty: true,
+        configXL: saved,
+      });
     } else {
       set({
         configText: text,
-        configPreset: 'custom',
+        configPreset: "custom",
         configDirty: true,
         configByLang: { ...configByLang, [lang]: saved },
       });
@@ -231,7 +275,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
     mopsaJs.setConfig(text);
     const saved: SavedConfig = { preset: name, text, dirty: false };
     if (crossLanguage) {
-      set({ configText: text, configPreset: name, configDirty: false, configXL: saved });
+      set({
+        configText: text,
+        configPreset: name,
+        configDirty: false,
+        configXL: saved,
+      });
     } else {
       set({
         configText: text,
@@ -246,9 +295,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const p = r.parsed;
     let error: string | null = null;
     if (!p) {
-      error = r.raw ? 'Could not parse analysis output' : null;
+      error = r.raw ? "Could not parse analysis output" : null;
     } else if (!p.success) {
-      error = p.exception ?? 'Analysis failed';
+      error = p.exception ?? "Analysis failed";
     }
     set({
       rawOutput: r.raw,
@@ -267,11 +316,17 @@ export const useAppStore = create<AppStore>((set, get) => ({
     // Save current lang config and restore saved config for new lang
     const newConfigByLang: Partial<Record<SupportedLanguage, SavedConfig>> = {
       ...current.configByLang,
-      [current.lang]: { preset: current.configPreset, text: current.configText, dirty: current.configDirty },
+      [current.lang]: {
+        preset: current.configPreset,
+        text: current.configText,
+        dirty: current.configDirty,
+      },
     };
-    const savedLangConfig = !current.crossLanguage ? current.configByLang[lang] : undefined;
+    const savedLangConfig = !current.crossLanguage
+      ? current.configByLang[lang]
+      : undefined;
     const newText = savedLangConfig?.text ?? defaultConfig;
-    const newPreset = savedLangConfig?.preset ?? 'default.json';
+    const newPreset = savedLangConfig?.preset ?? "default.json";
     const newDirty = savedLangConfig?.dirty ?? false;
     mopsaJs.setConfig(newText);
 
@@ -282,8 +337,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
       configDirty: newDirty,
       configByLang: newConfigByLang,
       checks: [],
-      warnings: '',
-      rawOutput: '',
+      warnings: "",
+      rawOutput: "",
       selectivity: null,
       analysisTime: null,
       analysisSuccess: null,
@@ -310,8 +365,21 @@ export const useAppStore = create<AppStore>((set, get) => ({
   setPyEntryPoint: (path) => set({ pyEntryPoint: path }),
 
   toggleCrossLanguage: () => {
-    const { crossLanguage, lang, configText, configPreset, configDirty, configByLang, configXL, presets } = get();
-    const currentSaved: SavedConfig = { preset: configPreset, text: configText, dirty: configDirty };
+    const {
+      crossLanguage,
+      lang,
+      configText,
+      configPreset,
+      configDirty,
+      configByLang,
+      configXL,
+      presets,
+    } = get();
+    const currentSaved: SavedConfig = {
+      preset: configPreset,
+      text: configText,
+      dirty: configDirty,
+    };
 
     if (!crossLanguage) {
       // Switching TO cross-language: save current per-lang config, load XL config
@@ -324,12 +392,23 @@ export const useAppStore = create<AppStore>((set, get) => ({
         // Default: first multilanguage config from python section
         const pythonConfigs = presets?.configs.python;
         const xlKey = pythonConfigs
-          ? (Object.keys(pythonConfigs).find((k) => k === 'multilanguage.json')
-            ?? Object.keys(pythonConfigs).find((k) => k.toLowerCase().includes('multilanguage'))
-            ?? Object.keys(pythonConfigs)[0])
+          ? (Object.keys(pythonConfigs).find(
+              (k) => k === "multilanguage.json",
+            ) ??
+            Object.keys(pythonConfigs).find((k) =>
+              k.toLowerCase().includes("multilanguage"),
+            ) ??
+            Object.keys(pythonConfigs)[0])
           : undefined;
-        const xlText = xlKey && pythonConfigs ? (pythonConfigs[xlKey] ?? configText) : configText;
-        newConfig = { preset: xlKey ?? 'default.json', text: xlText, dirty: false };
+        const xlText =
+          xlKey && pythonConfigs
+            ? (pythonConfigs[xlKey] ?? configText)
+            : configText;
+        newConfig = {
+          preset: xlKey ?? "default.json",
+          text: xlText,
+          dirty: false,
+        };
       }
 
       mopsaJs.setConfig(newConfig.text);
@@ -347,12 +426,17 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
       let newText: string, newPreset: string, newDirty: boolean;
       if (savedLangConfig) {
-        ({ text: newText, preset: newPreset, dirty: newDirty } = savedLangConfig);
+        ({
+          text: newText,
+          preset: newPreset,
+          dirty: newDirty,
+        } = savedLangConfig);
       } else {
-        const langConfigs = presets?.configs[lang as 'c' | 'python' | 'universal' | 'cfg'];
-        const defaultText = langConfigs?.['default.json'] ?? configText;
+        const langConfigs =
+          presets?.configs[lang as "c" | "python" | "universal" | "cfg"];
+        const defaultText = langConfigs?.["default.json"] ?? configText;
         newText = defaultText;
-        newPreset = 'default.json';
+        newPreset = "default.json";
         newDirty = false;
       }
 
@@ -373,10 +457,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const { fileTree } = get();
     const path = getNodePath(fileTree, id);
     if (!path) return;
-    const wPath = '/' + path;
+    const wPath = "/" + path;
 
     const currentPath = mopsaJs.getCodeFilePath()[1];
-    if (wPath === currentPath) { set({ activeFile: id, activeTab: 'source' }); return; }
+    if (wPath === currentPath) {
+      set({ activeFile: id, activeTab: "source" });
+      return;
+    }
 
     // 1. Read the new file's content BEFORE changing _codeFile, otherwise
     //    readFile(wPath) would match _codeFile and return the old _code.
@@ -392,16 +479,28 @@ export const useAppStore = create<AppStore>((set, get) => ({
     // 4. Set the new file as active code.
     mopsaJs.setCode(newContent);
 
-    const ext = path.split('.').pop() ?? '';
+    const ext = path.split(".").pop() ?? "";
     const newLang = getLanguageFromFileExtension(ext);
-    const { lang: currentLang, crossLanguage, configByLang, configText, configPreset, configDirty, presets } = get();
+    const {
+      lang: currentLang,
+      crossLanguage,
+      configByLang,
+      configText,
+      configPreset,
+      configDirty,
+      presets,
+    } = get();
 
     // When crossLanguage is OFF and the language changed, restore config for new lang
     let configUpdates: Partial<AppStore> = {};
     if (!crossLanguage && newLang !== currentLang) {
       const newConfigByLang = {
         ...configByLang,
-        [currentLang]: { preset: configPreset, text: configText, dirty: configDirty },
+        [currentLang]: {
+          preset: configPreset,
+          text: configText,
+          dirty: configDirty,
+        },
       };
       const savedLangConfig = configByLang[newLang];
       if (savedLangConfig) {
@@ -413,13 +512,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
           configByLang: newConfigByLang,
         };
       } else {
-        const langConfigs = presets?.configs[newLang as 'c' | 'python' | 'universal' | 'cfg'];
-        const defaultText = langConfigs?.['default.json'];
+        const langConfigs =
+          presets?.configs[newLang as "c" | "python" | "universal" | "cfg"];
+        const defaultText = langConfigs?.["default.json"];
         if (defaultText) {
           mopsaJs.setConfig(defaultText);
           configUpdates = {
             configText: defaultText,
-            configPreset: 'default.json',
+            configPreset: "default.json",
             configDirty: false,
             configByLang: newConfigByLang,
           };
@@ -427,18 +527,24 @@ export const useAppStore = create<AppStore>((set, get) => ({
       }
     }
 
-    set({ activeFile: id, activeTab: 'source', code: newContent, lang: newLang, ...configUpdates });
+    set({
+      activeFile: id,
+      activeTab: "source",
+      code: newContent,
+      lang: newLang,
+      ...configUpdates,
+    });
   },
 
   createFileNode: (parentId) => {
     const { fileTree } = get();
     const id = genId();
     const siblings = getChildrenOf(fileTree, parentId);
-    const name = uniqueNameInLevel(siblings, 'new_file');
+    const name = uniqueNameInLevel(siblings, "new_file");
     const node: FileTreeNode = { id, name };
     const parentPath = parentId ? getNodePath(fileTree, parentId) : null;
     const filePath = parentPath ? `${parentPath}/${name}` : name;
-    writeFile('/' + filePath, '');
+    writeFile("/" + filePath, "");
     const newTree = sortNodes(insertNode(fileTree, parentId, node));
     set({ fileTree: newTree });
     return id;
@@ -448,7 +554,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const { fileTree } = get();
     const id = genId();
     const siblings = getChildrenOf(fileTree, parentId);
-    const name = uniqueNameInLevel(siblings, 'new_folder');
+    const name = uniqueNameInLevel(siblings, "new_folder");
     const node: FileTreeNode = { id, name, children: [] };
     const newTree = sortNodes(insertNode(fileTree, parentId, node));
     set({ fileTree: newTree });
@@ -467,8 +573,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
         const path = getNodePath(fileTree, file.id);
         if (path) {
           try {
-            deleteFile('/' + path);
-          } catch { /* ignore */ }
+            deleteFile("/" + path);
+          } catch {
+            /* ignore */
+          }
         }
       }
     }
@@ -482,19 +590,31 @@ export const useAppStore = create<AppStore>((set, get) => ({
       if (newActiveFile) {
         const path = getNodePath(newTree, newActiveFile);
         if (path) {
-          const content = readFile('/' + path);
-          setCodeFilePath('/' + path);
+          const content = readFile("/" + path);
+          setCodeFilePath("/" + path);
           mopsaJs.setCode(content);
 
-          const ext = path.split('.').pop() ?? '';
+          const ext = path.split(".").pop() ?? "";
           const newLang = getLanguageFromFileExtension(ext);
-          const { lang: currentLang, crossLanguage, configByLang, configText, configPreset, configDirty, presets } = get();
+          const {
+            lang: currentLang,
+            crossLanguage,
+            configByLang,
+            configText,
+            configPreset,
+            configDirty,
+            presets,
+          } = get();
 
           let configUpdates: Partial<AppStore> = {};
           if (!crossLanguage && newLang !== currentLang) {
             const newConfigByLang = {
               ...configByLang,
-              [currentLang]: { preset: configPreset, text: configText, dirty: configDirty },
+              [currentLang]: {
+                preset: configPreset,
+                text: configText,
+                dirty: configDirty,
+              },
             };
             const savedLangConfig = configByLang[newLang];
             if (savedLangConfig) {
@@ -506,13 +626,16 @@ export const useAppStore = create<AppStore>((set, get) => ({
                 configByLang: newConfigByLang,
               };
             } else {
-              const langConfigs = presets?.configs[newLang as 'c' | 'python' | 'universal' | 'cfg'];
-              const defaultText = langConfigs?.['default.json'];
+              const langConfigs =
+                presets?.configs[
+                  newLang as "c" | "python" | "universal" | "cfg"
+                ];
+              const defaultText = langConfigs?.["default.json"];
               if (defaultText) {
                 mopsaJs.setConfig(defaultText);
                 configUpdates = {
                   configText: defaultText,
-                  configPreset: 'default.json',
+                  configPreset: "default.json",
                   configDirty: false,
                   configByLang: newConfigByLang,
                 };
@@ -520,7 +643,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
             }
           }
 
-          set({ code: content, lang: newLang, activeTab: 'source', ...configUpdates });
+          set({
+            code: content,
+            lang: newLang,
+            activeTab: "source",
+            ...configUpdates,
+          });
         }
       }
     }
@@ -547,21 +675,21 @@ export const useAppStore = create<AppStore>((set, get) => ({
           const relative = filePath.slice(oldPath.length); // e.g. "/helper.c"
           const newFilePath = newBasePath + relative;
           if (file.id === activeFile) {
-            setCodeFilePath('/' + newFilePath);
+            setCodeFilePath("/" + newFilePath);
           } else {
-            const content = readFile('/' + filePath);
-            writeFile('/' + newFilePath, content);
-            deleteFile('/' + filePath);
+            const content = readFile("/" + filePath);
+            writeFile("/" + newFilePath, content);
+            deleteFile("/" + filePath);
           }
         }
       } else {
         // File
         if (dragId === activeFile) {
-          setCodeFilePath('/' + newBasePath);
+          setCodeFilePath("/" + newBasePath);
         } else {
-          const content = readFile('/' + oldPath);
-          writeFile('/' + newBasePath, content);
-          deleteFile('/' + oldPath);
+          const content = readFile("/" + oldPath);
+          writeFile("/" + newBasePath, content);
+          deleteFile("/" + oldPath);
         }
       }
     }
@@ -574,7 +702,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const { fileTree } = get();
     const newTree: FileTreeNode[] = JSON.parse(JSON.stringify(fileTree));
 
-    const basePath = parentId ? (getNodePath(newTree, parentId) ?? '') : '';
+    const basePath = parentId ? (getNodePath(newTree, parentId) ?? "") : "";
 
     function insertIntoLevel(level: FileTreeNode[], parts: string[]): void {
       const name = parts[0];
@@ -585,7 +713,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
         }
         return;
       }
-      let folder = level.find((n) => n.name === name && n.children !== undefined) as FileTreeNode | undefined;
+      let folder = level.find(
+        (n) => n.name === name && n.children !== undefined,
+      ) as FileTreeNode | undefined;
       if (!folder) {
         folder = { id: genId(), name, children: [] };
         level.push(folder);
@@ -595,9 +725,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
     for (const { path, content } of files) {
       const fullPath = basePath ? `${basePath}/${path}` : path;
-      const parts = fullPath.split('/').filter(Boolean);
+      const parts = fullPath.split("/").filter(Boolean);
       if (parts.length === 0) continue;
-      writeFile('/' + fullPath, content);
+      writeFile("/" + fullPath, content);
       insertIntoLevel(newTree, parts);
     }
 
@@ -610,12 +740,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
     if (!node || node.name === newName) return true;
 
     const siblings = getSiblings(fileTree, id);
-    if (siblings && siblings.some((n) => n.id !== id && n.name === newName)) return false;
+    if (siblings && siblings.some((n) => n.id !== id && n.name === newName))
+      return false;
 
     const oldPath = getNodePath(fileTree, id);
     if (!oldPath) return true;
-    const parentPath = oldPath.includes('/')
-      ? oldPath.slice(0, oldPath.lastIndexOf('/'))
+    const parentPath = oldPath.includes("/")
+      ? oldPath.slice(0, oldPath.lastIndexOf("/"))
       : null;
     const newPath = parentPath ? `${parentPath}/${newName}` : newName;
 
@@ -627,26 +758,38 @@ export const useAppStore = create<AppStore>((set, get) => ({
         const relative = filePath.slice(oldPath.length);
         const newFilePath = newPath + relative;
         if (file.id === activeFile) {
-          setCodeFilePath('/' + newFilePath);
+          setCodeFilePath("/" + newFilePath);
         } else {
-          const content = readFile('/' + filePath);
-          writeFile('/' + newFilePath, content);
-          deleteFile('/' + filePath);
+          const content = readFile("/" + filePath);
+          writeFile("/" + newFilePath, content);
+          deleteFile("/" + filePath);
         }
       }
     } else {
       // File
       if (id === activeFile) {
-        setCodeFilePath('/' + newPath);
-        const ext = newName.split('.').pop() ?? '';
+        setCodeFilePath("/" + newPath);
+        const ext = newName.split(".").pop() ?? "";
         const newLang = getLanguageFromFileExtension(ext);
-        const { lang: currentLang, crossLanguage, configByLang, configText, configPreset, configDirty, presets } = get();
+        const {
+          lang: currentLang,
+          crossLanguage,
+          configByLang,
+          configText,
+          configPreset,
+          configDirty,
+          presets,
+        } = get();
 
         let configUpdates: Partial<AppStore> = {};
         if (!crossLanguage && newLang !== currentLang) {
           const newConfigByLang = {
             ...configByLang,
-            [currentLang]: { preset: configPreset, text: configText, dirty: configDirty },
+            [currentLang]: {
+              preset: configPreset,
+              text: configText,
+              dirty: configDirty,
+            },
           };
           const savedLangConfig = configByLang[newLang];
           if (savedLangConfig) {
@@ -658,13 +801,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
               configByLang: newConfigByLang,
             };
           } else {
-            const langConfigs = presets?.configs[newLang as 'c' | 'python' | 'universal' | 'cfg'];
-            const defaultText = langConfigs?.['default.json'];
+            const langConfigs =
+              presets?.configs[newLang as "c" | "python" | "universal" | "cfg"];
+            const defaultText = langConfigs?.["default.json"];
             if (defaultText) {
               mopsaJs.setConfig(defaultText);
               configUpdates = {
                 configText: defaultText,
-                configPreset: 'default.json',
+                configPreset: "default.json",
                 configDirty: false,
                 configByLang: newConfigByLang,
               };
@@ -674,9 +818,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
         set({ lang: newLang, ...configUpdates });
       } else {
-        const content = readFile('/' + oldPath);
-        writeFile('/' + newPath, content);
-        deleteFile('/' + oldPath);
+        const content = readFile("/" + oldPath);
+        writeFile("/" + newPath, content);
+        deleteFile("/" + oldPath);
       }
     }
 
@@ -694,7 +838,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const { fileTree } = get();
     const id = genId();
     const siblings = getChildrenOf(fileTree, parentId);
-    const name = uniqueNameInLevel(siblings, 'workspace');
+    const name = uniqueNameInLevel(siblings, "workspace");
     const node: FileTreeNode = { id, name, children: [], isWorkspace: true };
     const newTree = sortNodes(insertNode(fileTree, parentId, node));
     set({ fileTree: newTree });

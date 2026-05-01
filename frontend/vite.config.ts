@@ -25,51 +25,52 @@ export default defineConfig({
     },
   },
   plugins: [
-    enablePWA && VitePWA({
-      registerType: "autoUpdate",
-      workbox: {
-        maximumFileSizeToCacheInBytes: 500000000,
-      },
-      includeAssets: [
-        "web-app-manifest-192x192.png",
-        "web-app-manifest-512x512.png",
-        "screenshot-desktop.png",
-        "screenshot-other.png",
-      ],
-      manifest: {
-        name: "MopsaJs",
-        short_name: "MopsaJs",
-        theme_color: "#ffffff",
-        background_color: "#ffffff",
-        display: "standalone",
-        description: "Modular Open Platform for Static Analysis.",
-        icons: [
-          {
-            src: "/web-app-manifest-192x192.png",
-            sizes: "192x192",
-            type: "image/png",
-          },
-          {
-            src: "/web-app-manifest-512x512.png",
-            sizes: "512x512",
-            type: "image/png",
-          },
+    enablePWA &&
+      VitePWA({
+        registerType: "autoUpdate",
+        workbox: {
+          maximumFileSizeToCacheInBytes: 500000000,
+        },
+        includeAssets: [
+          "web-app-manifest-192x192.png",
+          "web-app-manifest-512x512.png",
+          "screenshot-desktop.png",
+          "screenshot-other.png",
         ],
-        screenshots: [
-          {
-            src: "/screenshot-desktop.png",
-            sizes: "1662x1003",
-            type: "image/png",
-            form_factor: "wide",
-          },
-          {
-            src: "/screenshot-other.png",
-            sizes: "650x863",
-            type: "image/png",
-          },
-        ],
-      },
-    }),
+        manifest: {
+          name: "MopsaJs",
+          short_name: "MopsaJs",
+          theme_color: "#ffffff",
+          background_color: "#ffffff",
+          display: "standalone",
+          description: "Modular Open Platform for Static Analysis.",
+          icons: [
+            {
+              src: "/web-app-manifest-192x192.png",
+              sizes: "192x192",
+              type: "image/png",
+            },
+            {
+              src: "/web-app-manifest-512x512.png",
+              sizes: "512x512",
+              type: "image/png",
+            },
+          ],
+          screenshots: [
+            {
+              src: "/screenshot-desktop.png",
+              sizes: "1662x1003",
+              type: "image/png",
+              form_factor: "wide",
+            },
+            {
+              src: "/screenshot-other.png",
+              sizes: "650x863",
+              type: "image/png",
+            },
+          ],
+        },
+      }),
     react(),
     tailwindcss(),
   ],

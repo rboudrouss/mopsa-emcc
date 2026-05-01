@@ -1,4 +1,4 @@
-import { ansiToSpans } from '@/lib/mopsa-client';
+import { ansiToSpans } from "@/lib/mopsa-client";
 
 interface WarningsBoxProps {
   warnings: string;
@@ -9,9 +9,7 @@ export function WarningsBox({ warnings }: WarningsBoxProps) {
 
   // Split into paragraphs (blank-line separated), falling back to individual lines
   const rawBlocks = warnings.split(/\n\n+/);
-  const blocks = rawBlocks.length > 1
-    ? rawBlocks
-    : warnings.split('\n');
+  const blocks = rawBlocks.length > 1 ? rawBlocks : warnings.split("\n");
 
   const nonEmptyBlocks = blocks.filter((b) => b.trim());
   if (nonEmptyBlocks.length === 0) return null;
@@ -19,12 +17,12 @@ export function WarningsBox({ warnings }: WarningsBoxProps) {
   return (
     <div
       style={{
-        background: 'rgba(245,181,68,.06)',
-        border: '1px solid rgba(245,181,68,.25)',
+        background: "rgba(245,181,68,.06)",
+        border: "1px solid rgba(245,181,68,.25)",
         borderRadius: 6,
-        padding: '10px 12px',
-        display: 'flex',
-        flexDirection: 'column',
+        padding: "10px 12px",
+        display: "flex",
+        flexDirection: "column",
         gap: 4,
       }}
     >
@@ -32,15 +30,15 @@ export function WarningsBox({ warnings }: WarningsBoxProps) {
         style={{
           fontSize: 11,
           fontWeight: 600,
-          color: '#f5b544',
-          textTransform: 'uppercase',
-          letterSpacing: '0.06em',
+          color: "#f5b544",
+          textTransform: "uppercase",
+          letterSpacing: "0.06em",
           marginBottom: 4,
         }}
       >
         Warnings
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {nonEmptyBlocks.map((block, i) => {
           const spans = ansiToSpans(block);
           return (
@@ -50,9 +48,9 @@ export function WarningsBox({ warnings }: WarningsBoxProps) {
                 margin: 0,
                 fontSize: 12,
                 fontFamily: "'JetBrains Mono', monospace",
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word',
-                color: 'var(--text-secondary)',
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-word",
+                color: "var(--text-secondary)",
                 lineHeight: 1.6,
               }}
             >

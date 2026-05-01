@@ -1,5 +1,9 @@
 import type { AnalysisResult, ParsedOutput, SupportedLanguage } from "./types";
-import { BOOL_ARG_FLAGS, MOPSA_DEFAULT_VALUES, SELECT_FLAGS } from "./options-schema";
+import {
+  BOOL_ARG_FLAGS,
+  MOPSA_DEFAULT_VALUES,
+  SELECT_FLAGS,
+} from "./options-schema";
 
 // ── Default code snippets per language ───────────────────────────────────────
 export const DEFAULT_CODE: Record<SupportedLanguage, string> = {
@@ -51,7 +55,7 @@ assert(count == n);
 // ── Multi-file C example (two-file workspace) ─────────────────────────────────
 
 export const MULTIFILE_C: Record<string, string> = {
-  'main.c': `void fill(int n);
+  "main.c": `void fill(int n);
 int read_first();
 
 int main() {
@@ -59,7 +63,7 @@ int main() {
   return read_first();
 }
 `,
-  'utils.c': `int buf[5];
+  "utils.c": `int buf[5];
 
 /* off-by-one: when n == 5, writes buf[5] — out of bounds! */
 void fill(int n) {
@@ -115,16 +119,27 @@ export function ansiToSpans(raw: string): AnsiSpan[] {
   let lastIndex = 0;
   const classes = new Set<string>();
 
-  const COLOR_CLASSES = ["ansi-error", "ansi-safe", "ansi-warn", "ansi-info", "ansi-domain"];
+  const COLOR_CLASSES = [
+    "ansi-error",
+    "ansi-safe",
+    "ansi-warn",
+    "ansi-info",
+    "ansi-domain",
+  ];
 
   let match: RegExpExecArray | null;
   while ((match = re.exec(raw)) !== null) {
     if (match.index > lastIndex) {
-      spans.push({ text: raw.slice(lastIndex, match.index), cls: Array.from(classes).join(" ") });
+      spans.push({
+        text: raw.slice(lastIndex, match.index),
+        cls: Array.from(classes).join(" "),
+      });
     }
 
     if (match[2] === "m") {
-      const codes = match[1] ? match[1].split(";").map((s) => parseInt(s, 10)) : [0];
+      const codes = match[1]
+        ? match[1].split(";").map((s) => parseInt(s, 10))
+        : [0];
       for (const code of codes) {
         if (code === 0 || isNaN(code)) {
           classes.clear();
@@ -157,7 +172,10 @@ export function ansiToSpans(raw: string): AnsiSpan[] {
     lastIndex = re.lastIndex;
   }
   if (lastIndex < raw.length) {
-    spans.push({ text: raw.slice(lastIndex), cls: Array.from(classes).join(" ") });
+    spans.push({
+      text: raw.slice(lastIndex),
+      cls: Array.from(classes).join(" "),
+    });
   }
   return spans;
 }
@@ -223,7 +241,7 @@ export async function analyzeJson(
 
 export function writeFile(path: string, content: string): void {
   const normalised = path.startsWith("/") ? path : "/" + path;
-  const withNewline = content.endsWith('\n') ? content : content + '\n';
+  const withNewline = content.endsWith("\n") ? content : content + "\n";
   mopsaJs.writeFile(normalised, withNewline);
 }
 

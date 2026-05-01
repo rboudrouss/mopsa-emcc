@@ -1,4 +1,4 @@
-import type { FileTreeNode } from './types';
+import type { FileTreeNode } from "./types";
 
 export function genId(): string {
   return Math.random().toString(36).slice(2, 10);
@@ -14,18 +14,27 @@ export function insertNode(
     if (n.id === parentId && n.children !== undefined) {
       return { ...n, children: [...n.children, node] };
     }
-    if (n.children) return { ...n, children: insertNode(n.children, parentId, node) };
+    if (n.children)
+      return { ...n, children: insertNode(n.children, parentId, node) };
     return n;
   });
 }
 
-export function removeNodes(tree: FileTreeNode[], ids: Set<string>): FileTreeNode[] {
+export function removeNodes(
+  tree: FileTreeNode[],
+  ids: Set<string>,
+): FileTreeNode[] {
   return tree
     .filter((n) => !ids.has(n.id))
-    .map((n) => (n.children ? { ...n, children: removeNodes(n.children, ids) } : n));
+    .map((n) =>
+      n.children ? { ...n, children: removeNodes(n.children, ids) } : n,
+    );
 }
 
-export function findById(tree: FileTreeNode[], id: string): FileTreeNode | null {
+export function findById(
+  tree: FileTreeNode[],
+  id: string,
+): FileTreeNode | null {
   for (const n of tree) {
     if (n.id === id) return n;
     if (n.children) {
@@ -36,7 +45,11 @@ export function findById(tree: FileTreeNode[], id: string): FileTreeNode | null 
   return null;
 }
 
-export function getNodePath(tree: FileTreeNode[], id: string, prefix = ''): string | null {
+export function getNodePath(
+  tree: FileTreeNode[],
+  id: string,
+  prefix = "",
+): string | null {
   for (const n of tree) {
     const path = prefix ? `${prefix}/${n.name}` : n.name;
     if (n.id === id) return path;
@@ -55,7 +68,8 @@ export function renameNodeById(
 ): FileTreeNode[] {
   return tree.map((n) => {
     if (n.id === id) return { ...n, name: newName };
-    if (n.children) return { ...n, children: renameNodeById(n.children, id, newName) };
+    if (n.children)
+      return { ...n, children: renameNodeById(n.children, id, newName) };
     return n;
   });
 }
@@ -131,7 +145,10 @@ export function sortNodes(nodes: FileTreeNode[]): FileTreeNode[] {
   );
 }
 
-export function getSiblings(tree: FileTreeNode[], id: string): FileTreeNode[] | null {
+export function getSiblings(
+  tree: FileTreeNode[],
+  id: string,
+): FileTreeNode[] | null {
   if (tree.some((n) => n.id === id)) return tree;
   for (const n of tree) {
     if (n.children) {
@@ -142,13 +159,20 @@ export function getSiblings(tree: FileTreeNode[], id: string): FileTreeNode[] | 
   return null;
 }
 
-export function getChildrenOf(tree: FileTreeNode[], parentId: string | null): FileTreeNode[] {
+export function getChildrenOf(
+  tree: FileTreeNode[],
+  parentId: string | null,
+): FileTreeNode[] {
   if (parentId === null) return tree;
   const parent = findById(tree, parentId);
   return parent?.children ?? [];
 }
 
-export function uniqueNameInLevel(level: FileTreeNode[], baseName: string, excludeId?: string): string {
+export function uniqueNameInLevel(
+  level: FileTreeNode[],
+  baseName: string,
+  excludeId?: string,
+): string {
   const taken = new Set(
     level.filter((n) => n.id !== excludeId).map((n) => n.name),
   );
@@ -158,17 +182,24 @@ export function uniqueNameInLevel(level: FileTreeNode[], baseName: string, exclu
   return `${baseName}_${i}`;
 }
 
-export function toggleWorkspaceById(tree: FileTreeNode[], id: string): FileTreeNode[] {
+export function toggleWorkspaceById(
+  tree: FileTreeNode[],
+  id: string,
+): FileTreeNode[] {
   return tree.map((n) => {
     if (n.id === id) return { ...n, isWorkspace: !n.isWorkspace };
-    if (n.children) return { ...n, children: toggleWorkspaceById(n.children, id) };
+    if (n.children)
+      return { ...n, children: toggleWorkspaceById(n.children, id) };
     return n;
   });
 }
 
 // Returns the path of the deepest workspace ancestor of the given file node,
 // i.e. the first workspace encountered when traversing up from the file.
-export function getWorkspaceForFile(tree: FileTreeNode[], fileId: string): string | null {
+export function getWorkspaceForFile(
+  tree: FileTreeNode[],
+  fileId: string,
+): string | null {
   function findAncestors(
     nodes: FileTreeNode[],
     targetId: string,
@@ -179,14 +210,19 @@ export function getWorkspaceForFile(tree: FileTreeNode[], fileId: string): strin
       const path = prefix ? `${prefix}/${n.name}` : n.name;
       if (n.id === targetId) return acc;
       if (n.children) {
-        const found = findAncestors(n.children, targetId, [...acc, { node: n, path }], path);
+        const found = findAncestors(
+          n.children,
+          targetId,
+          [...acc, { node: n, path }],
+          path,
+        );
         if (found) return found;
       }
     }
     return null;
   }
 
-  const ancestors = findAncestors(tree, fileId, [], '');
+  const ancestors = findAncestors(tree, fileId, [], "");
   if (!ancestors) return null;
 
   for (let i = ancestors.length - 1; i >= 0; i--) {
@@ -197,7 +233,7 @@ export function getWorkspaceForFile(tree: FileTreeNode[], fileId: string): strin
 
 export function getAllFilePaths(
   nodes: FileTreeNode[],
-  prefix = '',
+  prefix = "",
 ): { id: string; path: string }[] {
   const result: { id: string; path: string }[] = [];
   for (const n of nodes) {

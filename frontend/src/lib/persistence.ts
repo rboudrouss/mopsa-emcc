@@ -1,9 +1,19 @@
-import { DEFAULT_CODE, readFile, setCodeFilePath, writeFile } from './mopsa-client';
-import { DEFAULT_OPTION_VALUES } from './options-schema';
-import { findFirstFile, getNodePath } from './tree';
-import type { ActivePanel, FileTreeNode, SavedConfig, SupportedLanguage } from './types';
+import {
+  DEFAULT_CODE,
+  readFile,
+  setCodeFilePath,
+  writeFile,
+} from "./mopsa-client";
+import { DEFAULT_OPTION_VALUES } from "./options-schema";
+import { findFirstFile, getNodePath } from "./tree";
+import type {
+  ActivePanel,
+  FileTreeNode,
+  SavedConfig,
+  SupportedLanguage,
+} from "./types";
 
-const STORAGE_KEY = 'mopsa-state';
+const STORAGE_KEY = "mopsa-state";
 const STORAGE_VERSION = 2;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -70,12 +80,14 @@ function collectFileContents(fileTree: FileTreeNode[]): Record<string, string> {
         walk(node.children, path);
       } else {
         try {
-          result[path] = readFile('/' + path);
-        } catch { /* ignore unreadable files */ }
+          result[path] = readFile("/" + path);
+        } catch {
+          /* ignore unreadable files */
+        }
       }
     }
   }
-  walk(fileTree, '');
+  walk(fileTree, "");
   return result;
 }
 
@@ -84,9 +96,15 @@ function collectFileContents(fileTree: FileTreeNode[]): Record<string, string> {
 export function saveState(state: StateToSave): void {
   try {
     const fileContents = collectFileContents(state.fileTree);
-    const persisted: PersistedState = { version: STORAGE_VERSION, ...state, fileContents };
+    const persisted: PersistedState = {
+      version: STORAGE_VERSION,
+      ...state,
+      fileContents,
+    };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(persisted));
-  } catch { /* localStorage might be full or disabled */ }
+  } catch {
+    /* localStorage might be full or disabled */
+  }
 }
 
 export function loadAndRestoreState(): RestoredState | null {
@@ -97,7 +115,7 @@ export function loadAndRestoreState(): RestoredState | null {
     if (saved.version !== STORAGE_VERSION) return null;
 
     // Determine active file and code
-    let code = DEFAULT_CODE[saved.lang] ?? '';
+    let code = DEFAULT_CODE[saved.lang] ?? "";
     let activeFile = saved.activeFile;
 
     const resolveFile = (id: string | null) => {
@@ -107,18 +125,19 @@ export function loadAndRestoreState(): RestoredState | null {
       return { id, path, content: saved.fileContents[path] };
     };
 
-    const resolved = resolveFile(activeFile) ?? resolveFile(findFirstFile(saved.fileTree));
+    const resolved =
+      resolveFile(activeFile) ?? resolveFile(findFirstFile(saved.fileTree));
     if (resolved) {
       activeFile = resolved.id;
       code = resolved.content;
       // Set the active file path BEFORE writing file contents so that
       // non-active files land in _extraFiles (not overwrite _code).
-      setCodeFilePath('/' + resolved.path);
+      setCodeFilePath("/" + resolved.path);
     }
 
     // Restore all files into the WASM filesystem
     for (const [path, content] of Object.entries(saved.fileContents)) {
-      writeFile('/' + path, content);
+      writeFile("/" + path, content);
     }
 
     if (resolved) {
@@ -126,15 +145,19 @@ export function loadAndRestoreState(): RestoredState | null {
     }
 
     // Determine config
-    let configText = '';
-    let configPreset = 'default.json';
+    let configText = "";
+    let configPreset = "default.json";
     let configDirty = false;
 
     const langConfig = saved.crossLanguage
       ? saved.configXL
       : saved.configByLang[saved.lang];
     if (langConfig) {
-      ({ text: configText, preset: configPreset, dirty: configDirty } = langConfig);
+      ({
+        text: configText,
+        preset: configPreset,
+        dirty: configDirty,
+      } = langConfig);
       if (configText) mopsaJs.setConfig(configText);
     }
 

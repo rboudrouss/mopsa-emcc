@@ -1,15 +1,15 @@
-import { useEffect } from 'react';
-import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
-import { ActivityBar } from '@/components/ActivityBar';
-import { CenterPane } from '@/components/CenterPane';
-import { RightPanel } from '@/components/RightPanel';
-import { SecondarySidebar } from '@/components/SecondarySidebar';
-import { TopBar } from '@/components/TopBar';
-import { useAnalysis } from '@/lib/hooks/use-analysis';
-import { useDebouncedFn } from '@/lib/hooks/use-debounced-fn';
-import { useTheme } from '@/lib/hooks/use-theme';
-import { usePresets } from '@/lib/hooks/use-presets';
-import { useAppStore } from '@/lib/store';
+import { useEffect } from "react";
+import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import { ActivityBar } from "@/components/ActivityBar";
+import { CenterPane } from "@/components/CenterPane";
+import { RightPanel } from "@/components/RightPanel";
+import { SecondarySidebar } from "@/components/SecondarySidebar";
+import { TopBar } from "@/components/TopBar";
+import { useAnalysis } from "@/lib/hooks/use-analysis";
+import { useDebouncedFn } from "@/lib/hooks/use-debounced-fn";
+import { useTheme } from "@/lib/hooks/use-theme";
+import { usePresets } from "@/lib/hooks/use-presets";
+import { useAppStore } from "@/lib/store";
 
 export default function App() {
   const { resolved, toggle } = useTheme();
@@ -32,9 +32,9 @@ export default function App() {
     if (!state.configText) {
       const langKey = state.lang as keyof typeof presets.configs;
       const langConfigs = presets.configs[langKey] ?? presets.configs.c;
-      const firstConfig = langConfigs['default.json'] ?? mopsaJs.configUni;
+      const firstConfig = langConfigs["default.json"] ?? mopsaJs.configUni;
       mopsaJs.setConfig(firstConfig);
-      applyPreset('default.json', firstConfig);
+      applyPreset("default.json", firstConfig);
     }
   }, [isSuccess, presets, applyPreset, setPresets]);
 
@@ -49,13 +49,13 @@ export default function App() {
   return (
     <div
       style={{
-        display: 'grid',
-        gridTemplateColumns: '44px 1fr',
-        gridTemplateRows: '48px 1fr',
-        height: '100vh',
-        width: '100vw',
-        overflow: 'hidden',
-        background: 'var(--bg-base)',
+        display: "grid",
+        gridTemplateColumns: "44px 1fr",
+        gridTemplateRows: "48px 1fr",
+        height: "100vh",
+        width: "100vw",
+        overflow: "hidden",
+        background: "var(--bg-base)",
       }}
     >
       <TopBar
@@ -68,21 +68,40 @@ export default function App() {
       <PanelGroup
         direction="horizontal"
         autoSaveId="mopsa-layout"
-        style={{ gridColumn: 2, height: '100%', overflow: 'hidden' }}
+        style={{ gridColumn: 2, height: "100%", overflow: "hidden" }}
       >
         {activePanel && (
           <>
-            <Panel defaultSize={20} minSize={12} maxSize={40} id="left" order={1} style={{ overflow: 'hidden' }}>
+            <Panel
+              defaultSize={20}
+              minSize={12}
+              maxSize={40}
+              id="left"
+              order={1}
+              style={{ overflow: "hidden" }}
+            >
               <SecondarySidebar />
             </Panel>
             <PanelResizeHandle style={resizeHandleStyle} />
           </>
         )}
-        <Panel minSize={30} id="center" order={2} style={{ overflow: 'hidden' }}>
+        <Panel
+          minSize={30}
+          id="center"
+          order={2}
+          style={{ overflow: "hidden" }}
+        >
           <CenterPane resolvedTheme={resolved} />
         </Panel>
         <PanelResizeHandle style={resizeHandleStyle} />
-        <Panel defaultSize={25} minSize={15} maxSize={45} id="right" order={3} style={{ overflow: 'hidden' }}>
+        <Panel
+          defaultSize={25}
+          minSize={15}
+          maxSize={45}
+          id="right"
+          order={3}
+          style={{ overflow: "hidden" }}
+        >
           <RightPanel />
         </Panel>
       </PanelGroup>
@@ -92,6 +111,6 @@ export default function App() {
 
 const resizeHandleStyle: React.CSSProperties = {
   width: 4,
-  cursor: 'col-resize',
+  cursor: "col-resize",
   flexShrink: 0,
 };

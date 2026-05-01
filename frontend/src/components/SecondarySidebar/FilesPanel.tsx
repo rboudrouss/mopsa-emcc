@@ -1,5 +1,5 @@
-import { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { Tree, type NodeRendererProps, type TreeApi } from 'react-arborist';
+import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { Tree, type NodeRendererProps, type TreeApi } from "react-arborist";
 import {
   FilePlus,
   FolderPlus,
@@ -13,34 +13,37 @@ import {
   Upload,
   Download,
   Layers,
-} from 'lucide-react';
-import { useAppStore } from '@/lib/store';
-import { countAllNodes, getAllFilePaths, getNodePath } from '@/lib/tree';
-import { readFile } from '@/lib/mopsa-client';
-import type { FileTreeNode, SupportedLanguage } from '@/lib/types';
+} from "lucide-react";
+import { useAppStore } from "@/lib/store";
+import { countAllNodes, getAllFilePaths, getNodePath } from "@/lib/tree";
+import { readFile } from "@/lib/mopsa-client";
+import type { FileTreeNode, SupportedLanguage } from "@/lib/types";
 
 // ── Language chip ─────────────────────────────────────────────────────────────
 
-const LANG_CHIP: Record<SupportedLanguage, { bg: string; color: string; label: string }> = {
-  c:         { bg: 'rgba(96,165,250,.15)',  color: '#60a5fa', label: 'C' },
-  python:    { bg: 'rgba(251,191,36,.15)',  color: '#fbbf24', label: 'PY' },
-  universal: { bg: 'rgba(167,139,250,.15)', color: '#a78bfa', label: 'UNI' },
+const LANG_CHIP: Record<
+  SupportedLanguage,
+  { bg: string; color: string; label: string }
+> = {
+  c: { bg: "rgba(96,165,250,.15)", color: "#60a5fa", label: "C" },
+  python: { bg: "rgba(251,191,36,.15)", color: "#fbbf24", label: "PY" },
+  universal: { bg: "rgba(167,139,250,.15)", color: "#a78bfa", label: "UNI" },
 };
 
 function getFileLang(filename: string): SupportedLanguage | null {
-  if (filename.endsWith('.py')) return 'python';
-  if (filename.endsWith('.u')) return 'universal';
-  if (filename.endsWith('.c') || filename.endsWith('.h')) return 'c';
+  if (filename.endsWith(".py")) return "python";
+  if (filename.endsWith(".u")) return "universal";
+  if (filename.endsWith(".c") || filename.endsWith(".h")) return "c";
   return null;
 }
 
 // ── Import / download helpers ─────────────────────────────────────────────────
 
-const SUPPORTED_IMPORT_EXTS = new Set(['.c', '.h', '.py', '.u']);
+const SUPPORTED_IMPORT_EXTS = new Set([".c", ".h", ".py", ".u"]);
 
 function triggerDownload(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
+  const a = document.createElement("a");
   a.href = url;
   a.download = filename;
   document.body.appendChild(a);
@@ -55,17 +58,20 @@ async function readImportFiles(
 ): Promise<{ path: string; content: string }[]> {
   const results: { path: string; content: string }[] = [];
   for (const file of Array.from(fileList)) {
-    const dotIdx = file.name.lastIndexOf('.');
-    const ext = dotIdx >= 0 ? file.name.slice(dotIdx) : '';
+    const dotIdx = file.name.lastIndexOf(".");
+    const ext = dotIdx >= 0 ? file.name.slice(dotIdx) : "";
     if (!SUPPORTED_IMPORT_EXTS.has(ext)) continue;
     try {
       const content = await file.text();
-      if (content.includes('\0')) continue;
+      if (content.includes("\0")) continue;
       const path = useRelativePath
-        ? ((file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name)
+        ? (file as File & { webkitRelativePath?: string }).webkitRelativePath ||
+          file.name
         : file.name;
       results.push({ path, content });
-    } catch { /* skip unreadable */ }
+    } catch {
+      /* skip unreadable */
+    }
   }
   return results;
 }
@@ -94,8 +100,8 @@ function FileRow({ node, style, dragHandle }: NodeRendererProps<FileTreeNode>) {
         (c) =>
           c.range?.start &&
           (c.range.start.file.endsWith(node.data.name) ||
-            c.range.start.file.endsWith('/' + node.data.name)) &&
-          (c.kind === 'warning' || c.kind === 'error'),
+            c.range.start.file.endsWith("/" + node.data.name)) &&
+          (c.kind === "warning" || c.kind === "error"),
       ).length
     : 0;
 
@@ -104,25 +110,32 @@ function FileRow({ node, style, dragHandle }: NodeRendererProps<FileTreeNode>) {
 
   if (node.isEditing) {
     return (
-      <div style={{ ...style, display: 'flex', alignItems: 'center', padding: '0 8px' }}>
+      <div
+        style={{
+          ...style,
+          display: "flex",
+          alignItems: "center",
+          padding: "0 8px",
+        }}
+      >
         <input
           autoFocus
           defaultValue={node.data.name}
           style={{
             flex: 1,
-            background: 'var(--bg-base)',
-            border: '1px solid var(--color-accent)',
+            background: "var(--bg-base)",
+            border: "1px solid var(--color-accent)",
             borderRadius: 3,
-            color: 'var(--text-primary)',
+            color: "var(--text-primary)",
             fontSize: 12,
             fontFamily: "'JetBrains Mono', monospace",
-            padding: '1px 4px',
-            outline: 'none',
+            padding: "1px 4px",
+            outline: "none",
           }}
           onBlur={(e) => node.submit(e.currentTarget.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') node.submit(e.currentTarget.value);
-            if (e.key === 'Escape') node.reset();
+            if (e.key === "Enter") node.submit(e.currentTarget.value);
+            if (e.key === "Escape") node.reset();
           }}
         />
       </div>
@@ -134,15 +147,15 @@ function FileRow({ node, style, dragHandle }: NodeRendererProps<FileTreeNode>) {
       ref={dragHandle}
       style={{
         ...style,
-        display: 'flex',
-        alignItems: 'center',
+        display: "flex",
+        alignItems: "center",
         gap: 5,
         paddingRight: 12,
         paddingLeft: node.level * 12 + 6,
-        cursor: 'pointer',
-        background: node.isSelected ? 'var(--bg-hover)' : 'transparent',
-        transition: 'background 120ms',
-        userSelect: 'none',
+        cursor: "pointer",
+        background: node.isSelected ? "var(--bg-hover)" : "transparent",
+        transition: "background 120ms",
+        userSelect: "none",
       }}
       onClick={() => {
         if (isFolder) node.toggle();
@@ -151,20 +164,28 @@ function FileRow({ node, style, dragHandle }: NodeRendererProps<FileTreeNode>) {
       onContextMenu={(e) => {
         e.preventDefault();
         e.stopPropagation();
-        setContextMenu({ x: e.clientX, y: e.clientY, nodeId: node.id, isFolder });
+        setContextMenu({
+          x: e.clientX,
+          y: e.clientY,
+          nodeId: node.id,
+          isFolder,
+        });
       }}
       onMouseEnter={(e) => {
         if (!node.isSelected)
-          (e.currentTarget as HTMLDivElement).style.background = 'var(--bg-hover)';
+          (e.currentTarget as HTMLDivElement).style.background =
+            "var(--bg-hover)";
       }}
       onMouseLeave={(e) => {
         if (!node.isSelected)
-          (e.currentTarget as HTMLDivElement).style.background = 'transparent';
+          (e.currentTarget as HTMLDivElement).style.background = "transparent";
       }}
     >
       {/* Chevron */}
       {isFolder ? (
-        <span style={{ display: 'flex', flexShrink: 0, color: 'var(--text-muted)' }}>
+        <span
+          style={{ display: "flex", flexShrink: 0, color: "var(--text-muted)" }}
+        >
           {node.isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
         </span>
       ) : (
@@ -172,10 +193,18 @@ function FileRow({ node, style, dragHandle }: NodeRendererProps<FileTreeNode>) {
       )}
 
       {/* Icon */}
-      <span style={{ display: 'flex', flexShrink: 0, color: 'var(--text-muted)' }}>
-        {isFolder
-          ? node.isOpen ? <FolderOpen size={14} /> : <Folder size={14} />
-          : <File size={14} />}
+      <span
+        style={{ display: "flex", flexShrink: 0, color: "var(--text-muted)" }}
+      >
+        {isFolder ? (
+          node.isOpen ? (
+            <FolderOpen size={14} />
+          ) : (
+            <Folder size={14} />
+          )
+        ) : (
+          <File size={14} />
+        )}
       </span>
 
       {/* Lang chip */}
@@ -184,12 +213,12 @@ function FileRow({ node, style, dragHandle }: NodeRendererProps<FileTreeNode>) {
           style={{
             fontSize: 9,
             fontWeight: 700,
-            padding: '1px 4px',
+            padding: "1px 4px",
             borderRadius: 3,
             background: chip.bg,
             color: chip.color,
             flexShrink: 0,
-            letterSpacing: '0.03em',
+            letterSpacing: "0.03em",
           }}
         >
           {chip.label}
@@ -201,10 +230,10 @@ function FileRow({ node, style, dragHandle }: NodeRendererProps<FileTreeNode>) {
         style={{
           fontSize: 12,
           fontFamily: "'JetBrains Mono', monospace",
-          color: 'var(--text-primary)',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
+          color: "var(--text-primary)",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
           flex: 1,
         }}
       >
@@ -213,14 +242,24 @@ function FileRow({ node, style, dragHandle }: NodeRendererProps<FileTreeNode>) {
 
       {/* Warning badge */}
       {warnings > 0 && (
-        <span style={{ fontSize: 11, fontWeight: 600, color: '#f5b544', flexShrink: 0 }}>
+        <span
+          style={{
+            fontSize: 11,
+            fontWeight: 600,
+            color: "#f5b544",
+            flexShrink: 0,
+          }}
+        >
           ⚠{warnings}
         </span>
       )}
 
       {/* Workspace indicator */}
       {isFolder && node.data.isWorkspace && (
-        <span style={{ display: 'flex', flexShrink: 0, color: '#a78bfa' }} title="Workspace">
+        <span
+          style={{ display: "flex", flexShrink: 0, color: "#a78bfa" }}
+          title="Workspace"
+        >
           <Layers size={11} />
         </span>
       )}
@@ -264,13 +303,13 @@ function ContextMenu({
       if (ref.current && !ref.current.contains(e.target as Node)) onClose();
     }
     function handleKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
+      if (e.key === "Escape") onClose();
     }
-    document.addEventListener('mousedown', handleClick);
-    document.addEventListener('keydown', handleKey);
+    document.addEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleKey);
     return () => {
-      document.removeEventListener('mousedown', handleClick);
-      document.removeEventListener('keydown', handleKey);
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleKey);
     };
   }, [onClose]);
 
@@ -279,9 +318,12 @@ function ContextMenu({
   const x = Math.min(state.x, window.innerWidth - menuWidth - 4);
   const y = Math.min(state.y, window.innerHeight - menuHeight - 4);
 
-  const newParentId = state.nodeId && state.isFolder ? state.nodeId : (
-    state.nodeId ? treeRef.current?.get(state.nodeId)?.parent?.id ?? null : null
-  );
+  const newParentId =
+    state.nodeId && state.isFolder
+      ? state.nodeId
+      : state.nodeId
+        ? (treeRef.current?.get(state.nodeId)?.parent?.id ?? null)
+        : null;
 
   function item(
     icon: React.ReactNode,
@@ -292,26 +334,30 @@ function ContextMenu({
     return (
       <button
         style={{
-          display: 'flex',
-          alignItems: 'center',
+          display: "flex",
+          alignItems: "center",
           gap: 8,
-          width: '100%',
-          padding: '6px 12px',
-          background: 'none',
-          border: 'none',
-          cursor: 'pointer',
+          width: "100%",
+          padding: "6px 12px",
+          background: "none",
+          border: "none",
+          cursor: "pointer",
           fontSize: 12,
-          color: danger ? '#f87171' : 'var(--text-primary)',
-          textAlign: 'left',
+          color: danger ? "#f87171" : "var(--text-primary)",
+          textAlign: "left",
           borderRadius: 4,
         }}
         onMouseEnter={(e) => {
-          (e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-hover)';
+          (e.currentTarget as HTMLButtonElement).style.background =
+            "var(--bg-hover)";
         }}
         onMouseLeave={(e) => {
-          (e.currentTarget as HTMLButtonElement).style.background = 'none';
+          (e.currentTarget as HTMLButtonElement).style.background = "none";
         }}
-        onClick={() => { action(); onClose(); }}
+        onClick={() => {
+          action();
+          onClose();
+        }}
       >
         {icon}
         {label}
@@ -319,56 +365,71 @@ function ContextMenu({
     );
   }
 
-  const sep = <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />;
+  const sep = (
+    <div style={{ height: 1, background: "var(--border)", margin: "4px 0" }} />
+  );
 
   return (
     <div
       ref={ref}
       style={{
-        position: 'fixed',
+        position: "fixed",
         top: y,
         left: x,
         width: menuWidth,
-        background: 'var(--bg-surface)',
-        border: '1px solid var(--border)',
+        background: "var(--bg-surface)",
+        border: "1px solid var(--border)",
         borderRadius: 6,
-        boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+        boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
         padding: 4,
         zIndex: 1000,
       }}
     >
-      {item(<FilePlus size={13} />, 'New File', () => onNewFile(newParentId))}
-      {item(<FolderPlus size={13} />, 'New Folder', () => onNewFolder(newParentId))}
-      {item(<Layers size={13} />, 'New Workspace', () => onNewWorkspace(newParentId))}
+      {item(<FilePlus size={13} />, "New File", () => onNewFile(newParentId))}
+      {item(<FolderPlus size={13} />, "New Folder", () =>
+        onNewFolder(newParentId),
+      )}
+      {item(<Layers size={13} />, "New Workspace", () =>
+        onNewWorkspace(newParentId),
+      )}
 
       {sep}
-      {item(<Upload size={13} />, 'Import files…', () => onImportFiles(newParentId))}
-      {item(<Upload size={13} />, 'Import folder…', () => onImportFolder(newParentId))}
+      {item(<Upload size={13} />, "Import files…", () =>
+        onImportFiles(newParentId),
+      )}
+      {item(<Upload size={13} />, "Import folder…", () =>
+        onImportFolder(newParentId),
+      )}
 
       {state.nodeId && (
         <>
           {sep}
-          {item(<Pencil size={13} />, 'Rename', () => {
+          {item(<Pencil size={13} />, "Rename", () => {
             if (state.nodeId) treeRef.current?.edit(state.nodeId);
           })}
-          {!state.isFolder && item(
-            <Download size={13} />,
-            'Download file',
-            () => { if (state.nodeId) onDownloadFile(state.nodeId); },
-          )}
-          {state.isFolder && (() => {
-            const isWs = treeRef.current?.get(state.nodeId!)?.data.isWorkspace;
-            return item(
-              <Layers size={13} />,
-              isWs ? 'Unmark workspace' : 'Mark as workspace',
-              () => { if (state.nodeId) onToggleWorkspace(state.nodeId); },
-            );
-          })()}
+          {!state.isFolder &&
+            item(<Download size={13} />, "Download file", () => {
+              if (state.nodeId) onDownloadFile(state.nodeId);
+            })}
+          {state.isFolder &&
+            (() => {
+              const isWs = treeRef.current?.get(state.nodeId!)?.data
+                .isWorkspace;
+              return item(
+                <Layers size={13} />,
+                isWs ? "Unmark workspace" : "Mark as workspace",
+                () => {
+                  if (state.nodeId) onToggleWorkspace(state.nodeId);
+                },
+              );
+            })()}
           {sep}
           {item(
             <Trash2 size={13} />,
-            'Delete',
-            () => { if (state.nodeId) onDelete(state.nodeId); },
+            "Delete",
+            () => {
+              if (state.nodeId) onDelete(state.nodeId);
+            },
             true,
           )}
         </>
@@ -379,9 +440,17 @@ function ContextMenu({
 
 // ── Import dropdown (header button) ──────────────────────────────────────────
 
-interface ImportMenuState { x: number; y: number; }
+interface ImportMenuState {
+  x: number;
+  y: number;
+}
 
-function ImportMenu({ state, onClose, onImportFiles, onImportFolder }: {
+function ImportMenu({
+  state,
+  onClose,
+  onImportFiles,
+  onImportFolder,
+}: {
   state: ImportMenuState;
   onClose: () => void;
   onImportFiles: () => void;
@@ -394,13 +463,13 @@ function ImportMenu({ state, onClose, onImportFiles, onImportFolder }: {
       if (ref.current && !ref.current.contains(e.target as Node)) onClose();
     }
     function handleKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
+      if (e.key === "Escape") onClose();
     }
-    document.addEventListener('mousedown', handleClick);
-    document.addEventListener('keydown', handleKey);
+    document.addEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleKey);
     return () => {
-      document.removeEventListener('mousedown', handleClick);
-      document.removeEventListener('keydown', handleKey);
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleKey);
     };
   }, [onClose]);
 
@@ -411,49 +480,50 @@ function ImportMenu({ state, onClose, onImportFiles, onImportFolder }: {
     <div
       ref={ref}
       style={{
-        position: 'fixed',
+        position: "fixed",
         top: state.y,
         left: x,
         width: menuWidth,
-        background: 'var(--bg-surface)',
-        border: '1px solid var(--border)',
+        background: "var(--bg-surface)",
+        border: "1px solid var(--border)",
         borderRadius: 6,
-        boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+        boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
         padding: 4,
         zIndex: 1000,
       }}
     >
-      {(['files', 'folder'] as const).map((type) => (
+      {(["files", "folder"] as const).map((type) => (
         <button
           key={type}
           style={{
-            display: 'flex',
-            alignItems: 'center',
+            display: "flex",
+            alignItems: "center",
             gap: 8,
-            width: '100%',
-            padding: '6px 12px',
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
+            width: "100%",
+            padding: "6px 12px",
+            background: "none",
+            border: "none",
+            cursor: "pointer",
             fontSize: 12,
-            color: 'var(--text-primary)',
-            textAlign: 'left',
+            color: "var(--text-primary)",
+            textAlign: "left",
             borderRadius: 4,
           }}
           onMouseEnter={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-hover)';
+            (e.currentTarget as HTMLButtonElement).style.background =
+              "var(--bg-hover)";
           }}
           onMouseLeave={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background = 'none';
+            (e.currentTarget as HTMLButtonElement).style.background = "none";
           }}
           onClick={() => {
-            if (type === 'files') onImportFiles();
+            if (type === "files") onImportFiles();
             else onImportFolder();
             onClose();
           }}
         >
           <Upload size={13} />
-          {type === 'files' ? 'Import files…' : 'Import folder…'}
+          {type === "files" ? "Import files…" : "Import folder…"}
         </button>
       ))}
     </div>
@@ -463,25 +533,26 @@ function ImportMenu({ state, onClose, onImportFiles, onImportFolder }: {
 // ── FilesPanel ────────────────────────────────────────────────────────────────
 
 const iconBtnStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  background: 'none',
-  border: 'none',
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  background: "none",
+  border: "none",
   padding: 3,
   borderRadius: 3,
-  cursor: 'pointer',
-  color: 'var(--text-muted)',
-  transition: 'color 120ms',
+  cursor: "pointer",
+  color: "var(--text-muted)",
+  transition: "color 120ms",
 };
 
 function hoverHandlers() {
   return {
     onMouseEnter: (e: React.MouseEvent<HTMLButtonElement>) => {
-      (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)';
+      (e.currentTarget as HTMLButtonElement).style.color =
+        "var(--text-primary)";
     },
     onMouseLeave: (e: React.MouseEvent<HTMLButtonElement>) => {
-      (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)';
+      (e.currentTarget as HTMLButtonElement).style.color = "var(--text-muted)";
     },
   };
 }
@@ -511,7 +582,7 @@ export function FilesPanel() {
 
   useEffect(() => {
     if (folderInputRef.current) {
-      folderInputRef.current.setAttribute('webkitdirectory', '');
+      folderInputRef.current.setAttribute("webkitdirectory", "");
     }
   }, []);
 
@@ -520,17 +591,17 @@ export function FilesPanel() {
 
   function handleNewFile(parentId?: string | null) {
     if (parentId === undefined) {
-      treeRef.current?.create({ type: 'leaf' });
+      treeRef.current?.create({ type: "leaf" });
     } else {
-      treeRef.current?.create({ type: 'leaf', parentId });
+      treeRef.current?.create({ type: "leaf", parentId });
     }
   }
 
   function handleNewFolder(parentId?: string | null) {
     if (parentId === undefined) {
-      treeRef.current?.create({ type: 'internal' });
+      treeRef.current?.create({ type: "internal" });
     } else {
-      treeRef.current?.create({ type: 'internal', parentId });
+      treeRef.current?.create({ type: "internal", parentId });
     }
   }
 
@@ -558,27 +629,31 @@ export function FilesPanel() {
     folderInputRef.current?.click();
   }
 
-  async function handleFilesInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFilesInputChange(
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) {
     if (!e.target.files) return;
-    setStatus('Importing…');
+    setStatus("Importing…");
     try {
       const results = await readImportFiles(e.target.files, false);
       if (results.length > 0) importFiles(results, importParentIdRef.current);
     } finally {
       setStatus(null);
-      e.target.value = '';
+      e.target.value = "";
     }
   }
 
-  async function handleFolderInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFolderInputChange(
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) {
     if (!e.target.files) return;
-    setStatus('Importing…');
+    setStatus("Importing…");
     try {
       const results = await readImportFiles(e.target.files, true);
       if (results.length > 0) importFiles(results, importParentIdRef.current);
     } finally {
       setStatus(null);
-      e.target.value = '';
+      e.target.value = "";
     }
   }
 
@@ -590,35 +665,49 @@ export function FilesPanel() {
 
     // Collect contents on main thread (mopsaJs is synchronous, must stay here)
     const files = allPaths.flatMap(({ path }) => {
-      try { return [{ path, content: readFile('/' + path) }]; }
-      catch { return []; }
+      try {
+        return [{ path, content: readFile("/" + path) }];
+      } catch {
+        return [];
+      }
     });
 
-    setStatus('Compressing…');
+    setStatus("Compressing…");
     const worker = new Worker(
-      new URL('../../workers/zip.worker.ts', import.meta.url),
-      { type: 'module' },
+      new URL("../../workers/zip.worker.ts", import.meta.url),
+      { type: "module" },
     );
     worker.onmessage = (ev: MessageEvent<{ buffer: ArrayBuffer }>) => {
-      triggerDownload(new Blob([ev.data.buffer], { type: 'application/zip' }), 'project.zip');
+      triggerDownload(
+        new Blob([ev.data.buffer], { type: "application/zip" }),
+        "project.zip",
+      );
       worker.terminate();
       setStatus(null);
     };
-    worker.onerror = () => { worker.terminate(); setStatus(null); };
+    worker.onerror = () => {
+      worker.terminate();
+      setStatus(null);
+    };
     worker.postMessage({ files });
   }
 
   function handleDownloadFile(nodeId: string) {
     const path = getNodePath(fileTree, nodeId);
     if (!path) return;
-    const content = readFile('/' + path);
-    const name = path.split('/').pop() ?? path;
-    triggerDownload(new Blob([content], { type: 'text/plain' }), name);
+    const content = readFile("/" + path);
+    const name = path.split("/").pop() ?? path;
+    triggerDownload(new Blob([content], { type: "text/plain" }), name);
   }
 
   function handlePanelContextMenu(e: React.MouseEvent) {
     e.preventDefault();
-    setContextMenu({ x: e.clientX, y: e.clientY, nodeId: null, isFolder: false });
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      nodeId: null,
+      isFolder: false,
+    });
   }
 
   return (
@@ -629,35 +718,50 @@ export function FilesPanel() {
         type="file"
         multiple
         accept=".c,.h,.py,.u"
-        style={{ display: 'none' }}
+        style={{ display: "none" }}
         onChange={handleFilesInputChange}
       />
       <input
         ref={folderInputRef}
         type="file"
-        style={{ display: 'none' }}
+        style={{ display: "none" }}
         onChange={handleFolderInputChange}
       />
 
       <div
-        style={{ display: 'flex', flexDirection: 'column', flex: 1 }}
+        style={{ display: "flex", flexDirection: "column", flex: 1 }}
         onContextMenu={handlePanelContextMenu}
       >
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', padding: '8px 12px 4px', gap: 4 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            padding: "8px 12px 4px",
+            gap: 4,
+          }}
+        >
           <span
             style={{
               flex: 1,
               fontSize: 11,
               fontWeight: 600,
-              color: 'var(--text-muted)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.06em',
+              color: "var(--text-muted)",
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
             }}
           >
             Files
             {status && (
-              <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontStyle: 'italic', marginLeft: 6 }}>
+              <span
+                style={{
+                  fontWeight: 400,
+                  textTransform: "none",
+                  letterSpacing: 0,
+                  fontStyle: "italic",
+                  marginLeft: 6,
+                }}
+              >
                 — {status}
               </span>
             )}
@@ -709,7 +813,13 @@ export function FilesPanel() {
 
         {/* Tree */}
         {fileTree.length === 0 ? (
-          <div style={{ padding: '8px 16px', fontSize: 12, color: 'var(--text-muted)' }}>
+          <div
+            style={{
+              padding: "8px 16px",
+              fontSize: 12,
+              color: "var(--text-muted)",
+            }}
+          >
             No files
           </div>
         ) : (
@@ -727,14 +837,15 @@ export function FilesPanel() {
               if (leaf) selectFile(leaf.id);
             }}
             onCreate={({ parentId, type }) => {
-              const id = type === 'leaf'
-                ? createFileNode(parentId ?? null)
-                : createFolderNode(parentId ?? null);
+              const id =
+                type === "leaf"
+                  ? createFileNode(parentId ?? null)
+                  : createFolderNode(parentId ?? null);
               return { id };
             }}
             onRename={({ id, name }) => {
               if (!renameNode(id, name)) {
-                setStatus('Name already exists');
+                setStatus("Name already exists");
                 setTimeout(() => setStatus(null), 2000);
               }
             }}
@@ -755,8 +866,14 @@ export function FilesPanel() {
           onNewFolder={handleNewFolder}
           onNewWorkspace={handleNewWorkspace}
           onDelete={handleDelete}
-          onImportFiles={(parentId) => { openFileImport(parentId); setContextMenu(null); }}
-          onImportFolder={(parentId) => { openFolderImport(parentId); setContextMenu(null); }}
+          onImportFiles={(parentId) => {
+            openFileImport(parentId);
+            setContextMenu(null);
+          }}
+          onImportFolder={(parentId) => {
+            openFolderImport(parentId);
+            setContextMenu(null);
+          }}
           onDownloadFile={handleDownloadFile}
           onToggleWorkspace={toggleWorkspace}
           onClose={() => setContextMenu(null)}

@@ -1,13 +1,13 @@
-import { useAppStore } from '@/lib/store';
-import { getCodeFilePath } from '@/lib/mopsa-client';
-import { findById } from '@/lib/tree';
-import { inFile } from '@/lib/index';
-import { IssueCard } from '@/components/ui/IssueCard';
-import { CodeEditor } from './CodeEditor';
-import { ConfigEditor } from './ConfigEditor';
+import { useAppStore } from "@/lib/store";
+import { getCodeFilePath } from "@/lib/mopsa-client";
+import { findById } from "@/lib/tree";
+import { inFile } from "@/lib/index";
+import { IssueCard } from "@/components/ui/IssueCard";
+import { CodeEditor } from "./CodeEditor";
+import { ConfigEditor } from "./ConfigEditor";
 
 interface CenterPaneProps {
-  resolvedTheme: 'light' | 'dark';
+  resolvedTheme: "light" | "dark";
 }
 
 export function CenterPane({ resolvedTheme }: CenterPaneProps) {
@@ -19,52 +19,55 @@ export function CenterPane({ resolvedTheme }: CenterPaneProps) {
 
   const codeFilePath = getCodeFilePath();
   const warnChecks = checks.filter((c) => {
-    if (c.kind !== 'warning' && c.kind !== 'error') return false;
+    if (c.kind !== "warning" && c.kind !== "error") return false;
     if (!c.range?.start) return false;
     if (inFile(c.range.start.file, codeFilePath)) return true;
-    return c.callstack.some((f) => f.range?.start && inFile(f.range.start.file, codeFilePath));
+    return c.callstack.some(
+      (f) => f.range?.start && inFile(f.range.start.file, codeFilePath),
+    );
   });
 
-  const fileName = (activeFile ? findById(fileTree, activeFile)?.name : null) ?? 'untitled';
+  const fileName =
+    (activeFile ? findById(fileTree, activeFile)?.name : null) ?? "untitled";
 
   return (
     <div
       style={{
-        display: 'flex',
-        flexDirection: 'column',
-        height: '100%',
-        background: 'var(--bg-base)',
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
+        background: "var(--bg-base)",
 
-        borderLeft: '1px solid var(--border)',
-        borderRight: '1px solid var(--border)',
-        boxSizing: 'border-box',
+        borderLeft: "1px solid var(--border)",
+        borderRight: "1px solid var(--border)",
+        boxSizing: "border-box",
       }}
     >
       {/* Tab bar */}
       <div
         style={{
-          display: 'flex',
-          alignItems: 'center',
-          background: 'var(--bg-surface)',
-          borderBottom: '1px solid var(--border)',
+          display: "flex",
+          alignItems: "center",
+          background: "var(--bg-surface)",
+          borderBottom: "1px solid var(--border)",
           flexShrink: 0,
         }}
       >
         <Tab
           label={fileName}
-          active={activeTab === 'source'}
-          onClick={() => setActiveTab('source')}
+          active={activeTab === "source"}
+          onClick={() => setActiveTab("source")}
         />
         <Tab
           label="config.json"
-          active={activeTab === 'config'}
-          onClick={() => setActiveTab('config')}
+          active={activeTab === "config"}
+          onClick={() => setActiveTab("config")}
         />
       </div>
 
       {/* Editor area */}
       <div style={{ flex: 1, minHeight: 0 }}>
-        {activeTab === 'source' ? (
+        {activeTab === "source" ? (
           <CodeEditor resolvedTheme={resolvedTheme} />
         ) : (
           <ConfigEditor resolvedTheme={resolvedTheme} />
@@ -77,29 +80,34 @@ export function CenterPane({ resolvedTheme }: CenterPaneProps) {
           style={{
             flexShrink: 0,
             maxHeight: 200,
-            overflowY: 'auto',
-            borderTop: '1px solid var(--border)',
-            background: 'var(--bg-surface)',
-            display: 'flex',
-            flexDirection: 'column',
+            overflowY: "auto",
+            borderTop: "1px solid var(--border)",
+            background: "var(--bg-surface)",
+            display: "flex",
+            flexDirection: "column",
             gap: 1,
-            padding: '4px 8px',
+            padding: "4px 8px",
           }}
         >
           <div
             style={{
               fontSize: 10,
               fontWeight: 600,
-              color: 'var(--text-muted)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.06em',
-              padding: '4px 4px 2px',
+              color: "var(--text-muted)",
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
+              padding: "4px 4px 2px",
             }}
           >
-            {warnChecks.length} issue{warnChecks.length !== 1 ? 's' : ''}
+            {warnChecks.length} issue{warnChecks.length !== 1 ? "s" : ""}
           </div>
           {warnChecks.map((check, i) => (
-            <IssueCard key={i} check={check} index={i} codeFilePath={codeFilePath} />
+            <IssueCard
+              key={i}
+              check={check}
+              index={i}
+              codeFilePath={codeFilePath}
+            />
           ))}
         </div>
       )}
@@ -118,21 +126,23 @@ function Tab({ label, active, onClick }: TabProps) {
     <button
       onClick={onClick}
       style={{
-        display: 'flex',
-        alignItems: 'center',
+        display: "flex",
+        alignItems: "center",
         gap: 5,
-        padding: '8px 16px',
-        background: 'none',
-        border: 'none',
-        borderBottom: active ? '2px solid var(--color-accent)' : '2px solid transparent',
+        padding: "8px 16px",
+        background: "none",
+        border: "none",
+        borderBottom: active
+          ? "2px solid var(--color-accent)"
+          : "2px solid transparent",
         borderRadius: 0,
-        cursor: 'pointer',
+        cursor: "pointer",
         fontSize: 12,
         fontFamily: "'JetBrains Mono', monospace",
-        color: active ? 'var(--text-primary)' : 'var(--text-muted)',
+        color: active ? "var(--text-primary)" : "var(--text-muted)",
         fontWeight: active ? 500 : 400,
-        transition: 'color 120ms, border-color 120ms',
-        whiteSpace: 'nowrap',
+        transition: "color 120ms, border-color 120ms",
+        whiteSpace: "nowrap",
       }}
     >
       {label}

@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef } from "react";
 
 export function useDebouncedFn<T extends () => void>(fn: T, delay: number) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
