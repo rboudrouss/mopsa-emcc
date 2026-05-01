@@ -245,6 +245,11 @@ $(DEPS_BIN_DIR)/mopsa_floats.a:
 	$(EMCC) $(EMCC_FLAGS) -c -I$(OCAML_STDLIB) -o $(BUILD_DIR)/floats_round.o $(DEPS_DIR)/mopsa-analyzer/utils/itvUtils/floats_round.c
 	$(EMAR) rcs $@ $(BUILD_DIR)/floats_round.o
 
+# Apron FPU override: silences the spurious "platform not supported" warning.
+# NUM_MPQ domains use exact GMP arithmetic, so no hardware rounding is needed.
+$(BUILD_DIR)/ap_fpu_wasm.o: backend/wasm/ap_fpu_wasm.c
+	$(EMCC) $(EMCC_FLAGS) -c -o $@ $<
+
 # LLVM/Clang wasm build
 
 llvm-tblgen: $(LLVM_NATIVE_BUILD)/bin/llvm-tblgen
@@ -383,13 +388,14 @@ $(BUILD_DIR)/.linux32-headers-stamp: $(BUILD_DIR)/.docker-32bc-stamp | $(BUILD_D
 	touch $@
 
 # Build final binary
-final: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o deps | $(DIST_DIR)
+final: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o deps $(BUILD_DIR)/ap_fpu_wasm.o | $(DIST_DIR)
 	$(EMCC) -Wall -Oz -fno-strict-aliasing -fwrapv \
 	-ffunction-sections -o $(DIST_DIR)/ocamlrun.html \
 	-s ENVIRONMENT='web' --preload-file $(BUILD_DIR)/mopsa.bc \
 	--preload-file $(INSTALL_DIR)/lib/clang/9.0.1/include@/clang-headers/include \
 	-s EXPORTED_RUNTIME_METHODS="['ccall', 'cwrap', 'FS', 'run','callMain']" \
 	--pre-js backend/wasm/pre.js --post-js backend/wasm/post.js -L$(LIBS_DIR) \
+	-Wl,--wrap=ap_fpu_init $(BUILD_DIR)/ap_fpu_wasm.o \
 	$(DEPS_BIN_DIR)/*.a $(LIBS_DIR)/*.a \
 	-s ALLOW_MEMORY_GROWTH=1 -s INITIAL_MEMORY=128MB -s STACK_SIZE=5MB \
 	-s ASSERTIONS=2 \
@@ -397,13 +403,14 @@ final: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o deps
 	$(BUILD_DIR)/prims.o $(BUILD_DIR)/libcamlrun.a
 
 # Build final binary for Node.js (run as: node ocamlrun.js mopsa.bc)
-final-node: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o deps | $(DIST_DIR)
+final-node: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o deps $(BUILD_DIR)/ap_fpu_wasm.o | $(DIST_DIR)
 	$(EMCC) -Wall -Oz -fno-strict-aliasing -fwrapv \
 	-ffunction-sections -o $(DIST_DIR)/ocamlrun.js \
 	-s ENVIRONMENT='node' --preload-file $(BUILD_DIR)/mopsa.bc@mopsa.bc \
 	--preload-file $(INSTALL_DIR)/lib/clang/9.0.1/include@/clang-headers/include \
 	-s EXPORTED_RUNTIME_METHODS="['ccall', 'cwrap', 'FS', 'run','callMain']" \
 	--post-js backend/wasm/post.js -L$(LIBS_DIR) \
+	-Wl,--wrap=ap_fpu_init $(BUILD_DIR)/ap_fpu_wasm.o \
 	$(DEPS_BIN_DIR)/*.a $(LIBS_DIR)/*.a \
 	-s ALLOW_MEMORY_GROWTH=1 -s INITIAL_MEMORY=128MB -s STACK_SIZE=5MB \
 	-s ASSERTIONS=2 \
@@ -419,7 +426,7 @@ final-node: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o
 #
 # The mopsa share directory is preloaded at /share/mopsa so C/Python stubs
 # are available to Mopsa inside the virtual filesystem.
-final-web: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o deps $(BUILD_DIR)/.linux32-headers-stamp | $(DIST_DIR)
+final-web: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o deps $(BUILD_DIR)/.linux32-headers-stamp $(BUILD_DIR)/ap_fpu_wasm.o | $(DIST_DIR)
 	$(EMCC) -Wall -Oz -fno-strict-aliasing -fwrapv \
 	-ffunction-sections -o $(DIST_DIR)/ocamlrun.js \
 	-s ENVIRONMENT='web' \
@@ -431,6 +438,7 @@ final-web: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o 
 	--preload-file $(DEPS_DIR)/mopsa-analyzer/share/mopsa@/share/mopsa \
 	-s EXPORTED_RUNTIME_METHODS="['FS']" \
 	--pre-js backend/wasm/pre.js --post-js backend/wasm/post.js -L$(LIBS_DIR) \
+	-Wl,--wrap=ap_fpu_init $(BUILD_DIR)/ap_fpu_wasm.o \
 	$(DEPS_BIN_DIR)/*.a $(LIBS_DIR)/*.a \
 	-s ALLOW_MEMORY_GROWTH=1 -s INITIAL_MEMORY=128MB -s STACK_SIZE=5MB \
 	-s ASSERTIONS=0 \
