@@ -76,10 +76,6 @@ libcamlrun: $(BUILD_DIR)/libcamlrun.a
 $(BUILD_DIR)/libcamlrun.a: | $(BUILD_DIR)
 	cd $(DEPS_DIR)/ocaml-wasm
 	CFLAGS="$(CFLAGS)" $(EMCONFIGURE) ./configure --disable-native-compiler --disable-ocamltest --disable-ocamldoc --disable-systhreads
-	# Patch s.h to disable features not supported by Emscripten
-	sed -i 's/^#define HAS_SOCKETS.*$$/\/* #undef HAS_SOCKETS - disabled for Emscripten *\//' runtime/caml/s.h
-	sed -i 's/^#define HAS_GETHOSTBYNAME_R.*$$/\/* #undef HAS_GETHOSTBYNAME_R - disabled for Emscripten *\//' runtime/caml/s.h
-	sed -i 's/^#define HAS_GETHOSTBYADDR_R.*$$/\/* #undef HAS_GETHOSTBYADDR_R - disabled for Emscripten *\//' runtime/caml/s.h
 	CFLAGS="$(CFLAGS)" $(MAKE) -C runtime ocamlrun
 	cp runtime/libcamlrun.a $(BUILD_DIR)
 	
