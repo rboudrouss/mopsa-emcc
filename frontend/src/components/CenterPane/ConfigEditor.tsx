@@ -335,10 +335,10 @@ export function ConfigEditor({ resolvedTheme }: ConfigEditorProps) {
           }}
         >
           <span style={{ flex: 1, fontSize: 11, color: '#fbbf24' }}>
-            ⚠ Un config custom existe pour ce mode, éditer va l'écraser.
+            ⚠ A saved custom configuration exists for this language. Editing this configuration will override the saved custom.
           </span>
           <button
-            onClick={() => applyCustom(configKey)}
+            onClick={() => setUserAccepted(true)}
             style={{
               fontSize: 11,
               color: '#fbbf24',
@@ -350,22 +350,7 @@ export function ConfigEditor({ resolvedTheme }: ConfigEditorProps) {
               whiteSpace: 'nowrap',
             }}
           >
-            Restaurer le custom
-          </button>
-          <button
-            onClick={() => setUserAccepted(true)}
-            style={{
-              fontSize: 11,
-              color: 'var(--text-secondary)',
-              background: 'var(--bg-elevated)',
-              border: '1px solid var(--border)',
-              borderRadius: 4,
-              padding: '2px 8px',
-              cursor: 'pointer',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            Écraser
+            Override
           </button>
         </div>
       )}
