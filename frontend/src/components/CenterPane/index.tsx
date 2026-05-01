@@ -63,7 +63,7 @@ export function CenterPane({ resolvedTheme }: CenterPaneProps) {
       </div>
 
       {/* Editor area */}
-      <div style={{ flex: 1 }}>
+      <div style={{ flex: 1, minHeight: 0 }}>
         {activeTab === 'source' ? (
           <CodeEditor resolvedTheme={resolvedTheme} />
         ) : (
