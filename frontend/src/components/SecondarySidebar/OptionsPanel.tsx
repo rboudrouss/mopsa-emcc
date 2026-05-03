@@ -150,7 +150,7 @@ function OptionsGroup({
   group: string;
   options: OptionSpec[];
 }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
 
   return (
     <div>
