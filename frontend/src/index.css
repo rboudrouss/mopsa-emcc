@@ -29,11 +29,11 @@ html.dark {
 
 /* Light theme */
 html.light {
-  --bg-base: #f8f9fc;
-  --bg-surface: #ffffff;
-  --bg-elevated: #f0f2f7;
-  --bg-hover: #e8eaf0;
-  --border: #d0d4e0;
+  --bg-base: #e8ecf3;
+  --bg-surface: #f3f5fa;
+  --bg-elevated: #e2e6ef;
+  --bg-hover: #d8dce8;
+  --border: #c8cdd9;
   --text-primary: #1a1e2e;
   --text-secondary: #4a5470;
   --text-muted: #8891a8;
@@ -44,11 +44,11 @@ html.light {
 /* Auto: respect OS preference when neither .dark nor .light is set */
 @media (prefers-color-scheme: light) {
   :root:not(.dark):not(.light) {
-    --bg-base: #f8f9fc;
-    --bg-surface: #ffffff;
-    --bg-elevated: #f0f2f7;
-    --bg-hover: #e8eaf0;
-    --border: #d0d4e0;
+    --bg-base: #e8ecf3;
+    --bg-surface: #f3f5fa;
+    --bg-elevated: #e2e6ef;
+    --bg-hover: #d8dce8;
+    --border: #c8cdd9;
     --text-primary: #1a1e2e;
     --text-secondary: #4a5470;
     --text-muted: #8891a8;
