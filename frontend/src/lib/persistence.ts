@@ -5,7 +5,7 @@ import {
   writeFile,
 } from "./mopsa-client";
 import { DEFAULT_OPTION_VALUES } from "./options-schema";
-import { findFirstFile, getNodePath } from "./tree";
+import { findFirstFile, getActiveAnalysisMode, getNodePath } from "./tree";
 import type {
   ActivePanel,
   FileTreeNode,
@@ -29,7 +29,9 @@ interface PersistedState {
   configXL: SavedConfig | null;
   customConfigs: Partial<Record<string, string>>;
   optionValues: Record<string, unknown>;
-  crossLanguage: boolean;
+  // Legacy field kept for backward compatibility with older saved state — no
+  // longer drives behaviour but persists silently to avoid migration churn.
+  crossLanguage?: boolean;
   pyEntryPoint: string | null;
   autoRun: boolean;
   activePanel: ActivePanel;
@@ -48,7 +50,6 @@ interface RestoredState {
   configXL: SavedConfig | null;
   customConfigs: Partial<Record<string, string>>;
   optionValues: Record<string, unknown>;
-  crossLanguage: boolean;
   pyEntryPoint: string | null;
   autoRun: boolean;
   activePanel: ActivePanel;
@@ -63,7 +64,6 @@ interface StateToSave {
   configXL: SavedConfig | null;
   customConfigs: Partial<Record<string, string>>;
   optionValues: Record<string, unknown>;
-  crossLanguage: boolean;
   pyEntryPoint: string | null;
   autoRun: boolean;
   activePanel: ActivePanel;
@@ -144,14 +144,22 @@ export function loadAndRestoreState(): RestoredState | null {
       mopsaJs.setCode(code);
     }
 
-    // Determine config
+    // Determine config: pick configXL if the restored active file lives in a
+    // workspace whose effective mode is multilanguage, otherwise the per-lang
+    // config for the saved lang.
     let configText = "";
     let configPreset = "default.json";
     let configDirty = false;
 
-    const langConfig = saved.crossLanguage
-      ? saved.configXL
-      : saved.configByLang[saved.lang];
+    const restoredMode = getActiveAnalysisMode({
+      fileTree: saved.fileTree,
+      activeFile,
+      lang: saved.lang,
+    });
+    const langConfig =
+      restoredMode === "multilanguage"
+        ? saved.configXL
+        : saved.configByLang[saved.lang];
     if (langConfig) {
       ({
         text: configText,
@@ -175,7 +183,6 @@ export function loadAndRestoreState(): RestoredState | null {
       customConfigs: saved.customConfigs,
       // Merge with current defaults so new options added after save still appear
       optionValues: { ...DEFAULT_OPTION_VALUES, ...saved.optionValues },
-      crossLanguage: saved.crossLanguage,
       pyEntryPoint: saved.pyEntryPoint,
       autoRun: saved.autoRun,
       activePanel: saved.activePanel,

@@ -1,21 +1,26 @@
 import { useMutation } from "@tanstack/react-query";
 import { analyzeJson, computeOptionsFlags } from "../mopsa-client";
 import { useAppStore } from "../store";
-import { getAllFilePaths, getWorkspaceForFile } from "../tree";
+import {
+  getActiveAnalysisMode,
+  getAllFilePaths,
+  getWorkspaceForFile,
+} from "../tree";
 
 export function useAnalysis() {
   const setAnalysisResult = useAppStore((s) => s.setAnalysisResult);
 
   const mutation = useMutation({
     mutationFn: () => {
-      const {
-        optionValues,
-        fileTree,
-        lang,
-        crossLanguage,
-        pyEntryPoint,
-        activeFile,
-      } = useAppStore.getState();
+      const { optionValues, fileTree, lang, pyEntryPoint, activeFile } =
+        useAppStore.getState();
+
+      const isMultilang =
+        getActiveAnalysisMode({
+          fileTree,
+          activeFile,
+          lang,
+        }) === "multilanguage";
 
       const workspacePath = activeFile
         ? getWorkspaceForFile(fileTree, activeFile)
@@ -40,7 +45,7 @@ export function useAnalysis() {
         ? allFiles.filter((p) => p.startsWith(workspacePrefix))
         : allFiles;
 
-      if (crossLanguage) {
+      if (isMultilang) {
         // Entry point must be a .py file
         const entryPoint =
           pyEntryPoint ??

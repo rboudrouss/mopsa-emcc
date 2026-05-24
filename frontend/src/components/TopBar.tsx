@@ -3,6 +3,7 @@ import { PulseDot } from "@/components/ui/PulseDot";
 import { useAppStore } from "@/lib/store";
 import { EntryPointPicker } from "@/components/TopBar/EntryPointPicker";
 import { Languages } from "lucide-react";
+import { getActiveAnalysisMode } from "@/lib/tree";
 
 interface TopBarProps {
   isAnalyzing: boolean;
@@ -22,7 +23,15 @@ export function TopBar({
   const analysisTime = useAppStore((s) => s.analysisTime);
   const autoRun = useAppStore((s) => s.autoRun);
   const toggleAutoRun = useAppStore((s) => s.toggleAutoRun);
-  const crossLanguage = useAppStore((s) => s.crossLanguage);
+  const fileTree = useAppStore((s) => s.fileTree);
+  const activeFile = useAppStore((s) => s.activeFile);
+  const lang = useAppStore((s) => s.lang);
+  const isMultilang =
+    getActiveAnalysisMode({
+      fileTree,
+      activeFile,
+      lang,
+    }) === "multilanguage";
 
   const safe = checks.filter((c) => c.kind === "safe").length;
   const total = checks.length;
@@ -94,9 +103,9 @@ export function TopBar({
         </div>
       )}
 
-      {crossLanguage && (
+      {isMultilang && (
         <div
-          title="Cross-language analysis enabled"
+          title="Cross-language analysis (auto-detected from workspace)"
           style={{
             display: "flex",
             alignItems: "center",

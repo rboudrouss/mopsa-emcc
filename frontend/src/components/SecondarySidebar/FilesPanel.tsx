@@ -1,4 +1,12 @@
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { createPortal } from "react-dom";
 import { Tree, type NodeRendererProps, type TreeApi } from "react-arborist";
 import {
   FilePlus,
@@ -15,9 +23,19 @@ import {
   Layers,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
-import { countAllNodes, getAllFilePaths, getNodePath } from "@/lib/tree";
+import {
+  countAllNodes,
+  detectWorkspaceMode,
+  getAllFilePaths,
+  getEffectiveWorkspaceMode,
+  getNodePath,
+} from "@/lib/tree";
 import { readFile } from "@/lib/mopsa-client";
-import type { FileTreeNode, SupportedLanguage } from "@/lib/types";
+import type {
+  FileTreeNode,
+  SupportedLanguage,
+  WorkspaceMode,
+} from "@/lib/types";
 
 // ── Language chip ─────────────────────────────────────────────────────────────
 
@@ -28,6 +46,21 @@ const LANG_CHIP: Record<
   c: { bg: "rgba(96,165,250,.15)", color: "#60a5fa", label: "C" },
   python: { bg: "rgba(251,191,36,.15)", color: "#fbbf24", label: "PY" },
   universal: { bg: "rgba(167,139,250,.15)", color: "#a78bfa", label: "UNI" },
+};
+
+const WORKSPACE_CHIP: Record<
+  WorkspaceMode,
+  { bg: string; color: string; label: string }
+> = {
+  c: { bg: "rgba(96,165,250,.15)", color: "#60a5fa", label: "C" },
+  python: { bg: "rgba(251,191,36,.15)", color: "#fbbf24", label: "PY" },
+  universal: { bg: "rgba(167,139,250,.15)", color: "#a78bfa", label: "UNI" },
+  multilanguage: {
+    bg: "rgba(245,181,68,.15)",
+    color: "#f5b544",
+    label: "C+PY",
+  },
+  unknown: { bg: "rgba(148,163,184,.15)", color: "#94a3b8", label: "?" },
 };
 
 function getFileLang(filename: string): SupportedLanguage | null {
@@ -88,12 +121,211 @@ interface ContextMenuState {
 type SetContextMenu = (state: ContextMenuState | null) => void;
 const SetContextMenuCtx = createContext<SetContextMenu>(() => {});
 
+// ── Workspace mode menu state (single instance, lifted to FilesPanel) ────────
+
+interface WorkspaceModeMenuState {
+  nodeId: string;
+  x: number;
+  y: number;
+  currentMode: WorkspaceMode | undefined;
+  // Auto-detected mode from the workspace's contents — drives which override
+  // options are meaningful (e.g. a python-only workspace shouldn't offer "C only").
+  detectedMode: WorkspaceMode;
+}
+
+interface WorkspaceModeMenuApi {
+  state: WorkspaceModeMenuState | null;
+  open: (s: WorkspaceModeMenuState) => void;
+  close: () => void;
+}
+
+const WorkspaceModeMenuCtx = createContext<WorkspaceModeMenuApi>({
+  state: null,
+  open: () => {},
+  close: () => {},
+});
+
+// ── Workspace mode override menu ──────────────────────────────────────────────
+
+type ModeOption = {
+  value: WorkspaceMode | undefined;
+  label: string;
+};
+
+const AUTO_LABEL: Record<WorkspaceMode, string> = {
+  c: "Auto (C)",
+  python: "Auto (Python)",
+  universal: "Auto (Universal)",
+  multilanguage: "Auto (Multilang)",
+  unknown: "Auto",
+};
+
+// Filters override options based on what files the workspace actually contains.
+// Avoids dead-end choices like "C only" on a Python-only workspace.
+function modeOptionsFor(detected: WorkspaceMode): ModeOption[] {
+  const auto: ModeOption = { value: undefined, label: AUTO_LABEL[detected] };
+  switch (detected) {
+    case "multilanguage":
+      // Workspace has both C/H and Python — let the user narrow to one language.
+      return [
+        auto,
+        { value: "c", label: "C only" },
+        { value: "python", label: "Python only" },
+      ];
+    case "c":
+      return [auto, { value: "multilanguage", label: "Force Multilang (C+PY)" }];
+    case "python":
+      return [auto, { value: "multilanguage", label: "Force Multilang (C+PY)" }];
+    case "universal":
+      // Universal analysis is standalone — no meaningful override.
+      return [auto];
+    case "unknown":
+      // Empty workspace — show every mode as a fallback so the user can prepare it.
+      return [
+        auto,
+        { value: "c", label: "C" },
+        { value: "python", label: "Python" },
+        { value: "universal", label: "Universal" },
+        { value: "multilanguage", label: "Multilang (C+PY)" },
+      ];
+  }
+}
+
+function WorkspaceModeMenu({
+  state,
+  ignoreNodeId,
+  onPick,
+  onClose,
+}: {
+  state: WorkspaceModeMenuState;
+  // The badge that opened this menu — we ignore mousedown on it so re-clicking
+  // it toggles instead of close-then-open.
+  ignoreNodeId: string;
+  onPick: (m: WorkspaceMode | undefined) => void;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && ref.current.contains(e.target as Node)) return;
+      // Ignore clicks on the same badge that opened the menu (toggle handled
+      // by the badge's own onClick).
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        target.closest(`[data-workspace-badge="${ignoreNodeId}"]`)
+      ) {
+        return;
+      }
+      onClose();
+    }
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [onClose, ignoreNodeId]);
+
+  const menuWidth = 170;
+  const x = Math.min(state.x, window.innerWidth - menuWidth - 4);
+  const menuHeight = 220;
+  const y = Math.min(state.y, window.innerHeight - menuHeight - 4);
+
+  // Portal to body so position:fixed escapes any transformed ancestor
+  // (react-arborist virtualisation applies transforms to its rows).
+  return createPortal(
+    <div
+      ref={ref}
+      // Stop click/mousedown from bubbling through the React portal back into
+      // the FileRow (which would otherwise toggle the folder open/closed).
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      style={{
+        position: "fixed",
+        top: y,
+        left: x,
+        width: menuWidth,
+        background: "var(--bg-surface)",
+        border: "1px solid var(--border)",
+        borderRadius: 6,
+        boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
+        padding: 4,
+        zIndex: 1000,
+      }}
+    >
+      {modeOptionsFor(state.detectedMode).map((opt) => {
+        const isCurrent = opt.value === state.currentMode;
+        return (
+          <button
+            key={opt.label}
+            onClick={(e) => {
+              e.stopPropagation();
+              onPick(opt.value);
+            }}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              width: "100%",
+              padding: "6px 12px",
+              background: isCurrent ? "var(--bg-hover)" : "none",
+              border: "none",
+              cursor: "pointer",
+              fontSize: 12,
+              color: "var(--text-primary)",
+              textAlign: "left",
+              borderRadius: 4,
+              fontWeight: isCurrent ? 600 : 400,
+            }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.background =
+                "var(--bg-hover)";
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.background =
+                isCurrent ? "var(--bg-hover)" : "none";
+            }}
+          >
+            {opt.label}
+            {isCurrent && (
+              <span
+                style={{
+                  marginLeft: "auto",
+                  fontSize: 10,
+                  color: "var(--text-muted)",
+                }}
+              >
+                ✓
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>,
+    document.body,
+  );
+}
+
 // ── Node renderer ─────────────────────────────────────────────────────────────
 
 function FileRow({ node, style, dragHandle }: NodeRendererProps<FileTreeNode>) {
   const checks = useAppStore((s) => s.checks);
   const setContextMenu = useContext(SetContextMenuCtx);
+  const workspaceModeMenu = useContext(WorkspaceModeMenuCtx);
   const isFolder = node.data.children !== undefined;
+  const isWorkspace = isFolder && node.data.isWorkspace;
+  const workspaceMode = isWorkspace
+    ? getEffectiveWorkspaceMode(node.data)
+    : null;
+  const workspaceModeChip = workspaceMode ? WORKSPACE_CHIP[workspaceMode] : null;
+  const isModeOverridden = isWorkspace && node.data.mode !== undefined;
+  const isMenuOpenForThisRow =
+    workspaceModeMenu.state?.nodeId === node.id;
 
   const warnings = !isFolder
     ? checks.filter(
@@ -254,14 +486,62 @@ function FileRow({ node, style, dragHandle }: NodeRendererProps<FileTreeNode>) {
         </span>
       )}
 
-      {/* Workspace indicator */}
-      {isFolder && node.data.isWorkspace && (
-        <span
-          style={{ display: "flex", flexShrink: 0, color: "#a78bfa" }}
-          title="Workspace"
+      {/* Workspace mode badge (clickable to open override menu) */}
+      {isWorkspace && workspaceModeChip && (
+        <button
+          type="button"
+          data-workspace-badge={node.id}
+          title={
+            isModeOverridden
+              ? `Workspace mode: ${workspaceMode} (manual override — click to change)`
+              : `Workspace mode: ${workspaceMode} (auto — click to override)`
+          }
+          onMouseDown={(e) => {
+            // Prevent the row's mousedown / drag handle and stop the menu's
+            // outside-click handler from firing on this same click.
+            e.stopPropagation();
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (isMenuOpenForThisRow) {
+              workspaceModeMenu.close();
+              return;
+            }
+            const rect = e.currentTarget.getBoundingClientRect();
+            workspaceModeMenu.open({
+              nodeId: node.id,
+              x: rect.left,
+              y: rect.bottom + 4,
+              currentMode: node.data.mode,
+              detectedMode: detectWorkspaceMode(node.data),
+            });
+          }}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 3,
+            fontSize: 9,
+            fontWeight: 700,
+            padding: "1px 4px",
+            borderRadius: 3,
+            background: isMenuOpenForThisRow
+              ? workspaceModeChip.color
+              : workspaceModeChip.bg,
+            color: isMenuOpenForThisRow ? "#0f1117" : workspaceModeChip.color,
+            flexShrink: 0,
+            letterSpacing: "0.03em",
+            border: isModeOverridden
+              ? `1px solid ${workspaceModeChip.color}`
+              : `1px solid ${workspaceModeChip.color}33`,
+            cursor: "pointer",
+            fontFamily: "inherit",
+            transition: "background 120ms",
+          }}
         >
-          <Layers size={11} />
-        </span>
+          <Layers size={9} />
+          {workspaceModeChip.label}
+          <ChevronDown size={9} style={{ marginLeft: 1, opacity: 0.7 }} />
+        </button>
       )}
     </div>
   );
@@ -569,10 +849,21 @@ export function FilesPanel() {
   const importFiles = useAppStore((s) => s.importFiles);
   const toggleWorkspace = useAppStore((s) => s.toggleWorkspace);
   const createWorkspaceNode = useAppStore((s) => s.createWorkspaceNode);
+  const setWorkspaceMode = useAppStore((s) => s.setWorkspaceMode);
 
   const treeRef = useRef<TreeApi<FileTreeNode>>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [importMenu, setImportMenu] = useState<ImportMenuState | null>(null);
+  const [workspaceMenu, setWorkspaceMenu] =
+    useState<WorkspaceModeMenuState | null>(null);
+  const workspaceMenuApi = useMemo<WorkspaceModeMenuApi>(
+    () => ({
+      state: workspaceMenu,
+      open: (s) => setWorkspaceMenu(s),
+      close: () => setWorkspaceMenu(null),
+    }),
+    [workspaceMenu],
+  );
 
   // Hidden file inputs
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -711,6 +1002,7 @@ export function FilesPanel() {
   }
 
   return (
+    <WorkspaceModeMenuCtx.Provider value={workspaceMenuApi}>
     <SetContextMenuCtx.Provider value={setContextMenu}>
       {/* Hidden file inputs */}
       <input
@@ -889,6 +1181,20 @@ export function FilesPanel() {
           onImportFolder={() => openFolderImport(null)}
         />
       )}
+
+      {/* Workspace mode override menu (single instance, lifted) */}
+      {workspaceMenu && (
+        <WorkspaceModeMenu
+          state={workspaceMenu}
+          ignoreNodeId={workspaceMenu.nodeId}
+          onPick={(m) => {
+            setWorkspaceMode(workspaceMenu.nodeId, m);
+            setWorkspaceMenu(null);
+          }}
+          onClose={() => setWorkspaceMenu(null)}
+        />
+      )}
     </SetContextMenuCtx.Provider>
+    </WorkspaceModeMenuCtx.Provider>
   );
 }

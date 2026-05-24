@@ -1,4 +1,10 @@
 export type SupportedLanguage = "c" | "python" | "universal";
+export type WorkspaceMode =
+  | "c"
+  | "python"
+  | "universal"
+  | "multilanguage"
+  | "unknown";
 export type ActivePanel = "files" | "domains" | "options" | null;
 export type ActiveTab = "source" | "config";
 export type SavedConfig = { preset: string; text: string; dirty: boolean };
@@ -43,4 +49,7 @@ export interface FileTreeNode {
   name: string;
   children?: FileTreeNode[];
   isWorkspace?: boolean;
+  // Manual override of the auto-detected workspace mode.
+  // Only meaningful when isWorkspace is true; undefined = auto-detect.
+  mode?: WorkspaceMode;
 }

@@ -27,6 +27,8 @@ import {
   getChildrenOf,
   uniqueNameInLevel,
   toggleWorkspaceById,
+  getActiveAnalysisMode,
+  setWorkspaceModeById,
 } from "./tree";
 import type {
   ActivePanel,
@@ -36,6 +38,7 @@ import type {
   FileTreeNode,
   SavedConfig,
   SupportedLanguage,
+  WorkspaceMode,
 } from "./types";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -71,6 +74,86 @@ function buildInitialTree(): FileTreeNode[] {
       children: [{ id: genId(), name: "example.u" }],
     },
   ];
+}
+
+function pickMultilangPreset(presets: shareData | null): SavedConfig | null {
+  const pythonConfigs = presets?.configs.python;
+  if (!pythonConfigs) return null;
+  const xlKey =
+    Object.keys(pythonConfigs).find((k) => k === "multilanguage.json") ??
+    Object.keys(pythonConfigs).find((k) =>
+      k.toLowerCase().includes("multilanguage"),
+    ) ??
+    Object.keys(pythonConfigs)[0];
+  if (!xlKey) return null;
+  const text = pythonConfigs[xlKey];
+  if (text === undefined) return null;
+  return { preset: xlKey, text, dirty: false };
+}
+
+// Unified config-bucket swap. Computes what to update when the effective analysis
+// mode/lang changes (e.g. selecting a file in a different workspace, toggling the
+// force flag, overriding a workspace mode). Saves the currently displayed config
+// back to its bucket (configByLang[oldLang] or configXL), then loads the target
+// bucket (configByLang[newLang] or configXL, with preset fallback).
+// Side effect: calls mopsaJs.setConfig when text changes.
+function computeConfigBucketSwap(
+  state: AppStore,
+  newMode: WorkspaceMode,
+  newLang: SupportedLanguage,
+): Partial<AppStore> {
+  const oldMode = getActiveAnalysisMode({
+    fileTree: state.fileTree,
+    activeFile: state.activeFile,
+    lang: state.lang,
+  });
+  const oldIsXL = oldMode === "multilanguage";
+  const newIsXL = newMode === "multilanguage";
+
+  if (oldIsXL === newIsXL && state.lang === newLang) return {};
+
+  const currentSaved: SavedConfig = {
+    preset: state.configPreset,
+    text: state.configText,
+    dirty: state.configDirty,
+  };
+
+  const updates: Partial<AppStore> = {};
+  let configByLang = state.configByLang;
+
+  if (oldIsXL) {
+    updates.configXL = currentSaved;
+  } else {
+    configByLang = { ...configByLang, [state.lang]: currentSaved };
+    updates.configByLang = configByLang;
+  }
+
+  // Load target bucket
+  let target: SavedConfig | null = null;
+  if (newIsXL) {
+    target = state.configXL ?? pickMultilangPreset(state.presets);
+  } else {
+    target = configByLang[newLang] ?? null;
+    if (!target) {
+      const langConfigs =
+        state.presets?.configs[
+          newLang as "c" | "python" | "universal" | "cfg"
+        ];
+      const defaultText = langConfigs?.["default.json"];
+      if (defaultText) {
+        target = { preset: "default.json", text: defaultText, dirty: false };
+      }
+    }
+  }
+
+  if (target) {
+    if (target.text !== state.configText) mopsaJs.setConfig(target.text);
+    updates.configText = target.text;
+    updates.configPreset = target.preset;
+    updates.configDirty = target.dirty;
+  }
+
+  return updates;
 }
 
 // ── Store interface ───────────────────────────────────────────────────────────
@@ -112,7 +195,6 @@ interface AppStore {
 
   // ── Options ──────────────────────────────────────────────────────────────
   optionValues: Record<string, unknown>;
-  crossLanguage: boolean;
   pyEntryPoint: string | null; // null = auto (active file)
 
   // ── Custom configs (saved per language/mode) ─────────────────────────────
@@ -134,8 +216,8 @@ interface AppStore {
   setActiveTab: (tab: ActiveTab) => void;
   setOptionValue: (flag: string, value: unknown) => void;
   resetOption: (flag: string) => void;
-  toggleCrossLanguage: () => void;
   setPyEntryPoint: (path: string | null) => void;
+  setWorkspaceMode: (id: string, mode: WorkspaceMode | undefined) => void;
 
   // ── File tree actions ────────────────────────────────────────────────────
   selectFile: (id: string) => void;
@@ -193,7 +275,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
   activePanel: _restored?.activePanel ?? "files",
   activeTab: "source",
   optionValues: _restored?.optionValues ?? { ...DEFAULT_OPTION_VALUES },
-  crossLanguage: _restored?.crossLanguage ?? false,
   pyEntryPoint: _restored?.pyEntryPoint ?? null,
   fileTree: _initialTree,
   activeFile: _initialActiveFile,
@@ -210,18 +291,24 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   setConfigText: (text, dirty = true) => {
+    const state = get();
     const {
-      crossLanguage,
       lang,
       configPreset,
       configByLang,
       configXL,
       customConfigs,
       configText: currentText,
-    } = get();
+    } = state;
     // If the content hasn't meaningfully changed, ignore (handles Monaco's programmatic echo).
     if (dirty && text.trim() === currentText.trim()) return;
-    const key = crossLanguage ? "multilanguage" : lang;
+    const isXL =
+      getActiveAnalysisMode({
+        fileTree: state.fileTree,
+        activeFile: state.activeFile,
+        lang,
+      }) === "multilanguage";
+    const key = isXL ? "multilanguage" : lang;
     let customUpdate: Partial<AppStore> = {};
     if (!dirty) {
       mopsaJs.setConfig(text);
@@ -230,7 +317,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       customUpdate = { customConfigs: { ...customConfigs, [key]: text } };
     }
     const saved: SavedConfig = { preset: configPreset, text, dirty };
-    if (crossLanguage) {
+    if (isXL) {
       set({
         configText: text,
         configDirty: dirty,
@@ -248,12 +335,19 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   applyCustom: (key) => {
-    const { customConfigs, crossLanguage, lang, configByLang } = get();
+    const state = get();
+    const { customConfigs, lang, configByLang } = state;
     const text = customConfigs[key];
     if (!text) return;
     mopsaJs.setConfig(text);
     const saved: SavedConfig = { preset: "custom", text, dirty: true };
-    if (crossLanguage) {
+    const isXL =
+      getActiveAnalysisMode({
+        fileTree: state.fileTree,
+        activeFile: state.activeFile,
+        lang,
+      }) === "multilanguage";
+    if (isXL) {
       set({
         configText: text,
         configPreset: "custom",
@@ -271,10 +365,17 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   applyPreset: (name, text) => {
-    const { crossLanguage, lang, configByLang } = get();
+    const state = get();
+    const { lang, configByLang } = state;
     mopsaJs.setConfig(text);
     const saved: SavedConfig = { preset: name, text, dirty: false };
-    if (crossLanguage) {
+    const isXL =
+      getActiveAnalysisMode({
+        fileTree: state.fileTree,
+        activeFile: state.activeFile,
+        lang,
+      }) === "multilanguage";
+    if (isXL) {
       set({
         configText: text,
         configPreset: name,
@@ -312,30 +413,42 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   setLang: (lang, defaultConfig) => {
     const current = get();
-
-    // Save current lang config and restore saved config for new lang
-    const newConfigByLang: Partial<Record<SupportedLanguage, SavedConfig>> = {
-      ...current.configByLang,
-      [current.lang]: {
-        preset: current.configPreset,
-        text: current.configText,
-        dirty: current.configDirty,
-      },
-    };
-    const savedLangConfig = !current.crossLanguage
-      ? current.configByLang[lang]
-      : undefined;
-    const newText = savedLangConfig?.text ?? defaultConfig;
-    const newPreset = savedLangConfig?.preset ?? "default.json";
-    const newDirty = savedLangConfig?.dirty ?? false;
-    mopsaJs.setConfig(newText);
-
+    const newMode = getActiveAnalysisMode({
+      fileTree: current.fileTree,
+      activeFile: current.activeFile,
+      lang,
+    });
+    const swap = computeConfigBucketSwap(current, newMode, lang);
+    // If the helper didn't produce anything for non-multilang (e.g. no preset/saved),
+    // fall back to defaultConfig provided by the caller.
+    if (newMode !== "multilanguage" && swap.configText === undefined) {
+      mopsaJs.setConfig(defaultConfig);
+      set({
+        lang,
+        configText: defaultConfig,
+        configPreset: "default.json",
+        configDirty: false,
+        configByLang: {
+          ...current.configByLang,
+          [current.lang]: {
+            preset: current.configPreset,
+            text: current.configText,
+            dirty: current.configDirty,
+          },
+        },
+        checks: [],
+        warnings: "",
+        rawOutput: "",
+        selectivity: null,
+        analysisTime: null,
+        analysisSuccess: null,
+        analysisError: null,
+      });
+      return;
+    }
     set({
       lang,
-      configText: newText,
-      configPreset: newPreset,
-      configDirty: newDirty,
-      configByLang: newConfigByLang,
+      ...swap,
       checks: [],
       warnings: "",
       rawOutput: "",
@@ -364,91 +477,16 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   setPyEntryPoint: (path) => set({ pyEntryPoint: path }),
 
-  toggleCrossLanguage: () => {
-    const {
-      crossLanguage,
-      lang,
-      configText,
-      configPreset,
-      configDirty,
-      configByLang,
-      configXL,
-      presets,
-    } = get();
-    const currentSaved: SavedConfig = {
-      preset: configPreset,
-      text: configText,
-      dirty: configDirty,
-    };
-
-    if (!crossLanguage) {
-      // Switching TO cross-language: save current per-lang config, load XL config
-      const newConfigByLang = { ...configByLang, [lang]: currentSaved };
-
-      let newConfig: SavedConfig;
-      if (configXL) {
-        newConfig = configXL;
-      } else {
-        // Default: first multilanguage config from python section
-        const pythonConfigs = presets?.configs.python;
-        const xlKey = pythonConfigs
-          ? (Object.keys(pythonConfigs).find(
-              (k) => k === "multilanguage.json",
-            ) ??
-            Object.keys(pythonConfigs).find((k) =>
-              k.toLowerCase().includes("multilanguage"),
-            ) ??
-            Object.keys(pythonConfigs)[0])
-          : undefined;
-        const xlText =
-          xlKey && pythonConfigs
-            ? (pythonConfigs[xlKey] ?? configText)
-            : configText;
-        newConfig = {
-          preset: xlKey ?? "default.json",
-          text: xlText,
-          dirty: false,
-        };
-      }
-
-      mopsaJs.setConfig(newConfig.text);
-      set({
-        crossLanguage: true,
-        configByLang: newConfigByLang,
-        configText: newConfig.text,
-        configPreset: newConfig.preset,
-        configDirty: newConfig.dirty,
-      });
-    } else {
-      // Switching FROM cross-language: save XL config, restore per-lang config
-      const newConfigXL = currentSaved;
-      const savedLangConfig = configByLang[lang];
-
-      let newText: string, newPreset: string, newDirty: boolean;
-      if (savedLangConfig) {
-        ({
-          text: newText,
-          preset: newPreset,
-          dirty: newDirty,
-        } = savedLangConfig);
-      } else {
-        const langConfigs =
-          presets?.configs[lang as "c" | "python" | "universal" | "cfg"];
-        const defaultText = langConfigs?.["default.json"] ?? configText;
-        newText = defaultText;
-        newPreset = "default.json";
-        newDirty = false;
-      }
-
-      mopsaJs.setConfig(newText);
-      set({
-        crossLanguage: false,
-        configXL: newConfigXL,
-        configText: newText,
-        configPreset: newPreset,
-        configDirty: newDirty,
-      });
-    }
+  setWorkspaceMode: (id, mode) => {
+    const state = get();
+    const newTree = setWorkspaceModeById(state.fileTree, id, mode);
+    const newMode = getActiveAnalysisMode({
+      fileTree: newTree,
+      activeFile: state.activeFile,
+      lang: state.lang,
+    });
+    const swap = computeConfigBucketSwap(state, newMode, state.lang);
+    set({ fileTree: newTree, ...swap });
   },
 
   // ── File tree actions ──────────────────────────────────────────────────
@@ -481,51 +519,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
     const ext = path.split(".").pop() ?? "";
     const newLang = getLanguageFromFileExtension(ext);
-    const {
-      lang: currentLang,
-      crossLanguage,
-      configByLang,
-      configText,
-      configPreset,
-      configDirty,
-      presets,
-    } = get();
-
-    // When crossLanguage is OFF and the language changed, restore config for new lang
-    let configUpdates: Partial<AppStore> = {};
-    if (!crossLanguage && newLang !== currentLang) {
-      const newConfigByLang = {
-        ...configByLang,
-        [currentLang]: {
-          preset: configPreset,
-          text: configText,
-          dirty: configDirty,
-        },
-      };
-      const savedLangConfig = configByLang[newLang];
-      if (savedLangConfig) {
-        mopsaJs.setConfig(savedLangConfig.text);
-        configUpdates = {
-          configText: savedLangConfig.text,
-          configPreset: savedLangConfig.preset,
-          configDirty: savedLangConfig.dirty,
-          configByLang: newConfigByLang,
-        };
-      } else {
-        const langConfigs =
-          presets?.configs[newLang as "c" | "python" | "universal" | "cfg"];
-        const defaultText = langConfigs?.["default.json"];
-        if (defaultText) {
-          mopsaJs.setConfig(defaultText);
-          configUpdates = {
-            configText: defaultText,
-            configPreset: "default.json",
-            configDirty: false,
-            configByLang: newConfigByLang,
-          };
-        }
-      }
-    }
+    const state = get();
+    const newMode = getActiveAnalysisMode({
+      fileTree: state.fileTree,
+      activeFile: id,
+      lang: newLang,
+    });
+    const configUpdates = computeConfigBucketSwap(state, newMode, newLang);
 
     set({
       activeFile: id,
@@ -596,52 +596,17 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
           const ext = path.split(".").pop() ?? "";
           const newLang = getLanguageFromFileExtension(ext);
-          const {
-            lang: currentLang,
-            crossLanguage,
-            configByLang,
-            configText,
-            configPreset,
-            configDirty,
-            presets,
-          } = get();
-
-          let configUpdates: Partial<AppStore> = {};
-          if (!crossLanguage && newLang !== currentLang) {
-            const newConfigByLang = {
-              ...configByLang,
-              [currentLang]: {
-                preset: configPreset,
-                text: configText,
-                dirty: configDirty,
-              },
-            };
-            const savedLangConfig = configByLang[newLang];
-            if (savedLangConfig) {
-              mopsaJs.setConfig(savedLangConfig.text);
-              configUpdates = {
-                configText: savedLangConfig.text,
-                configPreset: savedLangConfig.preset,
-                configDirty: savedLangConfig.dirty,
-                configByLang: newConfigByLang,
-              };
-            } else {
-              const langConfigs =
-                presets?.configs[
-                  newLang as "c" | "python" | "universal" | "cfg"
-                ];
-              const defaultText = langConfigs?.["default.json"];
-              if (defaultText) {
-                mopsaJs.setConfig(defaultText);
-                configUpdates = {
-                  configText: defaultText,
-                  configPreset: "default.json",
-                  configDirty: false,
-                  configByLang: newConfigByLang,
-                };
-              }
-            }
-          }
+          const state = get();
+          const newMode = getActiveAnalysisMode({
+            fileTree: newTree,
+            activeFile: newActiveFile,
+            lang: newLang,
+          });
+          const configUpdates = computeConfigBucketSwap(
+            state,
+            newMode,
+            newLang,
+          );
 
           set({
             code: content,
@@ -771,50 +736,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
         setCodeFilePath("/" + newPath);
         const ext = newName.split(".").pop() ?? "";
         const newLang = getLanguageFromFileExtension(ext);
-        const {
-          lang: currentLang,
-          crossLanguage,
-          configByLang,
-          configText,
-          configPreset,
-          configDirty,
-          presets,
-        } = get();
-
-        let configUpdates: Partial<AppStore> = {};
-        if (!crossLanguage && newLang !== currentLang) {
-          const newConfigByLang = {
-            ...configByLang,
-            [currentLang]: {
-              preset: configPreset,
-              text: configText,
-              dirty: configDirty,
-            },
-          };
-          const savedLangConfig = configByLang[newLang];
-          if (savedLangConfig) {
-            mopsaJs.setConfig(savedLangConfig.text);
-            configUpdates = {
-              configText: savedLangConfig.text,
-              configPreset: savedLangConfig.preset,
-              configDirty: savedLangConfig.dirty,
-              configByLang: newConfigByLang,
-            };
-          } else {
-            const langConfigs =
-              presets?.configs[newLang as "c" | "python" | "universal" | "cfg"];
-            const defaultText = langConfigs?.["default.json"];
-            if (defaultText) {
-              mopsaJs.setConfig(defaultText);
-              configUpdates = {
-                configText: defaultText,
-                configPreset: "default.json",
-                configDirty: false,
-                configByLang: newConfigByLang,
-              };
-            }
-          }
-        }
+        const state = get();
+        const newMode = getActiveAnalysisMode({
+          fileTree: state.fileTree,
+          activeFile: id,
+          lang: newLang,
+        });
+        const configUpdates = computeConfigBucketSwap(state, newMode, newLang);
 
         set({ lang: newLang, ...configUpdates });
       } else {
@@ -869,7 +797,6 @@ useAppStore.subscribe((state) => {
       configXL: state.configXL,
       customConfigs: state.customConfigs,
       optionValues: state.optionValues,
-      crossLanguage: state.crossLanguage,
       pyEntryPoint: state.pyEntryPoint,
       autoRun: state.autoRun,
       activePanel: state.activePanel,

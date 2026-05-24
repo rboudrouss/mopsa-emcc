@@ -1,4 +1,4 @@
-import type { FileTreeNode } from "./types";
+import type { FileTreeNode, SupportedLanguage, WorkspaceMode } from "./types";
 
 export function genId(): string {
   return Math.random().toString(36).slice(2, 10);
@@ -245,4 +245,93 @@ export function getAllFilePaths(
     }
   }
   return result;
+}
+
+// Walks a workspace's descendants, aggregates extensions, returns the inferred mode.
+export function detectWorkspaceMode(node: FileTreeNode): WorkspaceMode {
+  let hasC = false;
+  let hasPy = false;
+  let hasU = false;
+
+  for (const file of getDescendantFiles(node)) {
+    const dot = file.name.lastIndexOf(".");
+    if (dot < 0) continue;
+    const ext = file.name.slice(dot + 1).toLowerCase();
+    if (ext === "c" || ext === "h") hasC = true;
+    else if (ext === "py") hasPy = true;
+    else if (ext === "u") hasU = true;
+  }
+
+  if (hasC && hasPy) return "multilanguage";
+  if (hasPy) return "python";
+  if (hasC) return "c";
+  if (hasU) return "universal";
+  return "unknown";
+}
+
+// Cascade: manual override > auto-detection
+export function getEffectiveWorkspaceMode(node: FileTreeNode): WorkspaceMode {
+  if (node.mode) return node.mode;
+  return detectWorkspaceMode(node);
+}
+
+// Returns the deepest workspace ancestor node containing the given file.
+export function findWorkspaceNodeForFile(
+  tree: FileTreeNode[],
+  fileId: string,
+): FileTreeNode | null {
+  function walk(
+    nodes: FileTreeNode[],
+    ancestors: FileTreeNode[],
+  ): FileTreeNode | null {
+    for (const n of nodes) {
+      if (n.id === fileId) {
+        for (let i = ancestors.length - 1; i >= 0; i--) {
+          if (ancestors[i].isWorkspace) return ancestors[i];
+        }
+        return null;
+      }
+      if (n.children) {
+        const found = walk(n.children, [...ancestors, n]);
+        if (found !== null) return found;
+      }
+    }
+    return null;
+  }
+  return walk(tree, []);
+}
+
+export function setWorkspaceModeById(
+  tree: FileTreeNode[],
+  id: string,
+  mode: WorkspaceMode | undefined,
+): FileTreeNode[] {
+  return tree.map((n) => {
+    if (n.id === id) {
+      const next: FileTreeNode = { ...n };
+      if (mode === undefined) delete next.mode;
+      else next.mode = mode;
+      return next;
+    }
+    if (n.children)
+      return { ...n, children: setWorkspaceModeById(n.children, id, mode) };
+    return n;
+  });
+}
+
+// Resolves the analysis mode for the currently active file:
+// workspace override > workspace auto-detect > fallback to active file lang.
+export function getActiveAnalysisMode(args: {
+  fileTree: FileTreeNode[];
+  activeFile: string | null;
+  lang: SupportedLanguage;
+}): WorkspaceMode {
+  if (args.activeFile) {
+    const ws = findWorkspaceNodeForFile(args.fileTree, args.activeFile);
+    if (ws) {
+      const mode = getEffectiveWorkspaceMode(ws);
+      if (mode !== "unknown") return mode;
+    }
+  }
+  return args.lang;
 }

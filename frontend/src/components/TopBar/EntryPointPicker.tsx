@@ -1,11 +1,10 @@
 import { ChevronDownIcon } from "lucide-react";
 import { useRef, useState } from "react";
 import { useAppStore } from "@/lib/store";
-import { getAllFilePaths } from "@/lib/tree";
+import { getActiveAnalysisMode, getAllFilePaths } from "@/lib/tree";
 
 export function EntryPointPicker() {
   const lang = useAppStore((s) => s.lang);
-  const crossLanguage = useAppStore((s) => s.crossLanguage);
   const fileTree = useAppStore((s) => s.fileTree);
   const pyEntryPoint = useAppStore((s) => s.pyEntryPoint);
   const setPyEntryPoint = useAppStore((s) => s.setPyEntryPoint);
@@ -14,7 +13,14 @@ export function EntryPointPicker() {
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
-  if (!crossLanguage && lang !== "python") return null;
+  const isMultilang =
+    getActiveAnalysisMode({
+      fileTree,
+      activeFile,
+      lang,
+    }) === "multilanguage";
+
+  if (!isMultilang && lang !== "python") return null;
 
   const allPyFiles = getAllFilePaths(fileTree)
     .filter(({ path }) => path.endsWith(".py"))
@@ -30,7 +36,7 @@ export function EntryPointPicker() {
     ? `auto: ${resolvedEntry ? resolvedEntry.split("/").pop() : "—"}`
     : (resolvedEntry?.split("/").pop() ?? "—");
 
-  const showWarning = crossLanguage && !activeIsPy && pyEntryPoint === null;
+  const showWarning = isMultilang && !activeIsPy && pyEntryPoint === null;
 
   return (
     <div style={{ position: "relative", flexShrink: 0 }}>

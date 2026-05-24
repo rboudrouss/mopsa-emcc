@@ -2,7 +2,7 @@ import { ExternalLinkIcon } from "lucide-react";
 import { DomainNode } from "@/components/ui/DomainNode";
 import { parseConfigText } from "@/lib/mopsa-client";
 import { usePresets } from "@/lib/hooks/use-presets";
-import { getNodePath } from "@/lib/tree";
+import { getActiveAnalysisMode, getNodePath } from "@/lib/tree";
 import { useAppStore } from "@/lib/store";
 import type { SupportedLanguage } from "@/lib/types";
 
@@ -31,7 +31,6 @@ export function DomainsPanel() {
   const configPreset = useAppStore((s) => s.configPreset);
   const configDirty = useAppStore((s) => s.configDirty);
   const lang = useAppStore((s) => s.lang);
-  const crossLanguage = useAppStore((s) => s.crossLanguage);
   const customConfigs = useAppStore((s) => s.customConfigs);
   const applyPreset = useAppStore((s) => s.applyPreset);
   const applyCustom = useAppStore((s) => s.applyCustom);
@@ -40,7 +39,13 @@ export function DomainsPanel() {
   const fileTree = useAppStore((s) => s.fileTree);
   const activeFile = useAppStore((s) => s.activeFile);
 
-  const configKey = crossLanguage ? "multilanguage" : lang;
+  const isMultilang =
+    getActiveAnalysisMode({
+      fileTree,
+      activeFile,
+      lang,
+    }) === "multilanguage";
+  const configKey = isMultilang ? "multilanguage" : lang;
   const hasCustom = !!customConfigs[configKey];
 
   const { data: presets } = usePresets();
@@ -72,18 +77,18 @@ export function DomainsPanel() {
       {};
     const text = (langConfigs as Record<string, string>)[presetName] ?? "";
     if (!text) return;
-    if (presetLang !== lang && !crossLanguage) {
+    if (presetLang !== lang && !isMultilang) {
       setLang(presetLang, text);
     } else {
       applyPreset(presetName, text);
     }
   };
 
-  // Build the option list based on crossLanguage mode and active file language
+  // Build the option list based on isMultilang mode and active file language
   const renderOptions = () => {
     if (!presets) return null;
 
-    if (crossLanguage) {
+    if (isMultilang) {
       // Only show multilanguage configs (from python section)
       const xlConfigs = Object.entries(presets.configs.python).filter(
         ([name]) => isMultilanguage(name),
@@ -113,7 +118,7 @@ export function DomainsPanel() {
     ));
   };
 
-  const currentLang = crossLanguage ? "python" : lang;
+  const currentLang = isMultilang ? "python" : lang;
   const currentValue = configDirty
     ? "custom"
     : `${currentLang}|${configPreset}`;
@@ -138,7 +143,7 @@ export function DomainsPanel() {
             letterSpacing: "0.06em",
           }}
         >
-          {crossLanguage
+          {isMultilang
             ? "Multilanguage Domains"
             : activeLang
               ? LANG_DOMAIN_LABEL[activeLang]
@@ -166,7 +171,7 @@ export function DomainsPanel() {
 
       {/* Config preset picker */}
       <div style={{ padding: "0 16px 10px", position: "relative" }}>
-        {!crossLanguage && activeLang === null ? (
+        {!isMultilang && activeLang === null ? (
           <div
             style={{
               fontSize: 11,

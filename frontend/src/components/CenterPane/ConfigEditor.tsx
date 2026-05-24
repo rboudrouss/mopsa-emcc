@@ -3,6 +3,7 @@ import type * as MonacoNS from "monaco-editor";
 import { useEffect, useState } from "react";
 import { parseConfigText } from "@/lib/mopsa-client";
 import { useAppStore } from "@/lib/store";
+import { getActiveAnalysisMode } from "@/lib/tree";
 
 const DOMAIN_NAMES = [
   "c.memory.lowlevel.smashing",
@@ -269,12 +270,19 @@ export function ConfigEditor({ resolvedTheme }: ConfigEditorProps) {
   const configText = useAppStore((s) => s.configText);
   const configDirty = useAppStore((s) => s.configDirty);
   const lang = useAppStore((s) => s.lang);
-  const crossLanguage = useAppStore((s) => s.crossLanguage);
+  const fileTree = useAppStore((s) => s.fileTree);
+  const activeFile = useAppStore((s) => s.activeFile);
   const customConfigs = useAppStore((s) => s.customConfigs);
   const setConfigText = useAppStore((s) => s.setConfigText);
   const applyCustom = useAppStore((s) => s.applyCustom);
 
-  const configKey = crossLanguage ? "multilanguage" : lang;
+  const isMultilang =
+    getActiveAnalysisMode({
+      fileTree,
+      activeFile,
+      lang,
+    }) === "multilanguage";
+  const configKey = isMultilang ? "multilanguage" : lang;
   const hasCustom = !!customConfigs[configKey];
   const isValidJson = parseConfigText(configText) !== null;
 
