@@ -1,7 +1,11 @@
 import { ChevronDownIcon } from "lucide-react";
 import { useRef, useState } from "react";
 import { useAppStore } from "@/lib/store";
-import { getActiveAnalysisMode, getAllFilePaths } from "@/lib/tree";
+import {
+  getActiveAnalysisMode,
+  getAllFilePaths,
+  getWorkspaceForFile,
+} from "@/lib/tree";
 
 export function EntryPointPicker() {
   const lang = useAppStore((s) => s.lang);
@@ -30,13 +34,27 @@ export function EntryPointPicker() {
   const activeCodePath = mopsaJs.getCodeFilePath()[1];
   const activeIsPy = activeCodePath.endsWith(".py");
 
-  const resolvedEntry = pyEntryPoint ?? (activeIsPy ? activeCodePath : null);
+  // Auto-pick fallback: last .py in the active workspace when active file
+  // isn't a .py (so flipping to a C sibling doesn't break multilang analysis).
+  const workspacePath = activeFile
+    ? getWorkspaceForFile(fileTree, activeFile)
+    : null;
+  const workspacePrefix = workspacePath ? "/" + workspacePath + "/" : null;
+  const scopedPyFiles = workspacePrefix
+    ? allPyFiles.filter((p) => p.startsWith(workspacePrefix))
+    : allPyFiles;
+  const autoFallback =
+    scopedPyFiles.length > 0 ? scopedPyFiles[scopedPyFiles.length - 1] : null;
+
+  const resolvedEntry =
+    pyEntryPoint ?? (activeIsPy ? activeCodePath : null) ?? autoFallback;
   const isAuto = pyEntryPoint === null;
   const label = isAuto
     ? `auto: ${resolvedEntry ? resolvedEntry.split("/").pop() : "—"}`
     : (resolvedEntry?.split("/").pop() ?? "—");
 
-  const showWarning = isMultilang && !activeIsPy && pyEntryPoint === null;
+  const showWarning =
+    isMultilang && !activeIsPy && pyEntryPoint === null && !autoFallback;
 
   return (
     <div style={{ position: "relative", flexShrink: 0 }}>
@@ -90,13 +108,13 @@ export function EntryPointPicker() {
           >
             {/* Auto option */}
             <DropdownItem
-              label={`auto${activeIsPy ? `: ${activeCodePath.split("/").pop()}` : ""}`}
+              label={`auto${resolvedEntry ? `: ${resolvedEntry.split("/").pop()}` : ""}`}
               selected={isAuto}
               onClick={() => {
                 setPyEntryPoint(null);
                 setOpen(false);
               }}
-              muted={!activeIsPy}
+              muted={!resolvedEntry}
             />
 
             {allPyFiles.length > 0 && (

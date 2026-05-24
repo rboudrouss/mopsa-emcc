@@ -46,10 +46,16 @@ export function useAnalysis() {
         : allFiles;
 
       if (isMultilang) {
-        // Entry point must be a .py file
+        // Entry point priority: explicit pick > active file (if .py) >
+        // last .py in the active workspace (so navigating to a .c sibling
+        // doesn't break the multilang analysis).
+        const scopedPyFiles = scopedFiles.filter((p) => p.endsWith(".py"));
         const entryPoint =
           pyEntryPoint ??
-          (activeCodePath.endsWith(".py") ? activeCodePath : null);
+          (activeCodePath.endsWith(".py") ? activeCodePath : null) ??
+          (scopedPyFiles.length > 0
+            ? scopedPyFiles[scopedPyFiles.length - 1]
+            : null);
         if (!entryPoint)
           return Promise.resolve({ raw: "", parsed: null, durationMs: 0 });
 

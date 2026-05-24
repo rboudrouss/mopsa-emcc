@@ -7,8 +7,14 @@ let ends_with suffix s =
 let is_c_file f = ends_with ".c" f || ends_with ".h" f
 let is_py_file f = ends_with ".py" f
 
-(** Generate /mopsa.db from a list of .c/.h source files. *)
-let generate_db (c_files : string list) : unit =
+(** Look for "-working-dir <path>" in args. Returns the path or None. *)
+let rec find_working_dir = function
+  | "-working-dir" :: path :: _ -> Some path
+  | _ :: rest -> find_working_dir rest
+  | [] -> None
+
+(** Generate a mopsa.db at [db_path] from a list of .c/.h source files. *)
+let generate_db (db_path : string) (c_files : string list) : unit =
   let open Mopsa_build_db in
   let db =
     List.fold_left
@@ -18,8 +24,8 @@ let generate_db (c_files : string list) : unit =
       empty_db c_files
   in
   let obj_files = List.map (fun src -> src ^ ".o") c_files in
-  let db = db_link db "/mopsa.db" obj_files in
-  let d = open_db ~create:true "/mopsa.db" in
+  let db = db_link db db_path obj_files in
+  let d = open_db ~create:true db_path in
   write_db d db;
   close_db d
 
@@ -45,11 +51,19 @@ let () =
     (* Cross-language: generate mopsa.db from C files, pass only the py entry point. *)
     (* The last .py in the list is the entry point (use-analysis puts it last). *)
     let entry_py = List.nth py_files (List.length py_files - 1) in
-    generate_db c_files;
+    (* The Python importer looks up "mopsa.db" relative to cwd, which is set by
+       -working-dir later in parse_options. Place the db where mopsa will look. *)
+    let workdir =
+      match find_working_dir other_args with
+      | Some d -> d
+      | None -> Sys.getcwd ()
+    in
+    let db_path = Filename.concat workdir "mopsa.db" in
+    generate_db db_path c_files;
     let new_argv = Array.of_list (prog :: other_args @ [entry_py]) in
     let code =
       Fun.protect
-        ~finally:(fun () -> (try Sys.remove "/mopsa.db" with _ -> ()))
+        ~finally:(fun () -> (try Sys.remove db_path with _ -> ()))
         (fun () ->
            Mopsa_analyzer.Framework.Runner.parse_options
              new_argv

@@ -2,6 +2,7 @@ import { create } from "zustand";
 import {
   DEFAULT_CODE,
   MULTIFILE_C,
+  MULTILANG_CPYTHON,
   extractPreJson,
   parseConfigText,
   readFile,
@@ -66,6 +67,15 @@ function buildInitialTree(): FileTreeNode[] {
       name: "python",
       isWorkspace: true,
       children: [{ id: genId(), name: "example.py" }],
+    },
+    {
+      id: genId(),
+      name: "c-python",
+      isWorkspace: true,
+      children: [
+        { id: genId(), name: "main.py" },
+        { id: genId(), name: "mymod.c" },
+      ],
     },
     {
       id: genId(),
@@ -241,6 +251,8 @@ mopsaJs.setCode(DEFAULT_CODE.c);
 mopsaJs.writeFile("/c-multifile/main.c", MULTIFILE_C["main.c"]);
 mopsaJs.writeFile("/c-multifile/utils.c", MULTIFILE_C["utils.c"]);
 mopsaJs.writeFile("/python/example.py", DEFAULT_CODE.python);
+mopsaJs.writeFile("/c-python/main.py", MULTILANG_CPYTHON["main.py"]);
+mopsaJs.writeFile("/c-python/mymod.c", MULTILANG_CPYTHON["mymod.c"]);
 mopsaJs.writeFile("/universal/example.u", DEFAULT_CODE.universal);
 
 // ── Restore from localStorage (overwrites WASM defaults if saved state exists) ─

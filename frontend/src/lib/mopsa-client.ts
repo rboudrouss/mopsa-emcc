@@ -75,6 +75,45 @@ int read_first() { return buf[0]; }
 `,
 };
 
+// ── Multilanguage C+Python example (C extension called from Python) ───────────
+
+export const MULTILANG_CPYTHON: Record<string, string> = {
+  "mymod.c": `#include <Python.h>
+
+/* A tiny Python extension module written in C.
+   Exposes mymod.divide(a, b) to Python — but forgets to check b != 0. */
+static PyObject*
+mymod_divide(PyObject *self, PyObject *args)
+{
+  int a, b;
+  if (!PyArg_ParseTuple(args, "ii", &a, &b))
+    return NULL;
+  int r = a / b;  /* alarm: division by zero when b == 0 */
+  return Py_BuildValue("i", r);
+}
+
+static PyMethodDef methods[] = {
+  {"divide", mymod_divide, METH_VARARGS, "Integer division"},
+  {NULL, NULL, 0, NULL}
+};
+
+static struct PyModuleDef mymodule = {
+  PyModuleDef_HEAD_INIT, "mymod", NULL, -1, methods
+};
+
+PyMODINIT_FUNC
+PyInit_mymod(void)
+{
+  return PyModule_Create(&mymodule);
+}
+`,
+  "main.py": `import mymod
+
+# Reaches the C function, which divides without guarding against b == 0.
+print(mymod.divide(10, 0))  # alarm: triggers division by zero in mymod.c
+`,
+};
+
 // ── Output parsing ────────────────────────────────────────────────────────────
 
 function parseOutput(raw: string): ParsedOutput | null {
