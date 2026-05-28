@@ -82,9 +82,7 @@ function extractPrimitives(filePath) {
       // Only replace in non-#define lines — rebuild full text
       full = full
         .split("\n")
-        .map((l) =>
-          /^\s*#\s*define\b/.test(l) ? l : l.replace(aliasRe, m[2])
-        )
+        .map((l) => (/^\s*#\s*define\b/.test(l) ? l : l.replace(aliasRe, m[2])))
         .join("\n");
     }
   }
@@ -143,7 +141,8 @@ function extractPrimitives(filePath) {
 
         // extract balanced parentheses for the arguments
         const start = m.index + m[0].length;
-        let depth = 1, j = start;
+        let depth = 1,
+          j = start;
         while (j < lines[li].length && depth > 0) {
           if (lines[li][j] === "(") depth++;
           else if (lines[li][j] === ")") depth--;
@@ -158,7 +157,7 @@ function extractPrimitives(filePath) {
         for (let i = 0; i < activeDef.params.length; i++) {
           exp = exp.replace(
             new RegExp(`\\b${activeDef.params[i]}\\b`, "g"),
-            args[i]
+            args[i],
           );
         }
         exp = exp.replace(/\s*##\s*/g, "");
@@ -214,7 +213,7 @@ function extractPrimitives(filePath) {
   // at file scope (no "static", no CAMLprim).  We detect these by checking
   // that the return type is "value" and ALL parameters are "value" typed.
   // We must join multi-line declarations to see the full parameter list.
-  const joined = full;  // already has continuations joined
+  const joined = full; // already has continuations joined
   const jlines = joined.split("\n");
   for (let i = 0; i < jlines.length; i++) {
     const ln = jlines[i];
@@ -226,14 +225,21 @@ function extractPrimitives(filePath) {
     if (prims.has(hdr[1])) continue;
     // Collect the full text from "(" to the matching ")"
     let text = ln.slice(hdr.index + hdr[0].length - 1); // starts with "("
-    let depth = 0, j = i;
+    let depth = 0,
+      j = i;
     let buf = "";
     outer: for (; j < jlines.length; j++) {
       const s = j === i ? text : jlines[j];
       for (let k = 0; k < s.length; k++) {
         const ch = s[k];
         if (ch === "(") depth++;
-        else if (ch === ")") { depth--; if (depth === 0) { buf += s.slice(0, k); break outer; } }
+        else if (ch === ")") {
+          depth--;
+          if (depth === 0) {
+            buf += s.slice(0, k);
+            break outer;
+          }
+        }
       }
       buf += (j === i ? s : s) + " ";
     }
@@ -253,10 +259,17 @@ function extractPrimitives(filePath) {
 /** Split macro arguments respecting nested parens and commas. */
 function splitArgs(s) {
   const args = [];
-  let depth = 0, cur = "";
+  let depth = 0,
+    cur = "";
   for (const ch of s) {
-    if (ch === "," && depth === 0) { args.push(cur.trim()); cur = ""; }
-    else { if (ch === "(") depth++; else if (ch === ")") depth--; cur += ch; }
+    if (ch === "," && depth === 0) {
+      args.push(cur.trim());
+      cur = "";
+    } else {
+      if (ch === "(") depth++;
+      else if (ch === ")") depth--;
+      cur += ch;
+    }
   }
   args.push(cur.trim());
   return args;
@@ -273,8 +286,10 @@ if (!files.length) {
 const all = new Set();
 for (const f of files) {
   const p = path.resolve(f);
-  if (!fs.existsSync(p)) { console.error(`File not found: ${f}`); continue; }
+  if (!fs.existsSync(p)) {
+    console.error(`File not found: ${f}`);
+    continue;
+  }
   for (const name of extractPrimitives(p)) all.add(name);
 }
 [...all].sort().forEach((n) => console.log(n));
-

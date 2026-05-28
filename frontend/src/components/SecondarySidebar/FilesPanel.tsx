@@ -173,9 +173,15 @@ function modeOptionsFor(detected: WorkspaceMode): ModeOption[] {
         { value: "python", label: "Python only" },
       ];
     case "c":
-      return [auto, { value: "multilanguage", label: "Force Multilang (C+PY)" }];
+      return [
+        auto,
+        { value: "multilanguage", label: "Force Multilang (C+PY)" },
+      ];
     case "python":
-      return [auto, { value: "multilanguage", label: "Force Multilang (C+PY)" }];
+      return [
+        auto,
+        { value: "multilanguage", label: "Force Multilang (C+PY)" },
+      ];
     case "universal":
       // Universal analysis is standalone — no meaningful override.
       return [auto];
@@ -322,10 +328,11 @@ function FileRow({ node, style, dragHandle }: NodeRendererProps<FileTreeNode>) {
   const workspaceMode = isWorkspace
     ? getEffectiveWorkspaceMode(node.data)
     : null;
-  const workspaceModeChip = workspaceMode ? WORKSPACE_CHIP[workspaceMode] : null;
+  const workspaceModeChip = workspaceMode
+    ? WORKSPACE_CHIP[workspaceMode]
+    : null;
   const isModeOverridden = isWorkspace && node.data.mode !== undefined;
-  const isMenuOpenForThisRow =
-    workspaceModeMenu.state?.nodeId === node.id;
+  const isMenuOpenForThisRow = workspaceModeMenu.state?.nodeId === node.id;
 
   const warnings = !isFolder
     ? checks.filter(
@@ -1003,198 +1010,198 @@ export function FilesPanel() {
 
   return (
     <WorkspaceModeMenuCtx.Provider value={workspaceMenuApi}>
-    <SetContextMenuCtx.Provider value={setContextMenu}>
-      {/* Hidden file inputs */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        multiple
-        accept=".c,.h,.py,.u"
-        style={{ display: "none" }}
-        onChange={handleFilesInputChange}
-      />
-      <input
-        ref={folderInputRef}
-        type="file"
-        style={{ display: "none" }}
-        onChange={handleFolderInputChange}
-      />
+      <SetContextMenuCtx.Provider value={setContextMenu}>
+        {/* Hidden file inputs */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept=".c,.h,.py,.u"
+          style={{ display: "none" }}
+          onChange={handleFilesInputChange}
+        />
+        <input
+          ref={folderInputRef}
+          type="file"
+          style={{ display: "none" }}
+          onChange={handleFolderInputChange}
+        />
 
-      <div
-        style={{ display: "flex", flexDirection: "column", flex: 1 }}
-        onContextMenu={handlePanelContextMenu}
-      >
-        {/* Header */}
         <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            padding: "8px 12px 4px",
-            gap: 4,
-          }}
+          style={{ display: "flex", flexDirection: "column", flex: 1 }}
+          onContextMenu={handlePanelContextMenu}
         >
-          <span
-            style={{
-              flex: 1,
-              fontSize: 11,
-              fontWeight: 600,
-              color: "var(--text-muted)",
-              textTransform: "uppercase",
-              letterSpacing: "0.06em",
-            }}
-          >
-            Files
-            {status && (
-              <span
-                style={{
-                  fontWeight: 400,
-                  textTransform: "none",
-                  letterSpacing: 0,
-                  fontStyle: "italic",
-                  marginLeft: 6,
-                }}
-              >
-                — {status}
-              </span>
-            )}
-          </span>
-          <button
-            title="New file"
-            onClick={() => handleNewFile()}
-            style={iconBtnStyle}
-            {...hoverHandlers()}
-          >
-            <FilePlus size={14} />
-          </button>
-          <button
-            title="New folder"
-            onClick={() => handleNewFolder()}
-            style={iconBtnStyle}
-            {...hoverHandlers()}
-          >
-            <FolderPlus size={14} />
-          </button>
-          <button
-            title="New workspace"
-            onClick={() => handleNewWorkspace()}
-            style={iconBtnStyle}
-            {...hoverHandlers()}
-          >
-            <Layers size={14} />
-          </button>
-          <button
-            title="Import files or folder"
-            onClick={(e) => {
-              const rect = e.currentTarget.getBoundingClientRect();
-              setImportMenu({ x: rect.left, y: rect.bottom + 4 });
-            }}
-            style={iconBtnStyle}
-            {...hoverHandlers()}
-          >
-            <Upload size={14} />
-          </button>
-          <button
-            title="Download project as ZIP"
-            onClick={handleDownloadProject}
-            style={iconBtnStyle}
-            {...hoverHandlers()}
-          >
-            <Download size={14} />
-          </button>
-        </div>
-
-        {/* Tree */}
-        {fileTree.length === 0 ? (
+          {/* Header */}
           <div
             style={{
-              padding: "8px 16px",
-              fontSize: 12,
-              color: "var(--text-muted)",
+              display: "flex",
+              alignItems: "center",
+              padding: "8px 12px 4px",
+              gap: 4,
             }}
           >
-            No files
+            <span
+              style={{
+                flex: 1,
+                fontSize: 11,
+                fontWeight: 600,
+                color: "var(--text-muted)",
+                textTransform: "uppercase",
+                letterSpacing: "0.06em",
+              }}
+            >
+              Files
+              {status && (
+                <span
+                  style={{
+                    fontWeight: 400,
+                    textTransform: "none",
+                    letterSpacing: 0,
+                    fontStyle: "italic",
+                    marginLeft: 6,
+                  }}
+                >
+                  — {status}
+                </span>
+              )}
+            </span>
+            <button
+              title="New file"
+              onClick={() => handleNewFile()}
+              style={iconBtnStyle}
+              {...hoverHandlers()}
+            >
+              <FilePlus size={14} />
+            </button>
+            <button
+              title="New folder"
+              onClick={() => handleNewFolder()}
+              style={iconBtnStyle}
+              {...hoverHandlers()}
+            >
+              <FolderPlus size={14} />
+            </button>
+            <button
+              title="New workspace"
+              onClick={() => handleNewWorkspace()}
+              style={iconBtnStyle}
+              {...hoverHandlers()}
+            >
+              <Layers size={14} />
+            </button>
+            <button
+              title="Import files or folder"
+              onClick={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                setImportMenu({ x: rect.left, y: rect.bottom + 4 });
+              }}
+              style={iconBtnStyle}
+              {...hoverHandlers()}
+            >
+              <Upload size={14} />
+            </button>
+            <button
+              title="Download project as ZIP"
+              onClick={handleDownloadProject}
+              style={iconBtnStyle}
+              {...hoverHandlers()}
+            >
+              <Download size={14} />
+            </button>
           </div>
-        ) : (
-          <Tree<FileTreeNode>
-            ref={treeRef}
-            data={fileTree}
-            width="100%"
-            height={treeHeight}
-            rowHeight={rowHeight}
-            indent={0}
-            selection={activeFile ?? undefined}
-            openByDefault={true}
-            onSelect={(nodes) => {
-              const leaf = nodes.find((n) => n.data.children === undefined);
-              if (leaf) selectFile(leaf.id);
+
+          {/* Tree */}
+          {fileTree.length === 0 ? (
+            <div
+              style={{
+                padding: "8px 16px",
+                fontSize: 12,
+                color: "var(--text-muted)",
+              }}
+            >
+              No files
+            </div>
+          ) : (
+            <Tree<FileTreeNode>
+              ref={treeRef}
+              data={fileTree}
+              width="100%"
+              height={treeHeight}
+              rowHeight={rowHeight}
+              indent={0}
+              selection={activeFile ?? undefined}
+              openByDefault={true}
+              onSelect={(nodes) => {
+                const leaf = nodes.find((n) => n.data.children === undefined);
+                if (leaf) selectFile(leaf.id);
+              }}
+              onCreate={({ parentId, type }) => {
+                const id =
+                  type === "leaf"
+                    ? createFileNode(parentId ?? null)
+                    : createFolderNode(parentId ?? null);
+                return { id };
+              }}
+              onRename={({ id, name }) => {
+                if (!renameNode(id, name)) {
+                  setStatus("Name already exists");
+                  setTimeout(() => setStatus(null), 2000);
+                }
+              }}
+              onMove={({ dragIds, parentId }) => moveNodes(dragIds, parentId)}
+              onDelete={({ ids }) => deleteNodes(ids)}
+            >
+              {FileRow}
+            </Tree>
+          )}
+        </div>
+
+        {/* Context menu */}
+        {contextMenu && (
+          <ContextMenu
+            state={contextMenu}
+            treeRef={treeRef}
+            onNewFile={handleNewFile}
+            onNewFolder={handleNewFolder}
+            onNewWorkspace={handleNewWorkspace}
+            onDelete={handleDelete}
+            onImportFiles={(parentId) => {
+              openFileImport(parentId);
+              setContextMenu(null);
             }}
-            onCreate={({ parentId, type }) => {
-              const id =
-                type === "leaf"
-                  ? createFileNode(parentId ?? null)
-                  : createFolderNode(parentId ?? null);
-              return { id };
+            onImportFolder={(parentId) => {
+              openFolderImport(parentId);
+              setContextMenu(null);
             }}
-            onRename={({ id, name }) => {
-              if (!renameNode(id, name)) {
-                setStatus("Name already exists");
-                setTimeout(() => setStatus(null), 2000);
-              }
-            }}
-            onMove={({ dragIds, parentId }) => moveNodes(dragIds, parentId)}
-            onDelete={({ ids }) => deleteNodes(ids)}
-          >
-            {FileRow}
-          </Tree>
+            onDownloadFile={handleDownloadFile}
+            onToggleWorkspace={toggleWorkspace}
+            onClose={() => setContextMenu(null)}
+          />
         )}
-      </div>
 
-      {/* Context menu */}
-      {contextMenu && (
-        <ContextMenu
-          state={contextMenu}
-          treeRef={treeRef}
-          onNewFile={handleNewFile}
-          onNewFolder={handleNewFolder}
-          onNewWorkspace={handleNewWorkspace}
-          onDelete={handleDelete}
-          onImportFiles={(parentId) => {
-            openFileImport(parentId);
-            setContextMenu(null);
-          }}
-          onImportFolder={(parentId) => {
-            openFolderImport(parentId);
-            setContextMenu(null);
-          }}
-          onDownloadFile={handleDownloadFile}
-          onToggleWorkspace={toggleWorkspace}
-          onClose={() => setContextMenu(null)}
-        />
-      )}
+        {/* Import dropdown (header button) */}
+        {importMenu && (
+          <ImportMenu
+            state={importMenu}
+            onClose={() => setImportMenu(null)}
+            onImportFiles={() => openFileImport(null)}
+            onImportFolder={() => openFolderImport(null)}
+          />
+        )}
 
-      {/* Import dropdown (header button) */}
-      {importMenu && (
-        <ImportMenu
-          state={importMenu}
-          onClose={() => setImportMenu(null)}
-          onImportFiles={() => openFileImport(null)}
-          onImportFolder={() => openFolderImport(null)}
-        />
-      )}
-
-      {/* Workspace mode override menu (single instance, lifted) */}
-      {workspaceMenu && (
-        <WorkspaceModeMenu
-          state={workspaceMenu}
-          ignoreNodeId={workspaceMenu.nodeId}
-          onPick={(m) => {
-            setWorkspaceMode(workspaceMenu.nodeId, m);
-            setWorkspaceMenu(null);
-          }}
-          onClose={() => setWorkspaceMenu(null)}
-        />
-      )}
-    </SetContextMenuCtx.Provider>
+        {/* Workspace mode override menu (single instance, lifted) */}
+        {workspaceMenu && (
+          <WorkspaceModeMenu
+            state={workspaceMenu}
+            ignoreNodeId={workspaceMenu.nodeId}
+            onPick={(m) => {
+              setWorkspaceMode(workspaceMenu.nodeId, m);
+              setWorkspaceMenu(null);
+            }}
+            onClose={() => setWorkspaceMenu(null)}
+          />
+        )}
+      </SetContextMenuCtx.Provider>
     </WorkspaceModeMenuCtx.Provider>
   );
 }

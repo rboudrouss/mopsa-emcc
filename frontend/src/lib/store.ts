@@ -146,9 +146,7 @@ function computeConfigBucketSwap(
     target = configByLang[newLang] ?? null;
     if (!target) {
       const langConfigs =
-        state.presets?.configs[
-          newLang as "c" | "python" | "universal" | "cfg"
-        ];
+        state.presets?.configs[newLang as "c" | "python" | "universal" | "cfg"];
       const defaultText = langConfigs?.["default.json"];
       if (defaultText) {
         target = { preset: "default.json", text: defaultText, dirty: false };
