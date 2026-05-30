@@ -5,7 +5,6 @@
 #   - Build the image with: `docker build -t mopsa-emcc-32bc -f docker/Dockerfile.mopsa-32bc docker/`
 # - Emscripten SDK
 # - gcc-11 and g++-11 (for building old clang & ocaml versions)
-# - Python.h (interface for CPython stubs, needed by some Mopsa analyses, probably installed with python3-dev)
 
 CFLAGS := -Oz -DNDEBUG
 CXXFLAGS := -Oz -DNDEBUG
@@ -42,8 +41,6 @@ OPAM_EXEC := opam exec --
 NPM := pnpm
 DOCKER := docker
 DOCKER_IMAGE_32BC := mopsa-emcc-32bc
-
-PYTHON_HEADERS := /usr/include/python3.14
 
 FRONTEND_DIR := $(CURDIR)/frontend
 LINUX32_INCLUDE_DIR := $(BUILD_DIR)/linux32-include
@@ -335,7 +332,7 @@ mopsa-bc: $(BUILD_DIR)/mopsa.bc
 # mopsa.bc is now the 32-bit bytecode produced by the Docker build so that
 # integer widths match the wasm32 OCaml runtime (31-bit ints, not 63-bit).
 $(BUILD_DIR)/mopsa.bc: $(BUILD_DIR)/mopsa-32.bc
-	cp $(BUILD_DIR)/mopsa-32.bc $(BUILD_DIR)/mopsa.bc
+	cp -f $(BUILD_DIR)/mopsa-32.bc $(BUILD_DIR)/mopsa.bc
 
 # 32-bit bytecode via Docker (for wasm32 targets where int width matters)
 # Uses a linux/386 container so the OCaml runtime compiles with 31-bit ints.
@@ -380,7 +377,22 @@ $(BUILD_DIR)/.linux32-headers-stamp: $(BUILD_DIR)/.docker-32bc-stamp | $(BUILD_D
 			$$(find . -maxdepth 1 -name "*.h") \
 			bits sys gnu asm' \
 		| tar -x -C $(LINUX32_INCLUDE_DIR)
-	cp -r $(PYTHON_HEADERS)/* $(LINUX32_INCLUDE_DIR)/
+	# CPython headers (Python.h, pyport.h, ...) come from the 32-bit image too,
+	# flattened into the include root.  The find keeps this robust to the Python
+	# version shipped by the base image.
+	$(DOCKER) run --rm --platform linux/386 $(DOCKER_IMAGE_32BC) \
+		sh -c 'cd "$$(dirname $$(find /usr/include -name Python.h | head -1))" && tar -c .' \
+		| tar -x -C $(LINUX32_INCLUDE_DIR)
+	# Debian ships pyconfig.h as a multiarch wrapper that #includes the real
+	# <i386-linux-gnu/python3.11/pyconfig.h> guarded by __i386__.  But Mopsa's C
+	# frontend does not target i386 (hence the benign 'regparm' warnings), so
+	# that branch is not taken and the real file lives in a subdir we don't
+	# flatten.  Resolve the wrapper here by overwriting the flattened pyconfig.h
+	# with the real i386 variant, so SIZEOF_LONG/SIZEOF_VOID_P (4) match the
+	# glibc 32-bit data model and pyport.h's LONG_BIT == 8*SIZEOF_LONG holds.
+	$(DOCKER) run --rm --platform linux/386 $(DOCKER_IMAGE_32BC) \
+		sh -c 'cat "$$(find /usr/include -path "*i386-linux-gnu/python*/pyconfig.h" | head -1)"' \
+		> $(LINUX32_INCLUDE_DIR)/pyconfig.h
 	touch $@
 
 # Build final binary

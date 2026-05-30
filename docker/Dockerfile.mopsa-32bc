@@ -57,4 +57,13 @@ RUN curl -fsSL \
     -o /usr/local/bin/opam \
     && chmod +x /usr/local/bin/opam
 
+# CPython stub headers (Python.h, pyconfig.h, ...) for the cross C/Python
+# analysis.  Installed in a dedicated layer at the end so it does not bust the
+# cache of the expensive OCaml-from-source build above.  These 32-bit headers
+# are extracted by `make extract-32-headers` and replace the host's headers,
+# keeping SIZEOF_LONG/SIZEOF_VOID_P consistent with the 32-bit data model.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /workspace

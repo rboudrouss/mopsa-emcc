@@ -57,8 +57,29 @@ export function computeAnalysisArgs(): string[] | null {
     const cFiles = scopedFiles.filter(
       (p) => p.endsWith(".c") || p.endsWith(".h"),
     );
+
+    // The CPython domain needs its stub C files (defining init_flags,
+    // _Py_NoneStruct, PyType_ReadyCheat, … used by cpython.cmodule) plus the
+    // precision settings the `mopsa-cpython` driver applies. Without
+    // -additional-stubs the analysis aborts with `Not_found` in PyInit_*.
+    const cpythonFlags = [
+      "-additional-stubs=cpython/Python.c,cpython/python_stubs.c",
+      "-ccopt=-include/share/mopsa/stubs/cpython/python_stubs.h",
+      "-marker=return",
+      "-hash-heap-address=true",
+      "-unprecise-exn=MemoryError",
+      "-default-alloc-pol=range",
+      "-use-stub=memset,vasprintf,memcpy,memmove,strcpy",
+    ];
+    const userHasFlag = (name: string) =>
+      flags.some((f) => f === name || f.startsWith(name + "="));
+    // -ccopt is additive (clang appends options), so always include ours.
+    const injected = cpythonFlags.filter(
+      (f) => f.startsWith("-ccopt=") || !userHasFlag(f.split("=")[0]),
+    );
+
     // C/H files first (so the worker builds mopsa.db), then the py entry point.
-    return [...flags, ...cFiles, entryPoint];
+    return [...flags, ...injected, ...cFiles, entryPoint];
   }
 
   if (lang === "python") {

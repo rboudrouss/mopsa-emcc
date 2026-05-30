@@ -35,10 +35,15 @@ let () =
   let prog = argv.(0) in
   let rest = Array.to_list (Array.sub argv 1 (Array.length argv - 1)) in
 
+  let is_flag arg = String.length arg > 0 && arg.[0] = '-' in
   let c_files, py_files, other_args =
     List.fold_right
       (fun arg (cs, pys, others) ->
-        if is_c_file arg then (arg :: cs, pys, others)
+        (* Flags must be classified first: option values may end in .c/.h/.py
+           (e.g. -additional-stubs=cpython/Python.c or -ccopt=-include….h) and
+           would otherwise be mistaken for positional source files. *)
+        if is_flag arg then (cs, pys, arg :: others)
+        else if is_c_file arg then (arg :: cs, pys, others)
         else if is_py_file arg then (cs, arg :: pys, others)
         else (cs, pys, arg :: others))
       rest ([], [], [])
