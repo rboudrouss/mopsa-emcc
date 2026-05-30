@@ -41,6 +41,7 @@ interface DebugState {
   appendConsole: (line: string) => void;
   clearConsole: () => void;
   addAlarms: (items: CheckItem[]) => void;
+  clearAlarms: () => void;
   toggleBreakpoint: (path: string, line: number) => void;
   resetDebug: () => void;
 }
@@ -80,6 +81,7 @@ export const useDebugStore = create<DebugState>((set) => ({
   appendConsole: (line) => set((s) => ({ consoleLines: [...s.consoleLines, line] })),
   clearConsole: () => set({ consoleLines: [] }),
   addAlarms: (items) => set((s) => ({ alarms: [...s.alarms, ...items] })),
+  clearAlarms: () => set({ alarms: [] }),
 
   toggleBreakpoint: (path, line) =>
     set((s) => {

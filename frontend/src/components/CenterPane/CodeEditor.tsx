@@ -9,6 +9,7 @@ import { useDebugBreakpoints } from "@/lib/hooks/use-debug-breakpoints";
 import { getCodeFilePath } from "@/lib/mopsa-client";
 import { findById } from "@/lib/tree";
 import { useAppStore } from "@/lib/store";
+import { useDebugStore } from "@/lib/store-debug";
 
 function getMonacoLanguage(ext: string): string {
   switch (ext) {
@@ -81,12 +82,20 @@ export function CodeEditor({ resolvedTheme }: CodeEditorProps) {
     (s) => (s.optionValues["-engine"] as string) ?? "automatic",
   );
   const dapMode = engine === "dap";
+  const debugAlarms = useDebugStore((s) => s.alarms);
 
   const activeName = activeFile ? findById(fileTree, activeFile)?.name : null;
   const ext = activeName?.split(".").pop() ?? "";
   const monacoLang = getMonacoLanguage(ext);
 
-  useMonacoDecorations(editorRef, checks, codeFilePath, mountKey);
+  // Which alarms to mark up in the gutter/inline: the DAP engine's live alarms
+  // in dap mode, the batch checks in automatic, nothing for the interactive
+  // REPL. This also means switching engines drops the previous engine's
+  // (now-stale) decorations immediately.
+  const editorChecks =
+    engine === "dap" ? debugAlarms : engine === "interactive" ? [] : checks;
+
+  useMonacoDecorations(editorRef, editorChecks, codeFilePath, mountKey);
   useDebugBreakpoints(editorRef, monacoRef, codeFilePath, dapMode, mountKey);
 
   const handleBeforeMount: BeforeMount = (monaco) => {

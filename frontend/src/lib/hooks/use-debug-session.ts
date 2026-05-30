@@ -96,7 +96,13 @@ export function useDebugSession() {
       // Alarm output events carry the full alarm list in data.alarms (same
       // shape as batch checks); surface them in the Alarms panel.
       if (d?.kind === "alarms" && Array.isArray(d.alarms)) {
-        useDebugStore.getState().addAlarms(d.alarms);
+        // Strip ANSI from messages so both the Alarms panel and the editor
+        // hover render cleanly.
+        const cleaned = d.alarms.map((a) => ({
+          ...a,
+          messages: a.messages?.replace(/\x1b\[[0-9;]*m/g, "") ?? a.messages,
+        }));
+        useDebugStore.getState().addAlarms(cleaned);
       }
       if (typeof b?.output === "string" && b.output.length > 0)
         useDebugStore.getState().appendConsole(b.output);
@@ -125,6 +131,11 @@ export function useDebugSession() {
 
   // Kill on unmount (e.g. engine switched away).
   useEffect(() => kill, [kill]);
+
+  // Note: stale DAP alarms (and the batch results) are cleared centrally by the
+  // store's edit mutations (setCode / setOptionValue / setConfigText / …), so
+  // navigation between files — which changes `code`/`configText` directly —
+  // does NOT wipe them.
 
   const resume = (fn: () => Promise<unknown> | undefined) => {
     useDebugStore.getState().setStatus("running");

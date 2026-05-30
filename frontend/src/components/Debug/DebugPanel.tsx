@@ -60,11 +60,11 @@ export function DebugPanel() {
           minHeight: 0,
         }}
       >
-        <AlarmsView />
         <CallStackView controls={controls} />
         <VariablesTree controls={controls} />
         <WatchPanel controls={controls} />
         <DapConsole />
+        <AlarmsView />
       </div>
     </div>
   );

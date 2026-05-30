@@ -11,6 +11,7 @@ import {
   setCodeFilePath,
 } from "./mopsa-client";
 import { DEFAULT_OPTION_VALUES } from "./options-schema";
+import { useDebugStore } from "./store-debug";
 import { loadAndRestoreState, saveState } from "./persistence";
 import { getLanguageFromFileExtension } from "./index";
 import {
@@ -270,6 +271,19 @@ const _initialActiveFile = _restored?.activeFile ?? findFirstFile(_initialTree);
 
 // ── Store ─────────────────────────────────────────────────────────────────────
 
+// Analysis results become stale the moment options or config change, so we
+// wipe them (which also clears the editor alarm decorations) on every such
+// edit. Re-runs (manual or auto) repopulate them.
+const CLEARED_ANALYSIS = {
+  checks: [] as CheckItem[],
+  warnings: "",
+  rawOutput: "",
+  selectivity: null,
+  analysisTime: null,
+  analysisSuccess: null,
+  analysisError: null,
+};
+
 export const useAppStore = create<AppStore>((set, get) => ({
   lang: _restored?.lang ?? "c",
   code: _restored?.code ?? DEFAULT_CODE.c,
@@ -306,7 +320,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
   // ── Code / config ──────────────────────────────────────────────────────
   setCode: (code) => {
     mopsaJs.setCode(code.endsWith("\n") ? code : code + "\n");
-    set({ code });
+    // A code edit invalidates the current results / alarms (batch + DAP).
+    useDebugStore.getState().clearAlarms();
+    set({ code, ...CLEARED_ANALYSIS });
   },
 
   setConfigText: (text, dirty = true) => {
@@ -321,6 +337,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
     } = state;
     // If the content hasn't meaningfully changed, ignore (handles Monaco's programmatic echo).
     if (dirty && text.trim() === currentText.trim()) return;
+    // A real config edit invalidates current DAP alarms (batch is cleared below).
+    if (dirty) useDebugStore.getState().clearAlarms();
     const isXL =
       getActiveAnalysisMode({
         fileTree: state.fileTree,
@@ -342,6 +360,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         configDirty: dirty,
         configXL: { ...configXL, ...saved },
         ...customUpdate,
+        ...(dirty ? CLEARED_ANALYSIS : {}),
       });
     } else {
       set({
@@ -349,6 +368,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         configDirty: dirty,
         configByLang: { ...configByLang, [lang]: saved },
         ...customUpdate,
+        ...(dirty ? CLEARED_ANALYSIS : {}),
       });
     }
   },
@@ -359,6 +379,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const text = customConfigs[key];
     if (!text) return;
     mopsaJs.setConfig(text);
+    useDebugStore.getState().clearAlarms();
     const saved: SavedConfig = { preset: "custom", text, dirty: true };
     const isXL =
       getActiveAnalysisMode({
@@ -372,6 +393,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         configPreset: "custom",
         configDirty: true,
         configXL: saved,
+        ...CLEARED_ANALYSIS,
       });
     } else {
       set({
@@ -379,6 +401,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         configPreset: "custom",
         configDirty: true,
         configByLang: { ...configByLang, [lang]: saved },
+        ...CLEARED_ANALYSIS,
       });
     }
   },
@@ -387,6 +410,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const state = get();
     const { lang, configByLang } = state;
     mopsaJs.setConfig(text);
+    useDebugStore.getState().clearAlarms();
     const saved: SavedConfig = { preset: name, text, dirty: false };
     const isXL =
       getActiveAnalysisMode({
@@ -400,6 +424,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         configPreset: name,
         configDirty: false,
         configXL: saved,
+        ...CLEARED_ANALYSIS,
       });
     } else {
       set({
@@ -407,6 +432,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         configPreset: name,
         configDirty: false,
         configByLang: { ...configByLang, [lang]: saved },
+        ...CLEARED_ANALYSIS,
       });
     }
   },
@@ -485,12 +511,18 @@ export const useAppStore = create<AppStore>((set, get) => ({
   setActiveTab: (tab) => set({ activeTab: tab }),
 
   setOptionValue: (flag, value) => {
-    set((s) => ({ optionValues: { ...s.optionValues, [flag]: value } }));
+    useDebugStore.getState().clearAlarms();
+    set((s) => ({
+      optionValues: { ...s.optionValues, [flag]: value },
+      ...CLEARED_ANALYSIS,
+    }));
   },
 
   resetOption: (flag) => {
+    useDebugStore.getState().clearAlarms();
     set((s) => ({
       optionValues: { ...s.optionValues, [flag]: DEFAULT_OPTION_VALUES[flag] },
+      ...CLEARED_ANALYSIS,
     }));
   },
 
