@@ -148,6 +148,13 @@ body {
   }
 }
 
+/* ── Amber spinner for the in-progress results panel ─────────────────────── */
+@keyframes mopsa-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* ── Scrollbar styling ───────────────────────────────────────────────────── */
 ::-webkit-scrollbar {
   width: 6px;

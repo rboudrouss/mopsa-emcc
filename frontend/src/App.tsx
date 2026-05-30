@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { ActivityBar } from "@/components/ActivityBar";
 import { CenterPane } from "@/components/CenterPane";
@@ -10,6 +10,7 @@ import { useDebouncedFn } from "@/lib/hooks/use-debounced-fn";
 import { useTheme } from "@/lib/hooks/use-theme";
 import { usePresets } from "@/lib/hooks/use-presets";
 import { useAppStore } from "@/lib/store";
+import { computeRunSignature } from "@/lib/analysis-args";
 
 export default function App() {
   const { resolved, toggle } = useTheme();
@@ -20,6 +21,7 @@ export default function App() {
   const code = useAppStore((s) => s.code);
   const configText = useAppStore((s) => s.configText);
   const optionValues = useAppStore((s) => s.optionValues);
+  const activeFile = useAppStore((s) => s.activeFile);
   const applyPreset = useAppStore((s) => s.applyPreset);
   const setPresets = useAppStore((s) => s.setPresets);
   const autoRun = useAppStore((s) => s.autoRun);
@@ -40,14 +42,31 @@ export default function App() {
 
   const debouncedRun = useDebouncedFn(runAnalysis, 300);
 
-  // Auto-run whenever code, config, or options change (if enabled).
-  // Only for the batch engine — auto-restarting a live interactive/DAP
-  // session on every keystroke would be hostile.
+  const prevRunSig = useRef<string | null>(null);
+  const prevActiveFile = useRef<string | null>(activeFile);
+
+  // Auto-run on code/config/option changes (batch engine only). A bare file
+  // switch re-runs only if the run signature changed; switching within a
+  // C/C+Py workspace, or Python with a fixed entry point, leaves it identical.
   useEffect(() => {
     const engine = (optionValues["-engine"] as string) ?? "automatic";
-    if (autoRun && engine === "automatic") debouncedRun();
+    if (!autoRun || engine !== "automatic") {
+      // Keep the baseline fresh so re-enabling doesn't misfire on a past switch.
+      prevActiveFile.current = activeFile;
+      prevRunSig.current = computeRunSignature();
+      return;
+    }
+
+    const sig = computeRunSignature();
+    const fileSwitched = activeFile !== prevActiveFile.current;
+    const shouldRun = !fileSwitched || sig !== prevRunSig.current;
+
+    prevActiveFile.current = activeFile;
+    prevRunSig.current = sig;
+
+    if (shouldRun) debouncedRun();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoRun, code, configText, JSON.stringify(optionValues)]);
+  }, [autoRun, code, configText, JSON.stringify(optionValues), activeFile]);
 
   return (
     <div
@@ -105,7 +124,7 @@ export default function App() {
           order={3}
           style={{ overflow: "hidden" }}
         >
-          <RightPanel />
+          <RightPanel isAnalyzing={isAnalyzing} />
         </Panel>
       </PanelGroup>
     </div>

@@ -7,7 +7,7 @@ import { WarningsBox } from "./WarningsBox";
 import { InteractiveTerminal } from "./InteractiveTerminal";
 import { DebugPanel } from "@/components/Debug/DebugPanel";
 
-export function RightPanel() {
+export function RightPanel({ isAnalyzing }: { isAnalyzing: boolean }) {
   const checks = useAppStore((s) => s.checks);
   const warnings = useAppStore((s) => s.warnings);
   const rawOutput = useAppStore((s) => s.rawOutput);
@@ -40,6 +40,10 @@ export function RightPanel() {
       </div>
     );
   }
+
+  // While analysing, hide the (now stale) summary behind a clear in-progress
+  // view — a C+Python run can take ~20s. (Batch engine only; live ones above.)
+  if (isAnalyzing) return <AnalyzingView />;
 
   // Text output is unparseable, so skip the results panel and show the raw
   // terminal output directly (no summary, no checks, no "analysis failed").
@@ -138,6 +142,50 @@ export function RightPanel() {
       {!analysisError && <WarningsBox warnings={warnings} />}
 
       <RawOutput raw={rawOutput} />
+    </div>
+  );
+}
+
+function AnalyzingView() {
+  return (
+    <div
+      style={{
+        height: "100%",
+        background: "var(--bg-surface)",
+        borderLeft: "1px solid var(--border)",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 16,
+        padding: 24,
+        boxSizing: "border-box",
+        textAlign: "center",
+      }}
+    >
+      <div
+        style={{
+          width: 36,
+          height: 36,
+          borderRadius: "50%",
+          border: "3px solid var(--border)",
+          borderTopColor: "#f5b544",
+          animation: "mopsa-spin 0.8s linear infinite",
+        }}
+      />
+      <div style={{ fontSize: 15, fontWeight: 600, color: "#f5b544" }}>
+        Analysis in progress…
+      </div>
+      <div
+        style={{
+          fontSize: 12,
+          color: "var(--text-muted)",
+          maxWidth: 260,
+          lineHeight: 1.5,
+        }}
+      >
+        Results will appear here once it finishes.
+      </div>
     </div>
   );
 }
