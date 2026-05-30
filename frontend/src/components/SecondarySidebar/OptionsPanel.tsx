@@ -214,6 +214,12 @@ function OptionsGroup({
   options: OptionSpec[];
 }) {
   const [open, setOpen] = useState(false);
+  const modifiedCount = useAppStore(
+    (s) =>
+      options.filter(
+        (opt) => s.optionValues[opt.flag] !== DEFAULT_OPTION_VALUES[opt.flag],
+      ).length,
+  );
 
   return (
     <div>
@@ -241,11 +247,29 @@ function OptionsGroup({
           style={{
             fontSize: 11,
             fontWeight: 600,
-            color: "var(--text-secondary)",
+            color: modifiedCount > 0 ? "var(--color-accent)" : "var(--text-secondary)",
           }}
         >
           {group}
         </span>
+        {modifiedCount > 0 && (
+          <span
+            title={`${modifiedCount} option${modifiedCount > 1 ? "s" : ""} modifiée${modifiedCount > 1 ? "s" : ""}`}
+            style={{
+              marginLeft: "auto",
+              fontSize: 9,
+              fontWeight: 600,
+              lineHeight: 1,
+              color: "var(--color-accent)",
+              background: "rgba(245,181,68,.12)",
+              border: "1px solid var(--color-accent)",
+              borderRadius: 8,
+              padding: "2px 6px",
+            }}
+          >
+            {modifiedCount}
+          </span>
+        )}
       </button>
       {open && (
         <div style={{ display: "flex", flexDirection: "column" }}>
