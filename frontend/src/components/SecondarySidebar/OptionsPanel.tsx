@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   ChevronDownIcon,
   ChevronRightIcon,
   RotateCcwIcon,
+  SearchIcon,
   XIcon,
 } from "lucide-react";
 import {
@@ -13,7 +14,59 @@ import {
 import { clearState } from "@/lib/persistence";
 import { cancelPendingSave, useAppStore } from "@/lib/store";
 
+/** Strip dashes and lowercase so dash-heavy flags match dash-free queries. */
+function normalize(s: string): string {
+  return s.toLowerCase().replace(/-/g, "");
+}
+
+/** Split a query into dash-free, lowercased tokens. */
+function searchTokens(query: string): string[] {
+  return query.toLowerCase().replace(/-/g, "").split(/\s+/).filter(Boolean);
+}
+
+/**
+ * Rank an option against the search tokens. Lower number = higher priority;
+ * `null` means no match. A match on the flag or label outranks a match that
+ * only appears in the description (hint).
+ */
+function matchRank(spec: OptionSpec, tokens: string[]): number | null {
+  if (tokens.length === 0) return 0;
+  const flag = normalize(spec.flag);
+  const label = normalize(spec.label);
+  const hint = normalize(spec.hint);
+  const everyIn = (hay: string) => tokens.every((t) => hay.includes(t));
+
+  const inFlag = everyIn(flag);
+  const inLabel = everyIn(label);
+  if (inFlag && inLabel) return 0;
+  if (inFlag) return 1;
+  if (inLabel) return 2;
+  if (everyIn(hint)) return 3;
+  // Tokens scattered across flag + label + hint.
+  if (everyIn(`${flag} ${label} ${hint}`)) return 4;
+  return null;
+}
+
 export function OptionsPanel() {
+  const [query, setQuery] = useState("");
+  const tokens = useMemo(() => searchTokens(query), [query]);
+
+  const results = useMemo(() => {
+    if (tokens.length === 0) return null;
+    return OPTIONS_SCHEMA.flatMap((g) =>
+      g.options.map((opt) => ({
+        spec: opt,
+        group: g.group,
+        rank: matchRank(opt, tokens),
+      })),
+    )
+      .filter(
+        (r): r is { spec: OptionSpec; group: string; rank: number } =>
+          r.rank !== null,
+      )
+      .sort((a, b) => a.rank - b.rank);
+  }, [tokens]);
+
   return (
     <div style={{ display: "flex", flexDirection: "column" }}>
       <div
@@ -29,53 +82,126 @@ export function OptionsPanel() {
         Options
       </div>
 
-      {/* Reset */}
-      <div
-        style={{
-          padding: "12px 16px",
-          borderTop: "1px solid var(--border)",
-          borderBottom: "1px solid var(--border)",
-        }}
-      >
-        <button
-          onClick={() => {
-            if (
-              window.confirm(
-                "Reset Mopsa to its default state? This will clear all saved files, configs and options.",
-              )
-            ) {
-              cancelPendingSave();
-              clearState();
-              window.location.reload();
-            }
-          }}
+      {/* Search */}
+      <div style={{ padding: "0 12px 10px" }}>
+        <div
           style={{
+            position: "relative",
             display: "flex",
             alignItems: "center",
-            gap: 6,
-            width: "100%",
-            padding: "6px 10px",
-            background: "none",
-            border: "1px solid var(--border)",
-            borderRadius: 4,
-            cursor: "pointer",
-            color: "var(--text-muted)",
-            fontSize: 12,
-            justifyContent: "center",
           }}
         >
-          <RotateCcwIcon size={12} />
-          Reset to defaults
-        </button>
+          <SearchIcon
+            size={12}
+            color="var(--text-muted)"
+            style={{ position: "absolute", left: 8, pointerEvents: "none" }}
+          />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search options…"
+            style={{
+              width: "100%",
+              boxSizing: "border-box",
+              padding: "5px 24px 5px 26px",
+              background: "var(--bg-elevated)",
+              border: "1px solid var(--border)",
+              borderRadius: 4,
+              color: "var(--text-primary)",
+              fontSize: 12,
+            }}
+          />
+          {query && (
+            <button
+              onClick={() => setQuery("")}
+              title="Clear search"
+              style={{
+                position: "absolute",
+                right: 4,
+                display: "flex",
+                alignItems: "center",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                padding: 2,
+                color: "var(--text-muted)",
+              }}
+            >
+              <XIcon size={12} />
+            </button>
+          )}
+        </div>
       </div>
 
-      {OPTIONS_SCHEMA.map((group) => (
-        <OptionsGroup
-          key={group.group}
-          group={group.group}
-          options={group.options}
-        />
-      ))}
+      {results === null ? (
+        <>
+          {/* Reset */}
+          <div
+            style={{
+              padding: "12px 16px",
+              borderTop: "1px solid var(--border)",
+              borderBottom: "1px solid var(--border)",
+            }}
+          >
+            <button
+              onClick={() => {
+                if (
+                  window.confirm(
+                    "Reset Mopsa to its default state? This will clear all saved files, configs and options.",
+                  )
+                ) {
+                  cancelPendingSave();
+                  clearState();
+                  window.location.reload();
+                }
+              }}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                width: "100%",
+                padding: "6px 10px",
+                background: "none",
+                border: "1px solid var(--border)",
+                borderRadius: 4,
+                cursor: "pointer",
+                color: "var(--text-muted)",
+                fontSize: 12,
+                justifyContent: "center",
+              }}
+            >
+              <RotateCcwIcon size={12} />
+              Reset to defaults
+            </button>
+          </div>
+
+          {OPTIONS_SCHEMA.map((group) => (
+            <OptionsGroup
+              key={group.group}
+              group={group.group}
+              options={group.options}
+            />
+          ))}
+        </>
+      ) : results.length === 0 ? (
+        <div
+          style={{
+            padding: 16,
+            fontSize: 12,
+            color: "var(--text-muted)",
+            textAlign: "center",
+          }}
+        >
+          No options match “{query.trim()}”
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          {results.map((r) => (
+            <OptionRow key={r.spec.flag} spec={r.spec} group={r.group} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -132,7 +258,7 @@ function OptionsGroup({
   );
 }
 
-function OptionRow({ spec }: { spec: OptionSpec }) {
+function OptionRow({ spec, group }: { spec: OptionSpec; group?: string }) {
   const value = useAppStore((s) => s.optionValues[spec.flag]);
   const setOptionValue = useAppStore((s) => s.setOptionValue);
   const resetOption = useAppStore((s) => s.resetOption);
@@ -152,6 +278,19 @@ function OptionRow({ spec }: { spec: OptionSpec }) {
         background: isModified ? "rgba(245,181,68,.03)" : "transparent",
       }}
     >
+      {group && (
+        <span
+          style={{
+            fontSize: 9,
+            fontWeight: 600,
+            color: "var(--text-muted)",
+            textTransform: "uppercase",
+            letterSpacing: "0.05em",
+          }}
+        >
+          {group}
+        </span>
+      )}
       <div
         style={{
           display: "flex",
@@ -173,6 +312,18 @@ function OptionRow({ spec }: { spec: OptionSpec }) {
           <span style={{ fontSize: 10, color: "var(--text-muted)" }}>
             {spec.hint}
           </span>
+          {group && spec.flag !== "__raw" && (
+            <span
+              style={{
+                fontSize: 10,
+                color: "var(--text-muted)",
+                fontFamily: "'JetBrains Mono', monospace",
+                opacity: 0.7,
+              }}
+            >
+              {spec.flag}
+            </span>
+          )}
         </div>
         <div
           style={{
