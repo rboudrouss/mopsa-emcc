@@ -7,7 +7,16 @@ import tailwindcss from "@tailwindcss/vite";
 const isProd = process.env.NODE_ENV === "production";
 const enablePWA = process.env.VITE_PWA === "true" || isProd;
 
+// Cross-origin isolation is required for SharedArrayBuffer, which the
+// interactive/DAP engines use to feed synchronous stdin into the WASM worker.
+const crossOriginIsolation = {
+  "Cross-Origin-Opener-Policy": "same-origin",
+  "Cross-Origin-Embedder-Policy": "require-corp",
+};
+
 export default defineConfig({
+  server: { headers: crossOriginIsolation },
+  preview: { headers: crossOriginIsolation },
   build: {
     rollupOptions: {
       output: {

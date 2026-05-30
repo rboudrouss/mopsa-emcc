@@ -18,6 +18,17 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <meta name="apple-mobile-web-app-title" content="MopsaJs" />
 
+    <!-- Fonts via crossorigin link so they load under COEP: require-corp
+         (Google serves them with Access-Control-Allow-Origin: *). -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      crossorigin="anonymous"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+    />
+
+    <script src="./sync-message.js"></script>
     <script src="./mopsa_api.js"></script>
   </head>
   <body>

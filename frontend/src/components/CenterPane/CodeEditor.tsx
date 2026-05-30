@@ -5,6 +5,7 @@ import MonacoEditor, {
 import type * as MonacoNS from "monaco-editor";
 import { useRef, useState } from "react";
 import { useMonacoDecorations } from "@/lib/hooks/use-monaco-decorations";
+import { useDebugBreakpoints } from "@/lib/hooks/use-debug-breakpoints";
 import { getCodeFilePath } from "@/lib/mopsa-client";
 import { findById } from "@/lib/tree";
 import { useAppStore } from "@/lib/store";
@@ -73,21 +74,28 @@ export function CodeEditor({ resolvedTheme }: CodeEditorProps) {
   const activeFile = useAppStore((s) => s.activeFile);
 
   const editorRef = useRef<MonacoNS.editor.IStandaloneCodeEditor | null>(null);
+  const monacoRef = useRef<typeof MonacoNS | null>(null);
   const [mountKey, setMountKey] = useState(0);
   const codeFilePath = getCodeFilePath();
+  const engine = useAppStore(
+    (s) => (s.optionValues["-engine"] as string) ?? "automatic",
+  );
+  const dapMode = engine === "dap";
 
   const activeName = activeFile ? findById(fileTree, activeFile)?.name : null;
   const ext = activeName?.split(".").pop() ?? "";
   const monacoLang = getMonacoLanguage(ext);
 
   useMonacoDecorations(editorRef, checks, codeFilePath, mountKey);
+  useDebugBreakpoints(editorRef, monacoRef, codeFilePath, dapMode, mountKey);
 
   const handleBeforeMount: BeforeMount = (monaco) => {
     defineThemes(monaco);
   };
 
-  const handleMount: OnMount = (editor) => {
+  const handleMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
+    monacoRef.current = monaco;
     setMountKey((k) => k + 1);
   };
 
@@ -115,7 +123,7 @@ export function CodeEditor({ resolvedTheme }: CodeEditorProps) {
         bracketPairColorization: { enabled: true },
         tabSize: 2,
         wordWrap: "off",
-        glyphMargin: false,
+        glyphMargin: dapMode,
         folding: true,
       }}
     />

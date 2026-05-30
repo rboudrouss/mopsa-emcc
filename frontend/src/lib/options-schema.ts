@@ -15,6 +15,20 @@ export interface OptionSpec {
 
 export const OPTIONS_SCHEMA: { group: string; options: OptionSpec[] }[] = [
   {
+    group: "Engine",
+    options: [
+      {
+        flag: "-engine",
+        type: "select",
+        default: "automatic",
+        mopsaDefault: "automatic",
+        label: "Engine",
+        hint: "automatic = one-shot batch; interactive = live REPL terminal; dap = step debugger",
+        choices: ["automatic", "interactive", "dap"],
+      },
+    ],
+  },
+  {
     group: "Alarms",
     options: [
       {

@@ -5,7 +5,7 @@ import { CenterPane } from "@/components/CenterPane";
 import { RightPanel } from "@/components/RightPanel";
 import { SecondarySidebar } from "@/components/SecondarySidebar";
 import { TopBar } from "@/components/TopBar";
-import { useAnalysis } from "@/lib/hooks/use-analysis";
+import { useRun } from "@/lib/hooks/use-run";
 import { useDebouncedFn } from "@/lib/hooks/use-debounced-fn";
 import { useTheme } from "@/lib/hooks/use-theme";
 import { usePresets } from "@/lib/hooks/use-presets";
@@ -14,7 +14,7 @@ import { useAppStore } from "@/lib/store";
 export default function App() {
   const { resolved, toggle } = useTheme();
   const { data: presets, isSuccess } = usePresets();
-  const { run: runAnalysis, isAnalyzing } = useAnalysis();
+  const { run: runAnalysis, isAnalyzing } = useRun();
   const activePanel = useAppStore((s) => s.activePanel);
 
   const code = useAppStore((s) => s.code);
@@ -40,9 +40,12 @@ export default function App() {
 
   const debouncedRun = useDebouncedFn(runAnalysis, 300);
 
-  // Auto-run whenever code, config, or options change (if enabled)
+  // Auto-run whenever code, config, or options change (if enabled).
+  // Only for the batch engine — auto-restarting a live interactive/DAP
+  // session on every keystroke would be hostile.
   useEffect(() => {
-    if (autoRun) debouncedRun();
+    const engine = (optionValues["-engine"] as string) ?? "automatic";
+    if (autoRun && engine === "automatic") debouncedRun();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoRun, code, configText, JSON.stringify(optionValues)]);
 

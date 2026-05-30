@@ -3,6 +3,8 @@ import { KindBreakdown } from "./KindBreakdown";
 import { RawOutput } from "./RawOutput";
 import { StatTiles } from "./StatTiles";
 import { WarningsBox } from "./WarningsBox";
+import { InteractiveTerminal } from "./InteractiveTerminal";
+import { DebugPanel } from "@/components/Debug/DebugPanel";
 
 export function RightPanel() {
   const checks = useAppStore((s) => s.checks);
@@ -12,6 +14,28 @@ export function RightPanel() {
   const analysisTime = useAppStore((s) => s.analysisTime);
   const analysisError = useAppStore((s) => s.analysisError);
   const analysisSuccess = useAppStore((s) => s.analysisSuccess);
+  const engine = useAppStore(
+    (s) => (s.optionValues["-engine"] as string) ?? "automatic",
+  );
+
+  // Live engines replace the results view with their own surface.
+  if (engine === "interactive" || engine === "dap") {
+    return (
+      <div
+        style={{
+          height: "100%",
+          background: "var(--bg-surface)",
+          borderLeft: "1px solid var(--border)",
+          display: "flex",
+          flexDirection: "column",
+          padding: 16,
+          boxSizing: "border-box",
+        }}
+      >
+        {engine === "interactive" ? <InteractiveTerminal /> : <DebugPanel />}
+      </div>
+    );
+  }
 
   return (
     <div

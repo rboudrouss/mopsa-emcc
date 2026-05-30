@@ -23,6 +23,9 @@ export function TopBar({
   const analysisTime = useAppStore((s) => s.analysisTime);
   const autoRun = useAppStore((s) => s.autoRun);
   const toggleAutoRun = useAppStore((s) => s.toggleAutoRun);
+  const engine = useAppStore(
+    (s) => (s.optionValues["-engine"] as string) ?? "automatic",
+  );
   const fileTree = useAppStore((s) => s.fileTree);
   const activeFile = useAppStore((s) => s.activeFile);
   const lang = useAppStore((s) => s.lang);
@@ -32,6 +35,12 @@ export function TopBar({
       activeFile,
       lang,
     }) === "multilanguage";
+
+  // Auto-run is meaningless for the live engines (interactive/dap), which run
+  // one long session — lock the toggle off without destroying the stored
+  // preference, so it returns when switching back to automatic.
+  const sessionMode = engine === "interactive" || engine === "dap";
+  const autoRunActive = autoRun && !sessionMode;
 
   const safe = checks.filter((c) => c.kind === "safe").length;
   const total = checks.length;
@@ -129,28 +138,36 @@ export function TopBar({
 
       <EntryPointPicker />
 
-      {/* Auto-run toggle */}
+      {/* Auto-run toggle (locked off for live engines) */}
       <button
-        onClick={toggleAutoRun}
-        title={autoRun ? "Disable auto-run" : "Enable auto-run"}
+        onClick={sessionMode ? undefined : toggleAutoRun}
+        disabled={sessionMode}
+        title={
+          sessionMode
+            ? `Auto-run is unavailable in ${engine} mode`
+            : autoRun
+              ? "Disable auto-run"
+              : "Enable auto-run"
+        }
         style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           width: 32,
           height: 32,
-          background: autoRun
+          background: autoRunActive
             ? "color-mix(in srgb, #f5b544 15%, transparent)"
             : "none",
-          border: `1px solid ${autoRun ? "#f5b544" : "var(--border)"}`,
+          border: `1px solid ${autoRunActive ? "#f5b544" : "var(--border)"}`,
           borderRadius: 6,
-          cursor: "pointer",
-          color: autoRun ? "#f5b544" : "var(--text-muted)",
+          cursor: sessionMode ? "not-allowed" : "pointer",
+          color: autoRunActive ? "#f5b544" : "var(--text-muted)",
+          opacity: sessionMode ? 0.4 : 1,
           flexShrink: 0,
           transition: "all 150ms",
         }}
       >
-        {autoRun ? <ZapIcon size={14} /> : <ZapOffIcon size={14} />}
+        {autoRunActive ? <ZapIcon size={14} /> : <ZapOffIcon size={14} />}
       </button>
 
       {/* Run button */}

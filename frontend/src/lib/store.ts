@@ -211,9 +211,15 @@ interface AppStore {
   // ── Auto-run ─────────────────────────────────────────────────────────────
   autoRun: boolean;
 
+  // ── Interactive / DAP session (runtime only, not persisted) ──────────────
+  // Bumped each time the user asks to (re)start a session for the current
+  // engine; the terminal/debug component watches it to launch the run.
+  sessionNonce: number;
+
   // ── Actions ──────────────────────────────────────────────────────────────
   setPresets: (presets: shareData) => void;
   toggleAutoRun: () => void;
+  requestSessionStart: () => void;
   setCode: (code: string) => void;
   setConfigText: (text: string, dirty?: boolean) => void;
   applyPreset: (name: string, text: string) => void;
@@ -289,10 +295,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
   fileTree: _initialTree,
   activeFile: _initialActiveFile,
   autoRun: _restored?.autoRun ?? true,
+  sessionNonce: 0,
 
   // ── Presets ────────────────────────────────────────────────────────────
   setPresets: (presets) => set({ presets }),
   toggleAutoRun: () => set((s) => ({ autoRun: !s.autoRun })),
+  requestSessionStart: () =>
+    set((s) => ({ sessionNonce: s.sessionNonce + 1 })),
 
   // ── Code / config ──────────────────────────────────────────────────────
   setCode: (code) => {

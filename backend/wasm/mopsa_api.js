@@ -38,26 +38,65 @@
   var _extraFiles = {}; // path → content
 
   // ── Worker setup ─────────────────────────────────────────────────────────
-  var _worker = new Worker("./mopsa_worker.js");
-  var _pending = {}; // id → resolve function
+  var _worker = null;
+  var _pending = {}; // id → resolve function (batch analyses)
   var _nextId = 0;
+  var _session = null; // active interactive/dap session handle, or null
 
-  _worker.onmessage = function (event) {
+  function _handleMessage(event) {
     var msg = event.data;
-    if (msg.type === "result" && _pending[msg.id]) {
-      var resolve = _pending[msg.id];
-      delete _pending[msg.id];
-      resolve(msg.output);
+    if (!msg) return;
+    switch (msg.type) {
+      case "result": // batch analysis finished
+        if (_pending[msg.id]) {
+          var resolve = _pending[msg.id];
+          delete _pending[msg.id];
+          resolve(msg.output);
+        }
+        break;
+      case "started":
+        if (_session && _session._id === msg.id) _session._emit("started");
+        break;
+      case "stdout-bytes":
+        if (_session && _session._id === msg.id) _session._emit("data", msg.bytes);
+        break;
+      case "session-ended":
+        if (_session && _session._id === msg.id) {
+          var ended = _session;
+          _session = null;
+          ended._emit("end", msg.code);
+        }
+        break;
+      case "session-error":
+        if (_session && _session._id === msg.id) {
+          var errored = _session;
+          _session = null;
+          errored._emit("error", msg.message);
+        }
+        break;
     }
-  };
+  }
 
-  _worker.onerror = function (e) {
+  function _handleError(e) {
     console.error("[Mopsa] Worker error:", e);
+    var emsg = "[Worker error] " + ((e && e.message) || e);
     Object.keys(_pending).forEach(function (id) {
-      _pending[id]("[Worker error] " + ((e && e.message) || e));
+      _pending[id](emsg);
       delete _pending[id];
     });
-  };
+    if (_session) {
+      var s = _session;
+      _session = null;
+      s._emit("error", emsg);
+    }
+  }
+
+  function _spawnWorker() {
+    _worker = new Worker("./mopsa_worker.js");
+    _worker.onmessage = _handleMessage;
+    _worker.onerror = _handleError;
+  }
+  _spawnWorker();
 
   // ── Public API ───────────────────────────────────────────────────────────
   window.mopsaJs = {
@@ -84,6 +123,86 @@
           extraFiles: _extraFiles,
         });
       });
+    },
+
+    /**
+     * startSession(engine, options) → SessionHandle
+     *
+     * Begin a long-lived interactive ('interactive') or debugger ('dap')
+     * run. stdin is fed synchronously over a SharedArrayBuffer channel
+     * (requires cross-origin isolation); stdout/stderr stream back as raw
+     * bytes. Only one session may run at a time (it monopolises the worker).
+     *
+     * Do NOT include -engine in `options`; the worker appends it from `engine`.
+     */
+    startSession: function (engine, options) {
+      if (typeof SharedArrayBuffer === "undefined" || !self.crossOriginIsolated) {
+        throw new Error(
+          "The " +
+            engine +
+            " engine needs cross-origin isolation (SharedArrayBuffer). " +
+            "Serve COOP/COEP headers.",
+        );
+      }
+      if (_session) _session.kill(); // one session at a time
+
+      var id = _nextId++;
+      var channel = self.syncMessage.makeChannel({
+        atomics: { bufferSize: 256 * 1024 },
+      });
+      var listeners = { started: [], data: [], end: [], error: [] };
+
+      var handle = {
+        engine: engine,
+        _id: id,
+        _emit: function (ev, arg) {
+          listeners[ev].slice().forEach(function (cb) {
+            cb(arg);
+          });
+        },
+        onStarted: function (cb) {
+          listeners.started.push(cb);
+        },
+        onData: function (cb) {
+          listeners.data.push(cb);
+        },
+        onEnd: function (cb) {
+          listeners.end.push(cb);
+        },
+        onError: function (cb) {
+          listeners.error.push(cb);
+        },
+        sendInput: function (data) {
+          self.syncMessage.writeMessage(channel, { data: data });
+        },
+        sendEof: function () {
+          self.syncMessage.writeMessage(channel, { eof: true });
+        },
+        kill: function () {
+          var wasActive = _session === handle;
+          if (wasActive) _session = null;
+          // The worker is blocked in Atomics.wait and ignores postMessage,
+          // so the only reliable interrupt is to terminate and respawn.
+          _worker.terminate();
+          _spawnWorker();
+          if (wasActive) handle._emit("end", -1);
+        },
+      };
+      _session = handle;
+
+      _worker.postMessage({
+        type: "start",
+        id: id,
+        engine: engine,
+        options: options || [],
+        code: _code,
+        config: _config,
+        codeFile: _codeFile,
+        extraFiles: _extraFiles,
+        stdinChannel: channel,
+      });
+
+      return handle;
     },
 
     // ── Code / config helpers (synchronous, no WASM needed) ───────────────

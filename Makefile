@@ -432,7 +432,7 @@ final-web: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o 
 	--preload-file $(INSTALL_DIR)/lib/clang/9.0.1/include@/clang-headers/include \
 	--preload-file $(LINUX32_INCLUDE_DIR)@/usr/include \
 	--preload-file $(DEPS_DIR)/mopsa-analyzer/share/mopsa@/share/mopsa \
-	-s EXPORTED_RUNTIME_METHODS="['FS']" \
+	-s EXPORTED_RUNTIME_METHODS="['FS','ENV']" \
 	--pre-js backend/wasm/pre.js --post-js backend/wasm/post.js -L$(LIBS_DIR) \
 	-Wl,--wrap=ap_fpu_init $(BUILD_DIR)/ap_fpu_wasm.o \
 	$(DEPS_BIN_DIR)/*.a $(LIBS_DIR)/*.a \
