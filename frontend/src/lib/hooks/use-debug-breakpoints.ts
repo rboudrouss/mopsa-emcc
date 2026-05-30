@@ -23,6 +23,11 @@ export function useDebugBreakpoints(
   const collectionRef =
     useRef<Monaco.editor.IEditorDecorationsCollection | null>(null);
 
+  // Current file's breakpoint lines, kept in a ref so the (mount-stable) hover
+  // handler can avoid drawing a hint dot over an existing breakpoint.
+  const bpLinesRef = useRef<number[]>([]);
+  bpLinesRef.current = breakpoints[codeFilePath] ?? [];
+
   // Toggle a breakpoint when the glyph margin is clicked.
   useEffect(() => {
     const editor = editorRef.current;
@@ -36,6 +41,40 @@ export function useDebugBreakpoints(
     });
     return () => sub.dispose();
   }, [editorRef, monacoRef, codeFilePath, enabled, mountKey, toggleBreakpoint]);
+
+  // VS-Code-style affordance: show a faint dot in the gutter on the hovered
+  // line, so it's discoverable that the gutter is clickable for breakpoints.
+  useEffect(() => {
+    const editor = editorRef.current;
+    const monaco = monacoRef.current;
+    if (!editor || !monaco || !enabled) return;
+    const hint = editor.createDecorationsCollection([]);
+    const clear = () => hint.set([]);
+    const move = editor.onMouseMove((e) => {
+      const t = e.target;
+      const line = t.position?.lineNumber;
+      if (
+        t.type === monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN &&
+        line &&
+        !bpLinesRef.current.includes(line)
+      ) {
+        hint.set([
+          {
+            range: new monaco.Range(line, 1, line, 1),
+            options: { glyphMarginClassName: "mopsa-bp-hint" },
+          },
+        ]);
+      } else {
+        clear();
+      }
+    });
+    const leave = editor.onMouseLeave(clear);
+    return () => {
+      move.dispose();
+      leave.dispose();
+      hint.clear();
+    };
+  }, [editorRef, monacoRef, enabled, mountKey]);
 
   // Render breakpoint dots + current stop line.
   useEffect(() => {

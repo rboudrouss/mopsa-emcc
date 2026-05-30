@@ -8,7 +8,7 @@ import { DapConsole } from "./DapConsole";
 import { AlarmsView } from "./AlarmsView";
 
 const STATUS_LABEL: Record<DebugStatus, string> = {
-  idle: "press Run to start",
+  idle: "press ▶ to start",
   initializing: "starting…",
   running: "running…",
   stopped: "paused",

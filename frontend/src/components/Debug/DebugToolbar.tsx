@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import type { DebugControls } from "@/lib/hooks/use-debug-session";
 import { useDebugStore } from "@/lib/store-debug";
+import { useAppStore } from "@/lib/store";
 
 const btn: React.CSSProperties = {
   display: "inline-flex",
@@ -24,8 +25,12 @@ const btn: React.CSSProperties = {
 
 export function DebugToolbar({ controls }: { controls: DebugControls }) {
   const status = useDebugStore((s) => s.status);
+  const requestSessionStart = useAppStore((s) => s.requestSessionStart);
+
   const stopped = status === "stopped";
-  const active = status === "stopped" || status === "running" || status === "initializing";
+  const busy = status === "running" || status === "initializing";
+  const live = stopped || busy; // a session is currently running/paused
+  const finished = status === "terminated" || status === "error";
 
   const Item = ({
     onClick,
@@ -50,7 +55,12 @@ export function DebugToolbar({ controls }: { controls: DebugControls }) {
 
   return (
     <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-      <Item title="Continue" onClick={controls.cont} disabled={!stopped}>
+      {/* Play: resume when paused, otherwise (re)launch the analysis. */}
+      <Item
+        title={stopped ? "Continue" : "Start analysis"}
+        onClick={stopped ? controls.cont : requestSessionStart}
+        disabled={busy}
+      >
         <Play size={15} />
       </Item>
       <Item title="Step over" onClick={controls.next} disabled={!stopped}>
@@ -62,10 +72,15 @@ export function DebugToolbar({ controls }: { controls: DebugControls }) {
       <Item title="Step out" onClick={controls.stepOut} disabled={!stopped}>
         <ArrowUp size={15} />
       </Item>
-      <Item title="Restart" onClick={controls.restart} disabled={!active}>
+      {/* Restart: relaunch from scratch (also the way to rerun once finished). */}
+      <Item
+        title="Restart analysis"
+        onClick={requestSessionStart}
+        disabled={!(stopped || finished)}
+      >
         <RotateCcw size={14} />
       </Item>
-      <Item title="Stop" onClick={controls.disconnect} disabled={!active}>
+      <Item title="Stop" onClick={controls.disconnect} disabled={!live}>
         <Square size={13} />
       </Item>
     </div>
