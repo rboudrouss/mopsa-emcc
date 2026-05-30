@@ -438,6 +438,20 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   setAnalysisResult: (r) => {
+    // Text output is shown verbatim in a terminal; there's nothing to parse,
+    // so don't surface "analysis failed" or the (irrelevant) results panel.
+    if ((get().optionValues["-format"] ?? "json") === "text") {
+      set({
+        rawOutput: r.raw,
+        checks: [],
+        warnings: "",
+        selectivity: null,
+        analysisTime: r.durationMs / 1000,
+        analysisSuccess: null,
+        analysisError: null,
+      });
+      return;
+    }
     const p = r.parsed;
     let error: string | null = null;
     if (!p) {

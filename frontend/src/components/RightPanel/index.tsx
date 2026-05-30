@@ -1,6 +1,7 @@
 import { useAppStore } from "@/lib/store";
 import { KindBreakdown } from "./KindBreakdown";
 import { RawOutput } from "./RawOutput";
+import { OutputTerminal } from "./OutputTerminal";
 import { StatTiles } from "./StatTiles";
 import { WarningsBox } from "./WarningsBox";
 import { InteractiveTerminal } from "./InteractiveTerminal";
@@ -16,6 +17,9 @@ export function RightPanel() {
   const analysisSuccess = useAppStore((s) => s.analysisSuccess);
   const engine = useAppStore(
     (s) => (s.optionValues["-engine"] as string) ?? "automatic",
+  );
+  const format = useAppStore(
+    (s) => (s.optionValues["-format"] as string) ?? "json",
   );
 
   // Live engines replace the results view with their own surface.
@@ -33,6 +37,26 @@ export function RightPanel() {
         }}
       >
         {engine === "interactive" ? <InteractiveTerminal /> : <DebugPanel />}
+      </div>
+    );
+  }
+
+  // Text output is unparseable, so skip the results panel and show the raw
+  // terminal output directly (no summary, no checks, no "analysis failed").
+  if (format === "text") {
+    return (
+      <div
+        style={{
+          height: "100%",
+          background: "var(--bg-surface)",
+          borderLeft: "1px solid var(--border)",
+          display: "flex",
+          flexDirection: "column",
+          padding: 16,
+          boxSizing: "border-box",
+        }}
+      >
+        <OutputTerminal raw={rawOutput} />
       </div>
     );
   }

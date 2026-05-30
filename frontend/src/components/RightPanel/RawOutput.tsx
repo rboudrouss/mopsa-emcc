@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState } from "react";
-import { AnsiTerminal, type AnsiTerminalHandle } from "@/components/ui/AnsiTerminal";
+import { useState } from "react";
 
 interface RawOutputProps {
   raw: string;
@@ -7,20 +6,6 @@ interface RawOutputProps {
 
 export function RawOutput({ raw }: RawOutputProps) {
   const [copied, setCopied] = useState(false);
-  const [open, setOpen] = useState(false);
-  const termRef = useRef<AnsiTerminalHandle>(null);
-
-  // Write into the terminal only while it's mounted (i.e. the <details> is
-  // open). xterm throws if written to while its container is 0×0 (collapsed),
-  // so we mount it lazily on open.
-  useEffect(() => {
-    if (!open) return;
-    const t = termRef.current;
-    if (!t) return;
-    t.reset();
-    if (raw) t.write(raw);
-    t.fit();
-  }, [open, raw]);
 
   if (!raw) return null;
 
@@ -33,10 +18,7 @@ export function RawOutput({ raw }: RawOutputProps) {
   };
 
   return (
-    <details
-      onToggle={(e) => setOpen(e.currentTarget.open)}
-      style={{ display: "flex", flexDirection: "column" }}
-    >
+    <details style={{ display: "flex", flexDirection: "column" }}>
       <summary
         style={{
           fontSize: 11,
@@ -71,19 +53,23 @@ export function RawOutput({ raw }: RawOutputProps) {
           {copied ? "✓ Copied" : "Copy"}
         </button>
       </summary>
-      {open && (
-        <AnsiTerminal
-          ref={termRef}
-          readOnly
-          style={{
-            marginTop: 8,
-            padding: "8px 10px",
-            background: "var(--bg-elevated)",
-            borderRadius: 6,
-            height: 280,
-          }}
-        />
-      )}
+      <pre
+        style={{
+          marginTop: 8,
+          padding: "10px 12px",
+          background: "var(--bg-elevated)",
+          borderRadius: 6,
+          fontSize: 11,
+          fontFamily: "'JetBrains Mono', monospace",
+          lineHeight: 1.6,
+          overflowX: "auto",
+          color: "var(--text-secondary)",
+          whiteSpace: "pre-wrap",
+          wordBreak: "break-all",
+        }}
+      >
+        {raw}
+      </pre>
     </details>
   );
 }
