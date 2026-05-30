@@ -23,7 +23,7 @@ export const OPTIONS_SCHEMA: { group: string; options: OptionSpec[] }[] = [
         default: "automatic",
         mopsaDefault: "automatic",
         label: "Engine",
-        hint: "automatic = one-shot batch; interactive = live REPL terminal; dap = step debugger",
+        hint: "Selects analysis mode",
         choices: ["automatic", "interactive", "dap"],
       },
     ],
