@@ -40,7 +40,7 @@ export default function App() {
     }
   }, [isSuccess, presets, applyPreset, setPresets]);
 
-  const debouncedRun = useDebouncedFn(runAnalysis, 300);
+  const debouncedRun = useDebouncedFn(runAnalysis, 500);
 
   const prevRunSig = useRef<string | null>(null);
   const prevActiveFile = useRef<string | null>(activeFile);
