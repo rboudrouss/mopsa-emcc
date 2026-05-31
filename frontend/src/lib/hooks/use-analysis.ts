@@ -12,7 +12,10 @@ export function useAnalysis() {
       if (!args) return Promise.resolve({ raw: "", parsed: null, durationMs: 0 });
       return analyzeJson(args);
     },
-    onSuccess: setAnalysisResult,
+    // null ⇒ this run was superseded by a newer one; keep the current result.
+    onSuccess: (r) => {
+      if (r) setAnalysisResult(r);
+    },
   });
 
   return {

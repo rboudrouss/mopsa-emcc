@@ -91,6 +91,18 @@
     }
   }
 
+  // Settle every queued/in-flight batch analysis as superseded. Resolving with
+  // null (rather than rejecting) keeps these off the error path: analyzeJson
+  // maps null straight through and useAnalysis skips it, so the last good
+  // result stays on screen until the newest analysis completes.
+  function _cancelPendingBatches() {
+    Object.keys(_pending).forEach(function (id) {
+      var resolve = _pending[id];
+      delete _pending[id];
+      resolve(null);
+    });
+  }
+
   function _spawnWorker() {
     _worker = new Worker("./mopsa_worker.js");
     _worker.onmessage = _handleMessage;
@@ -103,13 +115,27 @@
     configUni: CONFIG_UNI,
 
     /**
-     * analyze(options: string[]) → Promise<string>
+     * analyze(options: string[]) → Promise<string | null>
      *
      * Sends the current code/config/files to the Web Worker, which
      * instantiates a fresh WASM module, runs the Mopsa CLI, and posts back
      * the captured output.
+     *
+     * Auto-analysis fires a fresh run on every edit, but a C+Python batch can
+     * take ~20s and the worker runs WASM synchronously — it ignores postMessage
+     * mid-run, so queued analyses would otherwise pile up and run one after the
+     * other. So a new analyze() supersedes any in-flight/queued one: the stale
+     * runs resolve with null (the React layer ignores a null result and keeps
+     * the previous output) and we terminate + respawn the worker — the same
+     * interrupt sessions use, since a blocked worker can't be cancelled
+     * otherwise. Only the latest request ever produces a real result.
      */
     analyze: function (options) {
+      if (!_session && Object.keys(_pending).length > 0) {
+        _cancelPendingBatches();
+        _worker.terminate();
+        _spawnWorker();
+      }
       return new Promise(function (resolve) {
         var id = _nextId++;
         _pending[id] = resolve;

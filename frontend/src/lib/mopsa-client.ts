@@ -247,7 +247,7 @@ export function computeOptionsFlags(values: Record<string, unknown>): string[] {
 
 export async function analyzeJson(
   extraOptions: string[],
-): Promise<AnalysisResult> {
+): Promise<AnalysisResult | null> {
   let isHelp =
     extraOptions.includes("-help") ||
     extraOptions.includes("--help") ||
@@ -262,12 +262,15 @@ export async function analyzeJson(
     : [...extraOptions];
 
   const t0 = performance.now();
-  let raw = "";
+  let raw: string | null = "";
   try {
     raw = await mopsaJs.analyze(options);
   } catch (e) {
     raw = String(e);
   }
+  // null ⇒ a newer analyze() superseded this run; report nothing so the caller
+  // leaves the previous result on screen.
+  if (raw === null) return null;
   const durationMs = performance.now() - t0;
 
   return {

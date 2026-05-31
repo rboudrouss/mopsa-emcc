@@ -28,10 +28,12 @@ declare global {
     configUni: string;
 
     /**
-     * Run an analysis and return the captured stdout/stderr output.
-     * Async because it hands off to the OCaml event loop in WASM.
+     * Run an analysis and return the captured stdout/stderr output, or null if
+     * the run was superseded by a newer analyze() call (the in-flight run is
+     * interrupted by terminating + respawning the worker). Async because it
+     * hands off to the OCaml event loop in WASM.
      */
-    analyze: (options: string[]) => Promise<string>;
+    analyze: (options: string[]) => Promise<string | null>;
 
     /**
      * Start a long-lived interactive or DAP session. Do NOT pass -engine in
