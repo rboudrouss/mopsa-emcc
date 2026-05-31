@@ -108,9 +108,10 @@ PyInit_mymod(void)
 }
 `,
   "main.py": `import mymod
+import random
 
 # Reaches the C function, which divides without guarding against b == 0.
-print(mymod.divide(10, 0))  # alarm: triggers division by zero in mymod.c
+print(mymod.divide(10, random.randint(-10, 10)))  # alarm: triggers division by zero in mymod.c
 `,
 };
 
