@@ -35,6 +35,9 @@ interface PersistedState {
   pyEntryPoint: string | null;
   autoRun: boolean;
   activePanel: ActivePanel;
+  // Which options categories are expanded in the sidebar. Optional so older
+  // saved state (without it) still loads — missing means "all collapsed".
+  openCategories?: Record<string, boolean>;
 }
 
 interface RestoredState {
@@ -53,6 +56,7 @@ interface RestoredState {
   pyEntryPoint: string | null;
   autoRun: boolean;
   activePanel: ActivePanel;
+  openCategories: Record<string, boolean>;
 }
 
 interface StateToSave {
@@ -67,6 +71,7 @@ interface StateToSave {
   pyEntryPoint: string | null;
   autoRun: boolean;
   activePanel: ActivePanel;
+  openCategories: Record<string, boolean>;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -186,6 +191,7 @@ export function loadAndRestoreState(): RestoredState | null {
       pyEntryPoint: saved.pyEntryPoint,
       autoRun: saved.autoRun,
       activePanel: saved.activePanel,
+      openCategories: saved.openCategories ?? {},
     };
   } catch {
     return null;

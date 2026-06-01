@@ -213,7 +213,8 @@ function OptionsGroup({
   group: string;
   options: OptionSpec[];
 }) {
-  const [open, setOpen] = useState(false);
+  const open = useAppStore((s) => s.openCategories[group] ?? false);
+  const toggleCategory = useAppStore((s) => s.toggleCategory);
   const modifiedCount = useAppStore(
     (s) =>
       options.filter(
@@ -224,7 +225,7 @@ function OptionsGroup({
   return (
     <div>
       <button
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => toggleCategory(group)}
         style={{
           display: "flex",
           alignItems: "center",

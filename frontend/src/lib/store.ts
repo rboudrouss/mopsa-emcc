@@ -205,6 +205,7 @@ interface AppStore {
   // ── Options ──────────────────────────────────────────────────────────────
   optionValues: Record<string, unknown>;
   pyEntryPoint: string | null; // null = auto (active file)
+  openCategories: Record<string, boolean>; // expanded options categories
 
   // ── Custom configs (saved per language/mode) ─────────────────────────────
   customConfigs: Partial<Record<string, string>>;
@@ -231,6 +232,7 @@ interface AppStore {
   setActiveTab: (tab: ActiveTab) => void;
   setOptionValue: (flag: string, value: unknown) => void;
   resetOption: (flag: string) => void;
+  toggleCategory: (group: string) => void;
   setPyEntryPoint: (path: string | null) => void;
   setWorkspaceMode: (id: string, mode: WorkspaceMode | undefined) => void;
 
@@ -305,6 +307,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   activePanel: _restored?.activePanel ?? "files",
   activeTab: "source",
   optionValues: _restored?.optionValues ?? { ...DEFAULT_OPTION_VALUES },
+  openCategories: _restored?.openCategories ?? {},
   pyEntryPoint: _restored?.pyEntryPoint ?? null,
   fileTree: _initialTree,
   activeFile: _initialActiveFile,
@@ -539,6 +542,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
       ...CLEARED_ANALYSIS,
     }));
   },
+
+  toggleCategory: (group) =>
+    set((s) => ({
+      openCategories: { ...s.openCategories, [group]: !s.openCategories[group] },
+    })),
 
   setPyEntryPoint: (path) => set({ pyEntryPoint: path }),
 
@@ -865,6 +873,7 @@ useAppStore.subscribe((state) => {
       pyEntryPoint: state.pyEntryPoint,
       autoRun: state.autoRun,
       activePanel: state.activePanel,
+      openCategories: state.openCategories,
     });
   }, 1000);
 });
