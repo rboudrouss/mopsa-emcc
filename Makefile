@@ -42,6 +42,18 @@ NPM := pnpm
 DOCKER := docker
 DOCKER_IMAGE_32BC := mopsa-emcc-32bc
 
+# Source of the OCaml bytecode embedded in the wasm build:
+#   docker32 (default) : 32-bit bytecode built in a linux/386 container so that
+#                        integer widths match the wasm32 runtime (31-bit ints).
+#   native             : 64-bit bytecode built with the host opam switch below.
+#                        Experimental: tests whether the 32-bit build is really
+#                        required.  Use with `make MOPSA_BC_SRC=native ...`.
+MOPSA_BC_SRC ?= docker32
+NATIVE_SWITCH := 4.12.0
+NATIVE_OPAM_EXEC := opam exec --switch=$(NATIVE_SWITCH) --
+NATIVE_BUILD_DIR := $(CURDIR)/_build
+MOPSA_SRC := $(DEPS_DIR)/mopsa-analyzer
+
 FRONTEND_DIR := $(CURDIR)/frontend
 LINUX32_INCLUDE_DIR := $(BUILD_DIR)/linux32-include
 
@@ -55,7 +67,7 @@ CCX=g++-11
 
 # Phony targets
 .PHONY: all final final-node final-web deps gmp mpfr camlidl gmp_caml zarith apron apron_caml \
-        mopsa_floats libcamlrun prims mopsa-bc \
+        mopsa_floats libcamlrun prims mopsa-bc mopsa-bc-native mopsa-install-native \
         llvm-tblgen clang-wasm clang_to_ml clang-resource-headers \
         docker-image-32bc mopsa-bc-32 extract-32-headers \
         clean clean-project clean-ocaml clean-mopsa clean-gmp clean-mpfr clean-apron clean-llvm \
@@ -329,10 +341,39 @@ $(DEPS_BIN_DIR)/libmopsa_c_parser.a: $(CLANG_TO_ML_SRC) $(LLVM_WASM_BUILD)/lib/l
 
 mopsa-bc: $(BUILD_DIR)/mopsa.bc
 
-# mopsa.bc is now the 32-bit bytecode produced by the Docker build so that
-# integer widths match the wasm32 OCaml runtime (31-bit ints, not 63-bit).
+# mopsa.bc is assembled from either the 32-bit Docker build (default) or the
+# native 64-bit host build, selected by MOPSA_BC_SRC.
+ifeq ($(MOPSA_BC_SRC),native)
+$(BUILD_DIR)/mopsa.bc: $(BUILD_DIR)/mopsa-native.bc
+	cp -f $(BUILD_DIR)/mopsa-native.bc $(BUILD_DIR)/mopsa.bc
+else
 $(BUILD_DIR)/mopsa.bc: $(BUILD_DIR)/mopsa-32.bc
 	cp -f $(BUILD_DIR)/mopsa-32.bc $(BUILD_DIR)/mopsa.bc
+endif
+
+# Build + install the patched mopsa from the local submodule into the native
+# opam switch, so mopsa-native.bc links the up-to-date analyzer (incl. the
+# cpython/lvalue_ref fixes).  configure bakes the host clang path into the C
+# parser's dune, so this REQUIRES a mopsa-compatible host clang (<= 19) to
+# compile the native Clang_to_ml.cc stub.  Mirrors what the Docker build does.
+mopsa-install-native:
+	cd $(MOPSA_SRC) && $(NATIVE_OPAM_EXEC) ./configure
+	$(NATIVE_OPAM_EXEC) dune build --root $(MOPSA_SRC) @install --profile release
+	$(NATIVE_OPAM_EXEC) dune install --root $(MOPSA_SRC) mopsa \
+		--prefix=$$($(NATIVE_OPAM_EXEC) opam var prefix) --profile release
+	rm -f $(BUILD_DIR)/mopsa-native.bc
+
+# Native 64-bit bytecode, built with the host opam switch (no Docker).
+# Links against the mopsa libraries installed in the $(NATIVE_SWITCH) switch
+# (run `make mopsa-install-native` first to refresh them from local sources).
+mopsa-bc-native: $(BUILD_DIR)/mopsa-native.bc
+
+$(BUILD_DIR)/mopsa-native.bc: | $(BUILD_DIR)
+	$(NATIVE_OPAM_EXEC) dune build \
+		--build-dir=$(NATIVE_BUILD_DIR) \
+		backend/wasm/mopsa_worker.bc \
+		--profile release
+	cp -f $(NATIVE_BUILD_DIR)/default/backend/wasm/mopsa_worker.bc $@
 
 # 32-bit bytecode via Docker (for wasm32 targets where int width matters)
 # Uses a linux/386 container so the OCaml runtime compiles with 31-bit ints.
