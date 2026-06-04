@@ -52,12 +52,16 @@ function stripComments(src) {
 /** Join backslash-continued lines. */
 const joinContinuations = (s) => s.replace(/\\\r?\n/g, " ");
 
-/** Regex that matches a CAMLprim function *header* and captures the name.
- *  Accepts any return type (value, double, int64_t, LLVMFoo, …) and
- *  optional qualifiers between CAMLprim and the identifier (CAMLweakdef,
- *  extern "C", …).  The function name is captured in group 1. */
+/** Regex that matches a CAMLprim/CAMLexport function returning `value` and
+ *  captures the name.  Bytecode primitives MUST return `value` (OCaml's own
+ *  gen_primitives.sh in `runtime/` uses `^CAMLprim value \(…\)` — we mirror it,
+ *  plus CAMLexport to catch the handful of bytecode-callable functions declared
+ *  with that keyword (e.g. caml_setup_afl, caml_add_debug_info).
+ *  Qualifiers like CAMLweakdef or extern "C" may appear between the keyword
+ *  and `value`; the non-greedy `*?` lets the engine eat them without swallowing
+ *  `value` itself. */
 const PRIM_RE =
-  /\bCAMLprim\s+(?:(?![\({])(?:\w+|"[^"]*")\s+)*([A-Za-z_]\w*)\s*\(/g;
+  /\b(?:CAMLprim|CAMLexport)\s+(?:(?![\({])(?:\w+|"[^"]*")\s+)*?value\s+([A-Za-z_]\w*)\s*\(/g;
 
 /* ------------------------------------------------------------------ */
 /*  Core extraction                                                   */

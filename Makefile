@@ -24,8 +24,8 @@ DEPS_BIN_DIR := $(BUILD_DIR)/deps
 LLVM_WASM_SRC     := $(DEPS_DIR)/llvm-project-wasm
 LLVM_NATIVE_BUILD := $(LLVM_WASM_SRC)/build-native
 LLVM_WASM_BUILD   := $(LLVM_WASM_SRC)/build-wasm
-EMSDK_TOOLCHAIN   := /opt/emsdk/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake
-EMSDK_SYSROOT     := /opt/emsdk/upstream/emscripten/cache/sysroot
+EMSDK_TOOLCHAIN   := /home/rboud/Documents/emsdk/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake
+EMSDK_SYSROOT     := /home/rboud/Documents/emsdk/upstream/emscripten/cache/sysroot
 CLANG_TO_ML_SRC   := $(DEPS_DIR)/mopsa-analyzer/parsers/c/lib/parser/Clang_to_ml.cc
 
 EMCC := emcc
@@ -45,7 +45,7 @@ DOCKER_IMAGE_32BC := mopsa-emcc-32bc
 #                        Experimental: tests whether the 32-bit build is really
 #                        required.  Use with `make MOPSA_BC_SRC=native ...`.
 MOPSA_BC_SRC ?= docker32
-NATIVE_SWITCH := 4.12.0
+NATIVE_SWITCH := 4.14.2
 NATIVE_OPAM_EXEC := opam exec --switch=$(NATIVE_SWITCH) --
 NATIVE_BUILD_DIR := $(CURDIR)/_build
 MOPSA_SRC := $(DEPS_DIR)/mopsa-analyzer
@@ -63,7 +63,7 @@ CCX=g++-11
 
 # Phony targets
 .PHONY: all final final-node final-web deps gmp mpfr camlidl gmp_caml zarith apron apron_caml \
-        mopsa_floats libcamlrun prims mopsa-bc mopsa-bc-native mopsa-install-native \
+        mopsa_floats mopsa_primitives libcamlrun prims mopsa-bc mopsa-bc-native mopsa-install-native \
         llvm-tblgen clang-wasm clang_to_ml clang-resource-headers \
         docker-image-32bc mopsa-bc-32 extract-32-headers \
         clean clean-project clean-ocaml clean-mopsa clean-gmp clean-mpfr clean-apron clean-llvm \
@@ -81,7 +81,17 @@ libcamlrun: $(BUILD_DIR)/libcamlrun.a
 $(BUILD_DIR)/libcamlrun.a: | $(BUILD_DIR)
 	cd $(DEPS_DIR)/ocaml-wasm
 	CFLAGS="$(CFLAGS)" $(EMCONFIGURE) ./configure --disable-native-compiler --disable-ocamltest --disable-ocamldoc --disable-systhreads
-	CFLAGS="$(CFLAGS)" $(MAKE) -C runtime ocamlrun
+	# OCaml 4.14 introduced runtime/sak, a build-time tool used to encode the
+	# stdlib path as a C literal in build_config.h.  emconfigure would compile
+	# it with emcc → .wasm, which can't be exec'd on the host, so the embedded
+	# path silently becomes empty and the byterunner fails to compile.  Force a
+	# host build of BOTH sak.o AND sak (and touch them) so make doesn't retry
+	# with emcc on the dependency chain.
+	rm -f runtime/sak runtime/sak.o runtime/sak.wasm
+	cc -c -o runtime/sak.o runtime/sak.c
+	cc -o runtime/sak runtime/sak.o
+	touch runtime/sak.o runtime/sak
+	CFLAGS="$(CFLAGS)" $(MAKE) -C runtime libcamlrun.a
 	cp runtime/libcamlrun.a $(BUILD_DIR)
 	
 prims: $(BUILD_DIR)/prims.o
@@ -97,10 +107,10 @@ $(BUILD_DIR)/prims.o: | $(BUILD_DIR)
 	echo 'char * caml_names_of_builtin_cprim[] = {'; \
 	sed -e 's/.*/	"&",/' backend/wasm/primitives.txt; \
 	echo '	 0 };') > $(BUILD_DIR)/prims.c
-	$(EMCC) $(EMCC_FLAGS) -c -I $(OCAML_STDLIB) -o $(BUILD_DIR)/prims.o $(BUILD_DIR)/prims.c
+	$(EMCC) $(EMCC_FLAGS) -Wno-incompatible-function-pointer-types -c -I $(OCAML_STDLIB) -o $(BUILD_DIR)/prims.o $(BUILD_DIR)/prims.c
 
 # Build deps
-deps: gmp mpfr camlidl gmp_caml zarith apron apron_caml mopsa_floats clang_to_ml
+deps: gmp mpfr camlidl gmp_caml zarith apron apron_caml mopsa_floats mopsa_primitives clang_to_ml
 
 gmp: $(LIBS_DIR)/libgmp.a
 
@@ -245,6 +255,25 @@ mopsa_floats: $(DEPS_BIN_DIR)/mopsa_floats.a
 $(DEPS_BIN_DIR)/mopsa_floats.a:
 	$(EMCC) $(EMCC_FLAGS) -c -I$(OCAML_STDLIB) -o $(BUILD_DIR)/floats_round.o $(DEPS_DIR)/mopsa-analyzer/utils/itvUtils/floats_round.c
 	$(EMAR) rcs $@ $(BUILD_DIR)/floats_round.o
+
+# Library primitives that mopsa.bc references at link time (unix + regex).
+# These are extracted from Vincent Chan's old OCaml wasm fork (originally part
+# of his runtime patches).  Kept here as standalone TUs rather than patches to
+# the OCaml runtime: keeps deps/ocaml-wasm minimal, easier to upgrade later.
+# systhreads/integers/ctypes/core_kernel were also in his fork but mopsa.bc
+# never references their primitives (verified via `strings build/mopsa.bc`).
+PRIMS_DIR := $(DEPS_DIR)/primitives
+PRIMS_SOURCES := $(wildcard $(PRIMS_DIR)/unix/*.c) $(wildcard $(PRIMS_DIR)/str/*.c)
+PRIMS_OBJECTS := $(patsubst $(PRIMS_DIR)/%.c,$(BUILD_DIR)/primitives/%.o,$(PRIMS_SOURCES))
+
+mopsa_primitives: $(DEPS_BIN_DIR)/libmopsa_primitives.a
+
+$(BUILD_DIR)/primitives/%.o: $(PRIMS_DIR)/%.c | $(BUILD_DIR)
+	mkdir -p $(dir $@)
+	$(EMCC) $(EMCC_FLAGS) -DHAS_REALPATH -c -I$(OCAML_STDLIB) -I$(PRIMS_DIR)/unix -o $@ $<
+
+$(DEPS_BIN_DIR)/libmopsa_primitives.a: $(PRIMS_OBJECTS) | $(DEPS_BIN_DIR)
+	$(EMAR) rcs $@ $(PRIMS_OBJECTS)
 
 # Apron FPU override: silences the spurious "platform not supported" warning.
 # NUM_MPQ domains use exact GMP arithmetic, so no hardware rounding is needed.
