@@ -13,8 +13,8 @@
 	path = deps/camlidl
 	url = git@github.com:xavierleroy/camlidl.git
 	ignore = untracked
-[submodule "deps/llvm-project-wasm"]
-	path = deps/llvm-project-wasm
+[submodule "deps/llvm-project"]
+	path = deps/llvm-project
 	url = git@github.com:llvm/llvm-project.git
 	ignore = untracked
 [submodule "deps/ocaml-wasm"]
