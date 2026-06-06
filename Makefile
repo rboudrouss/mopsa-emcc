@@ -61,6 +61,11 @@ OCAML_STDLIB := $(DEPS_DIR)/ocaml-wasm/runtime
 CC=gcc-11
 CCX=g++-11
 
+# CAMLIDL config
+CAMLIDL := $(shell opam var bin)/camlidl
+PERL := /usr/bin/perl
+CAMLIDL_CFLAGS := -I$(OCAML_STDLIB) -I$(shell opam var lib)/camlidl -I$(INSTALL_DIR)/include
+
 # Phony targets
 .PHONY: all final final-node final-web deps gmp mpfr camlidl gmp_caml zarith apron apron_caml \
         mopsa_floats mopsa_primitives libcamlrun prims mopsa-bc mopsa-bc-native mopsa-install-native \
@@ -70,7 +75,7 @@ CCX=g++-11
         clean-docker-32bc
 
 # Targets
-all: final
+all: final-web
 
 $(INSTALL_DIR) $(LIBS_DIR) $(DIST_DIR) $(DEPS_DIR) $(BUILD_DIR) $(DEPS_BIN_DIR):
 	mkdir -p $(INSTALL_DIR) $(LIBS_DIR) $(DIST_DIR) $(DEPS_DIR) $(BUILD_DIR) $(DEPS_BIN_DIR)
@@ -188,9 +193,6 @@ $(LIBS_DIR)/libapron.a: $(LIBS_DIR)/libgmp.a $(LIBS_DIR)/libmpfr.a
 apron_caml: $(DEPS_BIN_DIR)/libapron_caml.a $(DEPS_BIN_DIR)/libboxMPQ_caml.a \
             $(DEPS_BIN_DIR)/liboctMPQ_caml.a $(DEPS_BIN_DIR)/libpolkaMPQ_caml.a
 
-CAMLIDL := $(shell opam var bin)/camlidl
-PERL := /usr/bin/perl
-CAMLIDL_CFLAGS := -I$(OCAML_STDLIB) -I$(shell opam var lib)/camlidl -I$(INSTALL_DIR)/include
 
 MLAPRONIDL_IDL := scalar interval coeff dim linexpr0 lincons0 generator0 texpr0 tcons0 \
                   manager abstract0 var environment linexpr1 lincons1 generator1 texpr1 \
