@@ -1,21 +1,27 @@
-[submodule "deps/apron"]
-	path = deps/apron
-	url = git@github.com:rboudrouss/apron.git
 [submodule "deps/mopsa-analyzer"]
 	path = deps/mopsa-analyzer
 	url = git@gitlab.com:rboudrouss/mopsa-analyzer-32-bit.git
+[submodule "deps/apron"]
+	path = deps/apron
+	url = git@github.com:antoinemine/apron.git
+	ignore = untracked
 [submodule "deps/mlgmpidl"]
 	path = deps/mlgmpidl
 	url = git@github.com:nberth/mlgmpidl.git
+	ignore = untracked
 [submodule "deps/camlidl"]
 	path = deps/camlidl
 	url = git@github.com:xavierleroy/camlidl.git
+	ignore = untracked
 [submodule "deps/llvm-project-wasm"]
 	path = deps/llvm-project-wasm
-	url = git@github.com:rboudrouss/llvm-project-wasm.git
+	url = git@github.com:llvm/llvm-project.git
+	ignore = untracked
 [submodule "deps/ocaml-wasm"]
 	path = deps/ocaml-wasm
 	url = git@github.com:rboudfork/ocaml.git
+	ignore = untracked
 [submodule "deps/Zarith"]
 	path = deps/Zarith
 	url = git@github.com:ocaml/Zarith.git
+	ignore = untracked
