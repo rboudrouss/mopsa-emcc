@@ -2,7 +2,7 @@
 # Build 32-bit mopsa_worker.bc inside a 32-bit Docker container.
 #
 # Expected environment (provided by the Docker image / Makefile):
-#   - linux/386 container with OCaml 4.12.0 at /opt/ocaml-412 (built from
+#   - linux/386 container with OCaml 4.14.2 at /opt/ocaml-32b (built from
 #     source with --host=i686-linux-gnu so the native compiler targets i386)
 #   - /workspace  : project root mounted from the host
 #   - /root/.opam : mounted as a named Docker volume (persists between runs)
@@ -14,7 +14,7 @@
 
 set -e
 
-SWITCH="4.12.0"
+SWITCH="4.14.2"
 
 cd /workspace
 
@@ -26,7 +26,7 @@ fi
 
 # ── 2. Create switch using the system OCaml (first run only) ─────────────────
 # ocaml-system uses whatever `ocaml` is in PATH, which is our custom-built
-# /opt/ocaml-412 binary.  That binary was compiled with --host=i686-linux-gnu
+# /opt/ocaml-32b binary.  That binary was compiled with --host=i686-linux-gnu
 # so it is a proper i386 native compiler (ocamlopt included).
 if ! opam switch list --short 2>/dev/null | grep -qx "${SWITCH}"; then
     echo "=== Creating OCaml ${SWITCH} switch (system) ==="
