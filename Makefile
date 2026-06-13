@@ -27,6 +27,10 @@ LLVM_WASM_BUILD   := $(LLVM_WASM_SRC)/build-wasm
 EMSDK_TOOLCHAIN   := /home/rboud/Documents/emsdk/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake
 EMSDK_SYSROOT     := /home/rboud/Documents/emsdk/upstream/emscripten/cache/sysroot
 CLANG_TO_ML_SRC   := $(DEPS_DIR)/mopsa-analyzer/parsers/c/lib/parser/Clang_to_ml.cc
+# Clang resource-header directory version.  Since LLVM 16 the resource dir is
+# named by major version only (lib/clang/19), not major.minor.patch.
+CLANG_RES_VER     := 19
+CLANG_RES_INCLUDE := $(INSTALL_DIR)/lib/clang/$(CLANG_RES_VER)/include
 
 EMCC := emcc
 EMCONFIGURE := emconfigure
@@ -336,19 +340,22 @@ $(LLVM_WASM_BUILD)/lib/libclangFrontend.a: $(LLVM_NATIVE_BUILD)/bin/llvm-tblgen
 	  clangFrontend clangParse clangAST clangLex clangBasic \
 	  clangSema clangDriver clangEdit clangSerialization \
 	  clangAnalysis clangStaticAnalyzerCore \
+	  clangAPINotes clangSupport clangASTMatchers \
 	  LLVMSupport LLVMCore LLVMMC LLVMMCParser \
 	  LLVMBinaryFormat LLVMBitReader LLVMBitstreamReader \
-	  LLVMOption LLVMProfileData LLVMDemangle LLVMRemarks
+	  LLVMOption LLVMProfileData LLVMDemangle LLVMRemarks \
+	  LLVMTargetParser LLVMFrontendOpenMP LLVMFrontendHLSL \
+	  LLVMTextAPI LLVMWindowsDriver LLVMCoverage
 
-clang-resource-headers: $(INSTALL_DIR)/lib/clang/9.0.1/include/stddef.h
+clang-resource-headers: $(CLANG_RES_INCLUDE)/stddef.h
 
-$(INSTALL_DIR)/lib/clang/9.0.1/include/stddef.h: $(LLVM_WASM_BUILD)/lib/libclangFrontend.a
+$(CLANG_RES_INCLUDE)/stddef.h: $(LLVM_WASM_BUILD)/lib/libclangFrontend.a
 	CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" ninja -C $(LLVM_WASM_BUILD) install-clang-resource-headers
 
 clang_to_ml: $(DEPS_BIN_DIR)/libmopsa_c_parser.a
 
-$(DEPS_BIN_DIR)/libmopsa_c_parser.a: $(CLANG_TO_ML_SRC) $(LLVM_WASM_BUILD)/lib/libclangFrontend.a $(INSTALL_DIR)/lib/clang/9.0.1/include/stddef.h | $(DEPS_BIN_DIR)
-	em++ -std=c++14 \
+$(DEPS_BIN_DIR)/libmopsa_c_parser.a: $(CLANG_TO_ML_SRC) $(LLVM_WASM_BUILD)/lib/libclangFrontend.a $(CLANG_RES_INCLUDE)/stddef.h | $(DEPS_BIN_DIR)
+	em++ -std=c++17 \
 	  -I$(LLVM_WASM_SRC)/llvm/include \
 	  -I$(LLVM_WASM_SRC)/clang/include \
 	  -I$(LLVM_WASM_BUILD)/include \
@@ -468,7 +475,7 @@ final: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o deps
 	$(EMCC) -Wall -Oz -fno-strict-aliasing -fwrapv \
 	-ffunction-sections -o $(DIST_DIR)/ocamlrun.html \
 	-s ENVIRONMENT='web' --preload-file $(BUILD_DIR)/mopsa.bc \
-	--preload-file $(INSTALL_DIR)/lib/clang/9.0.1/include@/clang-headers/include \
+	--preload-file $(CLANG_RES_INCLUDE)@/clang-headers/include \
 	-s EXPORTED_RUNTIME_METHODS="['ccall', 'cwrap', 'FS', 'run','callMain']" \
 	--pre-js backend/wasm/pre.js --post-js backend/wasm/post.js -L$(LIBS_DIR) \
 	-Wl,--wrap=ap_fpu_init $(BUILD_DIR)/ap_fpu_wasm.o \
@@ -483,7 +490,7 @@ final-node: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o
 	$(EMCC) -Wall -Oz -fno-strict-aliasing -fwrapv \
 	-ffunction-sections -o $(DIST_DIR)/ocamlrun.js \
 	-s ENVIRONMENT='node' --preload-file $(BUILD_DIR)/mopsa.bc@mopsa.bc \
-	--preload-file $(INSTALL_DIR)/lib/clang/9.0.1/include@/clang-headers/include \
+	--preload-file $(CLANG_RES_INCLUDE)@/clang-headers/include \
 	-s EXPORTED_RUNTIME_METHODS="['ccall', 'cwrap', 'FS', 'run','callMain']" \
 	--post-js backend/wasm/post.js -L$(LIBS_DIR) \
 	-Wl,--wrap=ap_fpu_init $(BUILD_DIR)/ap_fpu_wasm.o \
@@ -509,7 +516,7 @@ final-web: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o 
 	-s MODULARIZE=1 \
 	-s EXPORT_NAME='createMopsaModule' \
 	--preload-file $(BUILD_DIR)/mopsa.bc@/build/mopsa.bc \
-	--preload-file $(INSTALL_DIR)/lib/clang/9.0.1/include@/clang-headers/include \
+	--preload-file $(CLANG_RES_INCLUDE)@/clang-headers/include \
 	--preload-file $(LINUX32_INCLUDE_DIR)@/usr/include \
 	--preload-file $(DEPS_DIR)/mopsa-analyzer/share/mopsa@/share/mopsa \
 	-s EXPORTED_RUNTIME_METHODS="['FS','ENV']" \
