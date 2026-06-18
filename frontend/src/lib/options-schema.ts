@@ -15,20 +15,6 @@ export interface OptionSpec {
 
 export const OPTIONS_SCHEMA: { group: string; options: OptionSpec[] }[] = [
   {
-    group: "Engine",
-    options: [
-      {
-        flag: "-engine",
-        type: "select",
-        default: "automatic",
-        mopsaDefault: "automatic",
-        label: "Engine",
-        hint: "Selects analysis mode",
-        choices: ["automatic", "interactive", "dap"],
-      },
-    ],
-  },
-  {
     group: "Alarms",
     options: [
       {
@@ -49,44 +35,7 @@ export const OPTIONS_SCHEMA: { group: string; options: OptionSpec[] }[] = [
     ],
   },
   {
-    group: "Output",
-    options: [
-      {
-        flag: "-format",
-        type: "select",
-        default: "json",
-        mopsaDefault: "text",
-        label: "Format",
-        hint: 'Output format. Changing to "text" will break the results panel',
-        choices: ["json", "text"],
-      },
-      {
-        flag: "-lflow",
-        type: "bool",
-        default: false,
-        label: "Last flow output",
-        hint: "Display the last output",
-      },
-      {
-        flag: "-output",
-        type: "text",
-        default: "",
-        label: "Output file",
-        hint: "Redirect output to a file",
-      },
-      {
-        flag: "-tw",
-        type: "int",
-        default: 4,
-        min: 1,
-        max: 16,
-        label: "Tab width",
-        hint: "Set the tab width for output",
-      },
-    ],
-  },
-  {
-    group: "C Analysis",
+    group: "C",
     options: [
       {
         flag: "-c-entry",
@@ -246,23 +195,6 @@ export const OPTIONS_SCHEMA: { group: string; options: OptionSpec[] }[] = [
         label: "Disable parser cache",
         hint: "Disable the cache of the Clang parser",
       },
-    ],
-  },
-  {
-    group: "C Hooks",
-    options: [
-      {
-        flag: "-c-analysis-bugs-whitelist",
-        type: "text",
-        default: "",
-        label: "Analysis bugs whitelist",
-        hint: "Whitelist of non-terminating functions",
-      },
-    ],
-  },
-  {
-    group: "C Overflow Checks",
-    options: [
       {
         flag: "-c-check-signed-arithmetic-overflow",
         type: "boolArg",
@@ -343,6 +275,18 @@ export const OPTIONS_SCHEMA: { group: string; options: OptionSpec[] }[] = [
     ],
   },
   {
+    group: "C Hooks",
+    options: [
+      {
+        flag: "-c-analysis-bugs-whitelist",
+        type: "text",
+        default: "",
+        label: "Analysis bugs whitelist",
+        hint: "Whitelist of non-terminating functions",
+      },
+    ],
+  },
+  {
     group: "Configuration",
     options: [
       {
@@ -411,6 +355,15 @@ export const OPTIONS_SCHEMA: { group: string; options: OptionSpec[] }[] = [
         default: "",
         label: "Debug channels",
         hint: "Active debug channels (syntax: c1,c2,...,cn; _ as wildcard)",
+      },
+      {
+        flag: "-engine",
+        type: "select",
+        default: "automatic",
+        mopsaDefault: "automatic",
+        label: "Engine",
+        hint: "Selects analysis mode",
+        choices: ["automatic", "interactive", "dap"],
       },
       {
         flag: "-no-warning",
@@ -558,17 +511,8 @@ export const OPTIONS_SCHEMA: { group: string; options: OptionSpec[] }[] = [
     ],
   },
   {
-    group: "Interprocedural",
+    group: "Interproc",
     options: [
-      {
-        flag: "-recursion-limit",
-        type: "int",
-        default: 2,
-        min: 0,
-        max: 20,
-        label: "Recursion limit",
-        hint: "Limit of recursive calls",
-      },
       {
         flag: "-mod-interproc-size",
         type: "int",
@@ -578,12 +522,26 @@ export const OPTIONS_SCHEMA: { group: string; options: OptionSpec[] }[] = [
         label: "Modular interproc cache size",
         hint: "Size of the cache in the modular interprocedural analysis",
       },
+    ],
+  },
+  {
+    group: "Interprocedural Analysis",
+    options: [
       {
         flag: "-disable-var-renaming-recursive-call",
         type: "bool",
         default: false,
         label: "Disable var renaming on recursion",
         hint: "Disable renaming of local variables when detecting recursive calls",
+      },
+      {
+        flag: "-recursion-limit",
+        type: "int",
+        default: 2,
+        min: 0,
+        max: 20,
+        label: "Recursion limit",
+        hint: "Limit of recursive calls",
       },
     ],
   },
@@ -750,7 +708,44 @@ export const OPTIONS_SCHEMA: { group: string; options: OptionSpec[] }[] = [
     ],
   },
   {
-    group: "Partitioning",
+    group: "Output",
+    options: [
+      {
+        flag: "-format",
+        type: "select",
+        default: "json",
+        mopsaDefault: "text",
+        label: "Format",
+        hint: 'Output format. Changing to "text" will break the results panel',
+        choices: ["json", "text"],
+      },
+      {
+        flag: "-lflow",
+        type: "bool",
+        default: false,
+        label: "Last flow output",
+        hint: "Display the last output",
+      },
+      {
+        flag: "-output",
+        type: "text",
+        default: "",
+        label: "Output file",
+        hint: "Redirect output to a file",
+      },
+      {
+        flag: "-tw",
+        type: "int",
+        default: 4,
+        min: 1,
+        max: 16,
+        label: "Tab width",
+        hint: "Set the tab width for output",
+      },
+    ],
+  },
+  {
+    group: "Partitioning (state)",
     options: [
       {
         flag: "-state-partition-int-var",
@@ -773,6 +768,11 @@ export const OPTIONS_SCHEMA: { group: string; options: OptionSpec[] }[] = [
         label: "Keep partition forever",
         hint: "Keep state partition even when variable has been removed",
       },
+    ],
+  },
+  {
+    group: "Partitioning (traces)",
+    options: [
       {
         flag: "-marker",
         type: "text",
