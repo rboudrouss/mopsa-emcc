@@ -2,6 +2,7 @@ import { MoonIcon, PlayIcon, SunIcon, ZapIcon, ZapOffIcon } from "lucide-react";
 import { PulseDot } from "@/components/ui/PulseDot";
 import { useAppStore } from "@/lib/store";
 import { EntryPointPicker } from "@/components/TopBar/EntryPointPicker";
+import { EngineModePicker } from "@/components/TopBar/EngineModePicker";
 import { Languages } from "lucide-react";
 import { getActiveAnalysisMode } from "@/lib/tree";
 
@@ -79,6 +80,41 @@ export function TopBar({
         </span>
       </div>
 
+      {/* Divider between brand and the analysis-mode switcher */}
+      <div
+        style={{
+          width: 1,
+          height: 20,
+          background: "var(--border)",
+          flexShrink: 0,
+        }}
+      />
+
+      {/* Analysis mode — reshapes the right-hand panel (batch / REPL / DAP) */}
+      <EngineModePicker />
+
+      {isMultilang && (
+        <div
+          title="Cross-language analysis (auto-detected from workspace)"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+            padding: "2px 8px",
+            background: "color-mix(in srgb, #818cf8 15%, transparent)",
+            border: "1px solid #818cf8",
+            borderRadius: 12,
+            fontSize: 11,
+            fontWeight: 500,
+            color: "#818cf8",
+            flexShrink: 0,
+          }}
+        >
+          <Languages size={11} />
+          Cross-language
+        </div>
+      )}
+
       <div style={{ flex: 1 }} />
 
       {/* Stats */}
@@ -109,28 +145,6 @@ export function TopBar({
           {selectivity && (
             <span style={{ color: "var(--text-muted)" }}>{selectivity}</span>
           )}
-        </div>
-      )}
-
-      {isMultilang && (
-        <div
-          title="Cross-language analysis (auto-detected from workspace)"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 4,
-            padding: "2px 8px",
-            background: "color-mix(in srgb, #818cf8 15%, transparent)",
-            border: "1px solid #818cf8",
-            borderRadius: 12,
-            fontSize: 11,
-            fontWeight: 500,
-            color: "#818cf8",
-            flexShrink: 0,
-          }}
-        >
-          <Languages size={11} />
-          Cross-language
         </div>
       )}
 

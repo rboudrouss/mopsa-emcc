@@ -11,6 +11,9 @@ export interface OptionSpec {
   min?: number;
   max?: number;
   choices?: string[];
+  /** Kept in the schema (for defaults/flag formatting) but not rendered in the
+   *  generic OptionsPanel — surfaced through a dedicated control instead. */
+  hidden?: boolean;
 }
 
 export const OPTIONS_SCHEMA: { group: string; options: OptionSpec[] }[] = [
@@ -361,6 +364,10 @@ export const OPTIONS_SCHEMA: { group: string; options: OptionSpec[] }[] = [
         type: "select",
         default: "automatic",
         mopsaDefault: "automatic",
+        // Promoted to a first-class mode switcher in the TopBar
+        // (EngineModePicker) — it reshapes the whole interface, so it doesn't
+        // belong in the generic options list.
+        hidden: true,
         label: "Engine",
         hint: "Selects analysis mode",
         choices: ["automatic", "interactive", "dap"],

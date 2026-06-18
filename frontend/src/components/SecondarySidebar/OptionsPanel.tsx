@@ -54,11 +54,13 @@ export function OptionsPanel() {
   const results = useMemo(() => {
     if (tokens.length === 0) return null;
     return OPTIONS_SCHEMA.flatMap((g) =>
-      g.options.map((opt) => ({
-        spec: opt,
-        group: g.group,
-        rank: matchRank(opt, tokens),
-      })),
+      g.options
+        .filter((opt) => !opt.hidden)
+        .map((opt) => ({
+          spec: opt,
+          group: g.group,
+          rank: matchRank(opt, tokens),
+        })),
     )
       .filter(
         (r): r is { spec: OptionSpec; group: string; rank: number } =>
@@ -176,13 +178,17 @@ export function OptionsPanel() {
             </button>
           </div>
 
-          {OPTIONS_SCHEMA.map((group) => (
-            <OptionsGroup
-              key={group.group}
-              group={group.group}
-              options={group.options}
-            />
-          ))}
+          {OPTIONS_SCHEMA.map((group) => {
+            const visible = group.options.filter((opt) => !opt.hidden);
+            if (visible.length === 0) return null;
+            return (
+              <OptionsGroup
+                key={group.group}
+                group={group.group}
+                options={visible}
+              />
+            );
+          })}
         </>
       ) : results.length === 0 ? (
         <div

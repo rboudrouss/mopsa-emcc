@@ -500,8 +500,8 @@ function FileRow({ node, style, dragHandle }: NodeRendererProps<FileTreeNode>) {
           data-workspace-badge={node.id}
           title={
             isModeOverridden
-              ? `Workspace mode: ${workspaceMode} (manual override — click to change)`
-              : `Workspace mode: ${workspaceMode} (auto — click to override)`
+              ? `Workspace mode: ${workspaceMode} (manual override, click to change)`
+              : `Workspace mode: ${workspaceMode} (auto, click to override)`
           }
           onMouseDown={(e) => {
             // Prevent the row's mousedown / drag handle and stop the menu's
@@ -1061,7 +1061,7 @@ export function FilesPanel() {
                     marginLeft: 6,
                   }}
                 >
-                  — {status}
+                  {" " + status}
                 </span>
               )}
             </span>

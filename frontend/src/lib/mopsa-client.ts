@@ -65,7 +65,7 @@ int main() {
 `,
   "utils.c": `int buf[5];
 
-/* off-by-one: when n == 5, writes buf[5] — out of bounds! */
+/* off-by-one: when n == 5, writes buf[5]. Out of bounds! */
 void fill(int n) {
   for (int i = 0; i <= n; i++)
     buf[i] = i * 2;
@@ -81,7 +81,7 @@ export const MULTILANG_CPYTHON: Record<string, string> = {
   "mymod.c": `#include <Python.h>
 
 /* A tiny Python extension module written in C.
-   Exposes mymod.divide(a, b) to Python — but forgets to check b != 0. */
+   Exposes mymod.divide(a, b) to Python but forgets to check b != 0. */
 static PyObject*
 mymod_divide(PyObject *self, PyObject *args)
 {
