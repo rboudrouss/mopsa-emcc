@@ -37,11 +37,12 @@ export function TopBar({
       lang,
     }) === "multilanguage";
 
-  // Auto-run is meaningless for the live engines (interactive/dap), which run
-  // one long session — lock the toggle off without destroying the stored
-  // preference, so it returns when switching back to automatic.
-  const sessionMode = engine === "interactive" || engine === "dap";
-  const autoRunActive = autoRun && !sessionMode;
+  // Auto-run governs the automatic (re)runs: re-running the batch analysis in
+  // automatic mode, and auto-(re)starting the REPL in interactive mode (once on
+  // entry, then on every file switch). DAP runs one stepping session, so the
+  // toggle stays locked off there.
+  const lockedOff = engine === "dap";
+  const autoRunActive = autoRun && !lockedOff;
 
   const safe = checks.filter((c) => c.kind === "safe").length;
   const total = checks.length;
@@ -152,12 +153,12 @@ export function TopBar({
 
       <EntryPointPicker />
 
-      {/* Auto-run toggle (locked off for live engines) */}
+      {/* Auto-run toggle (locked off for DAP only) */}
       <button
-        onClick={sessionMode ? undefined : toggleAutoRun}
-        disabled={sessionMode}
+        onClick={lockedOff ? undefined : toggleAutoRun}
+        disabled={lockedOff}
         title={
-          sessionMode
+          lockedOff
             ? `Auto-run is unavailable in ${engine} mode`
             : autoRun
               ? "Disable auto-run"
@@ -174,9 +175,9 @@ export function TopBar({
             : "none",
           border: `1px solid ${autoRunActive ? "#f5b544" : "var(--border)"}`,
           borderRadius: 6,
-          cursor: sessionMode ? "not-allowed" : "pointer",
+          cursor: lockedOff ? "not-allowed" : "pointer",
           color: autoRunActive ? "#f5b544" : "var(--text-muted)",
-          opacity: sessionMode ? 0.4 : 1,
+          opacity: lockedOff ? 0.4 : 1,
           flexShrink: 0,
           transition: "all 150ms",
         }}

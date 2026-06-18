@@ -21,7 +21,10 @@ export function InteractiveTerminal() {
   const [status, setStatus] = useState<Status>("idle");
 
   const sessionNonce = useAppStore((s) => s.sessionNonce);
-  const lastStartedRef = useRef<number>(-1);
+  // Seed with the current nonce so a remount (e.g. toggling engines back and
+  // forth) doesn't replay the last session from a stale nonce — only fresh
+  // Run / auto-start bumps after mount launch a session.
+  const lastStartedRef = useRef<number>(sessionNonce);
 
   const kill = useCallback(() => {
     sessionRef.current?.kill();
