@@ -200,13 +200,7 @@ MLAPRONIDL_IDL := scalar interval coeff dim linexpr0 lincons0 generator0 texpr0 
 MLAPRONIDL_MODULES := $(MLAPRONIDL_IDL:%=%_caml) apron_caml
 
 $(DEPS_BIN_DIR)/libapron_caml.a: $(LIBS_DIR)/libapron.a $(LIBS_DIR)/libcamlidl.a $(LIBS_DIR)/libgmp_caml.a | $(DEPS_BIN_DIR)
-	cd $(DEPS_DIR)/apron/mlapronidl && \
-	for idl in $(MLAPRONIDL_IDL); do \
-		$(CAMLIDL) -no-include -prepro "$(PERL) macros.pl" $$idl.idl && \
-		$(PERL) perlscript_c.pl < $${idl}_stubs.c > $${idl}_caml.c && \
-		$(PERL) perlscript_caml.pl < $$idl.ml > $$idl.ml.tmp && mv $$idl.ml.tmp $$idl.ml && \
-		$(PERL) perlscript_caml.pl < $$idl.mli > $$idl.mli.tmp && mv $$idl.mli.tmp $$idl.mli; \
-	done
+	$(MAKE) -C $(DEPS_DIR)/apron/mlapronidl CAMLIDL=$(CAMLIDL) PERL=$(PERL) $(MLAPRONIDL_IDL:%=%_caml.c)
 	for module in $(MLAPRONIDL_MODULES); do \
 		$(EMCC) $(EMCC_FLAGS) -c $(CAMLIDL_CFLAGS) -I$(DEPS_DIR)/apron/apron -I$(DEPS_DIR)/apron/mlapronidl \
 			-o $(BUILD_DIR)/$${module}.o $(DEPS_DIR)/apron/mlapronidl/$${module}.c; \
@@ -214,39 +208,21 @@ $(DEPS_BIN_DIR)/libapron_caml.a: $(LIBS_DIR)/libapron.a $(LIBS_DIR)/libcamlidl.a
 	$(EMAR) rcs $@ $(addprefix $(BUILD_DIR)/,$(MLAPRONIDL_MODULES:%=%.o))
 
 $(DEPS_BIN_DIR)/libboxMPQ_caml.a: $(DEPS_BIN_DIR)/libapron_caml.a | $(DEPS_BIN_DIR)
-	cd $(DEPS_DIR)/apron/box && \
-	mkdir -p tmp && \
-	cp box.idl ../mlapronidl/*.idl tmp/ && \
-	cd tmp && $(CAMLIDL) -no-include -nocpp -I . box.idl && cd .. && \
-	$(PERL) ../mlapronidl/perlscript_c.pl < tmp/box_stubs.c > box_caml.c && \
-	$(PERL) perlscript_caml.pl < tmp/box.ml > box.ml && \
-	$(PERL) perlscript_caml.pl < tmp/box.mli > box.mli
+	$(MAKE) -C $(DEPS_DIR)/apron/box CAMLIDL=$(CAMLIDL) PERL=$(PERL) box_caml.c
 	$(EMCC) $(EMCC_FLAGS) -c $(CAMLIDL_CFLAGS) -I$(DEPS_DIR)/apron/apron -I$(DEPS_DIR)/apron/mlapronidl \
 		-I$(DEPS_DIR)/apron/box -DNUM_MPQ \
 		-o $(BUILD_DIR)/box_caml.o $(DEPS_DIR)/apron/box/box_caml.c
 	$(EMAR) rcs $@ $(BUILD_DIR)/box_caml.o
 
 $(DEPS_BIN_DIR)/liboctMPQ_caml.a: $(DEPS_BIN_DIR)/libapron_caml.a | $(DEPS_BIN_DIR)
-	cd $(DEPS_DIR)/apron/octagons && \
-	mkdir -p tmp && \
-	cp oct.idl ../mlapronidl/*.idl tmp/ && \
-	cd tmp && $(CAMLIDL) -no-include -nocpp -I . oct.idl && cd .. && \
-	$(PERL) perlscript_c.pl < tmp/oct_stubs.c > oct_caml.c && \
-	$(PERL) perlscript_caml.pl < tmp/oct.ml > oct.ml && \
-	$(PERL) perlscript_caml.pl < tmp/oct.mli > oct.mli
+	$(MAKE) -C $(DEPS_DIR)/apron/octagons CAMLIDL=$(CAMLIDL) PERL=$(PERL) oct_caml.c
 	$(EMCC) $(EMCC_FLAGS) -c $(CAMLIDL_CFLAGS) -I$(DEPS_DIR)/apron/apron -I$(DEPS_DIR)/apron/mlapronidl \
 		-I$(DEPS_DIR)/apron/octagons -DNUM_MPQ \
 		-o $(BUILD_DIR)/oct_caml.o $(DEPS_DIR)/apron/octagons/oct_caml.c
 	$(EMAR) rcs $@ $(BUILD_DIR)/oct_caml.o
 
 $(DEPS_BIN_DIR)/libpolkaMPQ_caml.a: $(DEPS_BIN_DIR)/libapron_caml.a | $(DEPS_BIN_DIR)
-	cd $(DEPS_DIR)/apron/newpolka && \
-	mkdir -p tmp && \
-	cp polka.idl ../mlapronidl/manager.idl tmp/ && \
-	cd tmp && $(CAMLIDL) -no-include -nocpp polka.idl && cd .. && \
-	cp tmp/polka_stubs.c polka_caml.c && \
-	$(PERL) perlscript_caml.pl < tmp/polka.ml > polka.ml && \
-	$(PERL) perlscript_caml.pl < tmp/polka.mli > polka.mli
+	$(MAKE) -C $(DEPS_DIR)/apron/newpolka CAMLIDL=$(CAMLIDL) PERL=$(PERL) polka_caml.c
 	$(EMCC) $(EMCC_FLAGS) -c $(CAMLIDL_CFLAGS) -I$(DEPS_DIR)/apron/apron -I$(DEPS_DIR)/apron/mlapronidl \
 		-I$(DEPS_DIR)/apron/newpolka -DNUM_MPQ \
 		-o $(BUILD_DIR)/polka_caml.o $(DEPS_DIR)/apron/newpolka/polka_caml.c
