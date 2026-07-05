@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
 import { DapClient } from "../dap/DapClient";
-import type { OutputBody, StoppedBody } from "../dap/types";
+import type { DapVariable, OutputBody, StoppedBody } from "../dap/types";
 import type { CheckItem } from "../types";
 import { computeAnalysisArgs } from "../analysis-args";
 import { useAppStore } from "../store";
@@ -167,9 +167,25 @@ export function useDebugSession() {
       const r = await client.evaluate(expr, frameId).catch(() => undefined);
       if (!r) return "(error)";
       if (!r.variablesReference) return r.result ?? "(no value)";
-      const v = await client.variables(r.variablesReference).catch(() => undefined);
-      const items = v?.variables ?? [];
-      return items.map((x) => (x.name ? `${x.name}=${x.value}` : x.value)).join(", ") || "(empty)";
+      // Mopsa wraps the value under grouping nodes (the abstract domain, e.g.
+      // "int-itv ∪ …") whose own value is empty; descend through those to the
+      // leaves so the watch shows the variable's value, not the domain name.
+      const collect = async (vref: number, depth: number): Promise<DapVariable[]> => {
+        if (vref <= 0 || depth > 5) return [];
+        const v = await client.variables(vref).catch(() => undefined);
+        const out: DapVariable[] = [];
+        for (const x of v?.variables ?? []) {
+          if (x.value !== "" || x.variablesReference <= 0) out.push(x);
+          else out.push(...(await collect(x.variablesReference, depth + 1)));
+        }
+        return out;
+      };
+      const leaves = await collect(r.variablesReference, 0);
+      if (leaves.length === 0) return "(empty)";
+      // Single variable: the panel already shows the name, so just the value.
+      // Multiple: label each (the engine may reorder them vs. what was typed).
+      if (leaves.length === 1) return leaves[0].value || leaves[0].name || "(empty)";
+      return leaves.map((x) => (x.name ? `${x.name}=${x.value}` : x.value)).join(", ");
     },
   };
 }
