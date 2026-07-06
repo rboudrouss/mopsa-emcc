@@ -7,18 +7,29 @@ import {
 
 // ── Default code snippets per language ───────────────────────────────────────
 export const DEFAULT_CODE: Record<SupportedLanguage, string> = {
-  c: `int sign(int x) {
-  if (x > 0) return 1;
-  if (x < 0) return -1;
-  return 0;
+  c: `#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+
+int sign(int x) {
+    if (x > 0) return 1;
+    if (x < 0) return -1;
+    return 0;
 }
 
 int classify(int a, int b) {
-  return 10 / sign(a - b);  /* alarm: division by zero when a == b */
+    return 10 / sign(a - b);  /* division par zéro si a == b */
 }
 
 int main() {
-  return classify(3, 3);
+    srand(time(NULL));
+
+    int a = rand() % 11;
+    int b = rand() % 11;
+
+    printf("a = %d, b = %d\n", a, b);
+
+    return classify(a, b);
 }
 `,
   python: `def average(values):
