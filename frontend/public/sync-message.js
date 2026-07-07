@@ -1,11 +1,6 @@
 "use strict";
 // From https://github.com/alexmojaki/sync-message/blob/master/lib/index.ts
-// Under MIT license
-//
-// Vendored for mopsa-emcc. Upstream is a CommonJS module (bare `exports`), but
-// we load it via importScripts() in the worker and a <script> tag on the main
-// thread, where no `exports` object exists. Provide one and re-export it as the
-// `syncMessage` global so both sides use `self.syncMessage.makeChannel(...)`.
+// Under MIT license, vendored for mopsa-emcc.
 var exports = {};
 self.syncMessage = exports;
 var __extends = (this && this.__extends) || (function () {

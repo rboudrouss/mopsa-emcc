@@ -78,18 +78,6 @@ make MOPSA_BC_SRC=native final-web
 - `make final-node`: Node.js build `node dist/ocamlrun.js mopsa.bc …`
 - `make final-web`: MODULARIZE'd build for the React frontend
 
-## How it works
-
-`ocamlrun`, OCaml's bytecode interpreter, is cross-compiled to WebAssembly through emscripten. Every C library is linked statically into a single `ocamlrun.wasm` (the final wasm is "only" 15mb). The Mopsa bytecode (`mopsa.bc`) is preloaded into emscripten's virtual filesystem, together with Clang's resource headers, the Linux 32-bit headers, and the Mopsa stubs directory.
-
-The 4.14.2 runtime fork [`ocaml-wasm`](https://github.com/rboudfork/ocaml) is heavily inspired by [Vincent Chan's fork](https://github.com/vincentdchan/ocaml), to which it adds patches for codegen issues affecting `Hd_val` / `Tag_val` (forced 32-bit loads, non-l-value `Tag_val` plus a new `Tag_set` macro).
-
-The Mopsa fork adds compatibility with a 32 bit environment (models C++ reference types as pointers so the CPython stubs parse on 32-bit targets, removes a hardcoded 64bit size and *tries* to restore soundness of `floats_round` under WASM's round-to-nearest by inflating each bound by 1 ULP (`nextafter` / `nextafterf`)).
-
-The Apron warning about an unsupported FPU is silenced by a wrapper
-(`backend/wasm/ap_fpu_wasm.c`) linked via `-Wl,--wrap=ap_fpu_init`. This is
-safe for `NUM_MPQ` domains, which use exact GMP rationals.
-
 ## Cleaning
 
 ```sh
@@ -99,6 +87,18 @@ make clean-docker-32bc  # remove the 32-bit Docker image and the opam cache volu
 
 Per-component clean targets are also available: `clean-ocaml`, `clean-mopsa`,
 `clean-gmp`, `clean-mpfr`, `clean-apron`, `clean-llvm`.
+
+## Licence
+
+This project is licensed under the [MIT License](LICENSE). The license covers only the code I authored: files at the root of the project, and those in `docker/`, `backend/` and `frontend/` (with the exception of `frontend/public/sync-message.js`).
+
+All other code is owned by its respective authors and is not covered by this license. Please refer to the corresponding upstream projects (Mopsa, OCaml, LLVM/Clang, GMP, MPFR, Apron, etc.) for their own licensing terms.
+
+## How it works
+
+`ocamlrun`, OCaml's bytecode interpreter, is cross-compiled to WebAssembly through emscripten. Every C library is linked statically into a single `ocamlrun.wasm` (the final wasm is "only" 15mb). The Mopsa bytecode (`mopsa.bc`) is preloaded into emscripten's virtual filesystem, together with Clang's resource headers, the Linux 32-bit headers, and the Mopsa stubs directory.
+
+The 4.14.2 runtime fork [`ocaml-wasm`](https://github.com/rboudfork/ocaml) is heavily inspired by [Vincent Chan's fork](https://github.com/vincentdchan/ocaml), to which it adds patches for codegen issues affecting `Hd_val` / `Tag_val` (forced 32-bit loads, non-l-value `Tag_val` plus a new `Tag_set` macro).
 
 ## Acknowledgements
 
