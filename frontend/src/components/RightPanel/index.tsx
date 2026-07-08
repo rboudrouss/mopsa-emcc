@@ -1,3 +1,4 @@
+import { XIcon, TriangleAlertIcon } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { KindBreakdown } from "./KindBreakdown";
 import { RawOutput } from "./RawOutput";
@@ -36,6 +37,7 @@ export function RightPanel({ isAnalyzing }: { isAnalyzing: boolean }) {
           boxSizing: "border-box",
         }}
       >
+        <BackendNoticeBanner />
         {engine === "interactive" ? <InteractiveTerminal /> : <DebugPanel />}
       </div>
     );
@@ -79,6 +81,8 @@ export function RightPanel({ isAnalyzing }: { isAnalyzing: boolean }) {
         boxSizing: "border-box",
       }}
     >
+      <BackendNoticeBanner />
+
       {analysisError && (
         <div
           style={{
@@ -186,6 +190,63 @@ function AnalyzingView() {
       >
         Results will appear here once it finishes.
       </div>
+    </div>
+  );
+}
+
+/**
+ * Amber, dismissable banner shown when a run was blocked because the
+ * selected backend doesn't support it (set by checkBackendSupport, e.g. C
+ * with the js_of_ocaml backend). Replaces the obscure "Could not parse
+ * analysis output" / worker-error paths for that case.
+ */
+function BackendNoticeBanner() {
+  const notice = useAppStore((s) => s.backendNotice);
+  const setBackendNotice = useAppStore((s) => s.setBackendNotice);
+  if (!notice) return null;
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "flex-start",
+        gap: 8,
+        padding: "10px 12px",
+        marginBottom: 4,
+        background: "color-mix(in srgb, #f5b544 10%, transparent)",
+        border: "1px solid color-mix(in srgb, #f5b544 45%, transparent)",
+        borderRadius: 6,
+        fontSize: 12,
+        color: "var(--text-primary)",
+        lineHeight: 1.5,
+        flexShrink: 0,
+      }}
+    >
+      <TriangleAlertIcon
+        size={14}
+        style={{ color: "#f5b544", flexShrink: 0, marginTop: 1 }}
+      />
+      <div style={{ flex: 1 }}>
+        <span style={{ fontWeight: 600, color: "#f5b544" }}>
+          Not supported by this backend.{" "}
+        </span>
+        {notice}
+      </div>
+      <button
+        onClick={() => setBackendNotice(null)}
+        title="Dismiss"
+        style={{
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          color: "var(--text-muted)",
+          padding: 2,
+          flexShrink: 0,
+          display: "flex",
+        }}
+      >
+        <XIcon size={13} />
+      </button>
     </div>
   );
 }

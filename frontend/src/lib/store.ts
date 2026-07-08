@@ -11,6 +11,7 @@ import {
   setCodeFilePath,
 } from "./mopsa-client";
 import { DEFAULT_OPTION_VALUES } from "./options-schema";
+import { getBackendSetting, setBackendSetting, type BackendSetting } from "./backend";
 import { useDebugStore } from "./store-debug";
 import { loadAndRestoreState, saveState } from "./persistence";
 import { getLanguageFromFileExtension } from "./index";
@@ -193,6 +194,9 @@ interface AppStore {
   analysisTime: number | null;
   analysisSuccess: boolean | null;
   analysisError: string | null;
+  // Message shown when a run was blocked because the selected backend does
+  // not support it (e.g. C on the js_of_ocaml backend). Dismissable.
+  backendNotice: string | null;
 
   // ── Layout ───────────────────────────────────────────────────────────────
   activePanel: ActivePanel;
@@ -227,6 +231,7 @@ interface AppStore {
   applyPreset: (name: string, text: string) => void;
   applyCustom: (key: string) => void;
   setAnalysisResult: (r: AnalysisResult) => void;
+  setBackendNotice: (notice: string | null) => void;
   setLang: (lang: SupportedLanguage, defaultConfig: string) => void;
   togglePanel: (panel: Exclude<ActivePanel, null>) => void;
   setActiveTab: (tab: ActiveTab) => void;
@@ -304,9 +309,15 @@ export const useAppStore = create<AppStore>((set, get) => ({
   analysisTime: null,
   analysisSuccess: null,
   analysisError: null,
+  backendNotice: null,
   activePanel: _restored?.activePanel ?? "files",
   activeTab: "source",
-  optionValues: _restored?.optionValues ?? { ...DEFAULT_OPTION_VALUES },
+  optionValues: {
+    ...(_restored?.optionValues ?? DEFAULT_OPTION_VALUES),
+    // __backend's source of truth is localStorage (read by the index.html
+    // loader before React), not the persisted options snapshot.
+    __backend: getBackendSetting(),
+  },
   openCategories: _restored?.openCategories ?? {},
   pyEntryPoint: _restored?.pyEntryPoint ?? null,
   fileTree: _initialTree,
@@ -440,6 +451,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
+  setBackendNotice: (notice) => set({ backendNotice: notice }),
+
   setAnalysisResult: (r) => {
     // Text output is shown verbatim in a terminal; there's nothing to parse,
     // so don't surface "analysis failed" or the (irrelevant) results panel.
@@ -528,6 +541,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
   setActiveTab: (tab) => set({ activeTab: tab }),
 
   setOptionValue: (flag, value) => {
+    // __backend is not a Mopsa flag: persist to localStorage and reload so
+    // the index.html loader picks the other mopsaJs implementation.
+    if (flag === "__backend") {
+      set((s) => ({ optionValues: { ...s.optionValues, [flag]: value } }));
+      setBackendSetting(value as BackendSetting);
+      return;
+    }
     useDebugStore.getState().clearAlarms();
     set((s) => ({
       optionValues: { ...s.optionValues, [flag]: value },
@@ -536,6 +556,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   resetOption: (flag) => {
+    if (flag === "__backend") {
+      set((s) => ({ optionValues: { ...s.optionValues, [flag]: "auto" } }));
+      setBackendSetting("auto");
+      return;
+    }
     useDebugStore.getState().clearAlarms();
     set((s) => ({
       optionValues: { ...s.optionValues, [flag]: DEFAULT_OPTION_VALUES[flag] },

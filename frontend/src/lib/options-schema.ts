@@ -338,6 +338,21 @@ export const OPTIONS_SCHEMA: { group: string; options: OptionSpec[] }[] = [
     ],
   },
   {
+    group: "Browser Compat",
+    options: [
+      {
+        // analysis backend the page loads. Handled specially in
+        // setOptionValue (persists to localStorage + reloads the page).
+        flag: "__backend",
+        type: "select",
+        default: "auto",
+        label: "Analysis backend",
+        hint: "jsoo is lighter but has no C / cross-language analysis and no relational domains. Changing this reloads the page.",
+        choices: ["auto", "wasm", "jsoo"],
+      },
+    ],
+  },
+  {
     group: "Coverage",
     options: [
       {

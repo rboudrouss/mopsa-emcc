@@ -29,7 +29,38 @@
     />
 
     <script src="./sync-message.js"></script>
-    <script src="./mopsa_api.js"></script>
+    <script>
+      (function () {
+        var setting = null;
+        try {
+          setting = localStorage.getItem("mopsa-backend");
+        } catch (e) {
+          /* no localStorage > auto */
+        }
+        var wasmOK = false;
+        try {
+          if (
+            typeof WebAssembly === "object" &&
+            typeof WebAssembly.instantiate === "function"
+          ) {
+            // Minimal valid module: "\0asm" + version 1.
+            var mod = new WebAssembly.Module(
+              new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0]),
+            );
+            wasmOK =
+              new WebAssembly.Instance(mod) instanceof WebAssembly.Instance;
+          }
+        } catch (e) {
+          /* wasmOK stays false */
+        }
+        var backend = setting === "jsoo" || !wasmOK ? "jsoo" : "wasm";
+        document.write(
+          '<script src="./mopsa_api' +
+            (backend === "jsoo" ? "_jsoo" : "") +
+            '.js"><\/script>',
+        );
+      })();
+    </script>
   </head>
   <body>
     <div id="root">

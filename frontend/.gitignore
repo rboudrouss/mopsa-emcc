@@ -28,6 +28,8 @@ dist-ssr
 /public/primitives.js
 /public/share.json
 /public/floats_round.js
+public/mopsa_api_jsoo.js
+public/mopsa_worker_jsoo.js
 
 # dev bins of PWA
 dev-dist

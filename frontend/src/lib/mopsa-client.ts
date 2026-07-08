@@ -236,7 +236,8 @@ export function ansiToSpans(raw: string): AnsiSpan[] {
 export function computeOptionsFlags(values: Record<string, unknown>): string[] {
   const flags: string[] = [];
   for (const [flag, value] of Object.entries(values)) {
-    if (flag === "__raw") continue;
+    // "__" prefix = UI-only pseudo-options (__raw, __backend), never argv.
+    if (flag.startsWith("__")) continue;
     if (value === null || value === undefined) continue;
     if (value === MOPSA_DEFAULT_VALUES[flag]) continue;
     if (BOOL_ARG_FLAGS.has(flag)) {

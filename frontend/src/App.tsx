@@ -1,4 +1,5 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { XIcon, InfoIcon } from "lucide-react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { ActivityBar } from "@/components/ActivityBar";
 import { CenterPane } from "@/components/CenterPane";
@@ -11,6 +12,7 @@ import { useTheme } from "@/lib/hooks/use-theme";
 import { usePresets } from "@/lib/hooks/use-presets";
 import { useAppStore } from "@/lib/store";
 import { computeRunSignature } from "@/lib/analysis-args";
+import { getBackend, isWasmFallback } from "@/lib/backend";
 
 export default function App() {
   const { resolved, toggle } = useTheme();
@@ -155,6 +157,90 @@ export default function App() {
           <RightPanel isAnalyzing={isAnalyzing} />
         </Panel>
       </PanelGroup>
+      <JsooBackendBanner />
+    </div>
+  );
+}
+
+const JSOO_BANNER_KEY = "mopsa-jsoo-banner-dismissed";
+
+/**
+ * One-time (per session) dismissable notice shown when the pure-JavaScript
+ * backend is active, reminding that C / cross-language analysis is only
+ * available with the WASM backend.
+ */
+function JsooBackendBanner() {
+  const [dismissed, setDismissed] = useState(() => {
+    try {
+      return sessionStorage.getItem(JSOO_BANNER_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  if (dismissed || getBackend() !== "jsoo") return null;
+
+  const dismiss = () => {
+    try {
+      sessionStorage.setItem(JSOO_BANNER_KEY, "1");
+    } catch {
+      /* no sessionStorage */
+    }
+    setDismissed(true);
+  };
+
+  return (
+    <div
+      role="status"
+      style={{
+        position: "fixed",
+        top: 56,
+        left: "50%",
+        transform: "translateX(-50%)",
+        zIndex: 50,
+        display: "flex",
+        alignItems: "flex-start",
+        gap: 8,
+        maxWidth: 460,
+        padding: "10px 12px",
+        background: "var(--bg-elevated)",
+        border: "1px solid color-mix(in srgb, #f5b544 45%, transparent)",
+        borderRadius: 8,
+        boxShadow: "0 4px 16px rgba(0,0,0,0.25)",
+        fontSize: 12,
+        color: "var(--text-primary)",
+        lineHeight: 1.5,
+      }}
+    >
+      <InfoIcon
+        size={14}
+        style={{ color: "#f5b544", flexShrink: 0, marginTop: 1 }}
+      />
+      <div style={{ flex: 1 }}>
+        <span style={{ fontWeight: 600 }}>
+          {isWasmFallback()
+            ? "This browser does not support WebAssembly. Using the JavaScript backend. "
+            : "JavaScript backend active. "}
+        </span>
+        C analysis and relationnal domains are not supported. Only
+        Python and Universal.
+        {!isWasmFallback() &&
+          " The full analyzer is available via Options > Browser Compat > Analysis backend."}
+      </div>
+      <button
+        onClick={dismiss}
+        title="Dismiss"
+        style={{
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          color: "var(--text-muted)",
+          padding: 2,
+          flexShrink: 0,
+          display: "flex",
+        }}
+      >
+        <XIcon size={13} />
+      </button>
     </div>
   );
 }

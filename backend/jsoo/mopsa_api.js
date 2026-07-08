@@ -1,25 +1,23 @@
 /**
- * mopsa_api.js
+ * mopsa_api.js (jsoo backend)
  *
- * Sets up window.mopsaJs synchronously so it is ready before the React
- * bundle executes.  Must be loaded in index.html BEFORE the React bundle.
+ * Sets up window.mopsaJs synchronously, with the same interface as the
+ * WASM backend (backend/wasm/mopsa_api.js), but backed by the analyzer
+ * compiled to pure JavaScript with js_of_ocaml (mopsa_worker_jsoo.js).
  *
- * Design
- * ──────
- * Code, config, and extra files are kept in plain JS variables in the main
- * thread (synchronous, instant).  When the user clicks Run, analyze() sends
- * the current state to a persistent Web Worker (mopsa_worker.js) via
- * postMessage and resolves the returned Promise when the worker replies.
+ * Feature differences vs the WASM backend:
+ *   - no C / C+Python analysis (the Clang parser is a C++ library)
+ *   - no Apron-based relational domains (C library)
  *
- * The Worker owns the WASM binary (15 MB) and data file (23 MB) — it
- * fetches them once at startup and re-instantiates the cached
- * WebAssembly.Module for each analysis call (OCaml runtime cannot be
- * re-entered, so a fresh instance is needed every time).
- *
- * This keeps the main thread fully responsive during analysis.
+ * Unlike the WASM worker (which re-instantiates a fresh module per run),
+ * the jsoo worker keeps its OCaml runtime state across runs, so the
+ * worker is terminated and respawned after every batch result / session
+ * end to guarantee a fresh analyzer state.
  */
 (function () {
   "use strict";
+
+  var WORKER_URL = "./mopsa_worker_jsoo.js";
 
   // ── Default values ──────────────────────────────────────────────────────
   var CONFIG_UNI =
@@ -33,15 +31,53 @@
 
   // ── Mutable state ────────────────────────────────────────────────────────
   var _codeFile = "/code.c";
-  var _code = "int main() { return 0; }\n"; // default Universal snippet
+  var _code = "int main() { return 0; }\n";
   var _config = CONFIG_UNI;
   var _extraFiles = {}; // path → content
+
+  // ── Share directory ──────────────────────────────────────────────────────
+  // The analyzer needs the share dir (python stubs, configs) in its virtual
+  // filesystem. Reuse the frontend's share.json (generated from
+  // deps/mopsa-analyzer/share/mopsa for the presets UI) instead of baking a
+  // second copy into the worker bundle. Only the jsoo-relevant subtrees are
+  // sent (no C stubs). Resolves to {relative path → content}.
+  function _flattenTree(tree, prefix, out) {
+    Object.keys(tree || {}).forEach(function (k) {
+      var v = tree[k];
+      if (typeof v === "string") out[prefix + k] = v;
+      else _flattenTree(v, prefix + k + "/", out);
+    });
+  }
+
+  var _shareFilesPromise = fetch("./share.json")
+    .then(function (r) {
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r.json();
+    })
+    .then(function (data) {
+      var out = {};
+      var configs = data.configs || {};
+      var stubs = data.stubs || {};
+      _flattenTree(configs.universal, "configs/universal/", out);
+      _flattenTree(configs.python, "configs/python/", out);
+      _flattenTree(stubs.python, "stubs/python/", out);
+      return out;
+    })
+    .catch(function (e) {
+      console.error("[Mopsa jsoo] failed to load share.json:", e);
+      return {};
+    });
 
   // ── Worker setup ─────────────────────────────────────────────────────────
   var _worker = null;
   var _pending = {}; // id → resolve function (batch analyses)
   var _nextId = 0;
   var _session = null; // active interactive/dap session handle, or null
+
+  function _respawnWorker() {
+    if (_worker) _worker.terminate();
+    _spawnWorker();
+  }
 
   function _handleMessage(event) {
     var msg = event.data;
@@ -52,6 +88,9 @@
           var resolve = _pending[msg.id];
           delete _pending[msg.id];
           resolve(msg.output);
+          // jsoo runtime state persists across runs → always start the
+          // next run from a fresh worker.
+          _respawnWorker();
         }
         break;
       case "started":
@@ -64,6 +103,7 @@
         if (_session && _session._id === msg.id) {
           var ended = _session;
           _session = null;
+          _respawnWorker();
           ended._emit("end", msg.code);
         }
         break;
@@ -71,6 +111,7 @@
         if (_session && _session._id === msg.id) {
           var errored = _session;
           _session = null;
+          _respawnWorker();
           errored._emit("error", msg.message);
         }
         break;
@@ -78,9 +119,9 @@
   }
 
   function _handleError(e) {
-    console.error("[Mopsa] Worker error:", e);
+    console.error("[Mopsa jsoo] Worker error:", e);
     // ErrorEvent.message is often empty (e.g. worker crash) and
-    // String(event) is "[object Event]". Give something readable instead.
+    // String(event) is "[object Event]" — give something readable instead.
     var emsg =
       "[Worker error] " +
       ((e && e.message) ||
@@ -96,10 +137,8 @@
     }
   }
 
-  // Settle every queued/in-flight batch analysis as superseded. Resolving with
-  // null (rather than rejecting) keeps these off the error path: analyzeJson
-  // maps null straight through and useAnalysis skips it, so the last good
-  // result stays on screen until the newest analysis completes.
+  // Settle every queued/in-flight batch analysis as superseded (resolved
+  // with null so the React layer keeps the previous result on screen).
   function _cancelPendingBatches() {
     Object.keys(_pending).forEach(function (id) {
       var resolve = _pending[id];
@@ -109,7 +148,7 @@
   }
 
   function _spawnWorker() {
-    _worker = new Worker("./mopsa_worker.js");
+    _worker = new Worker(WORKER_URL);
     _worker.onmessage = _handleMessage;
     _worker.onerror = _handleError;
   }
@@ -122,49 +161,39 @@
     /**
      * analyze(options: string[]) → Promise<string | null>
      *
-     * Sends the current code/config/files to the Web Worker, which
-     * instantiates a fresh WASM module, runs the Mopsa CLI, and posts back
-     * the captured output.
-     *
-     * Auto-analysis fires a fresh run on every edit, but a C+Python batch can
-     * take ~20s and the worker runs WASM synchronously — it ignores postMessage
-     * mid-run, so queued analyses would otherwise pile up and run one after the
-     * other. So a new analyze() supersedes any in-flight/queued one: the stale
-     * runs resolve with null (the React layer ignores a null result and keeps
-     * the previous output) and we terminate + respawn the worker — the same
-     * interrupt sessions use, since a blocked worker can't be cancelled
-     * otherwise. Only the latest request ever produces a real result.
+     * Same supersede semantics as the WASM backend: a new analyze()
+     * cancels any in-flight/queued one (resolved with null) and restarts
+     * from a fresh worker.
      */
     analyze: function (options) {
       if (!_session && Object.keys(_pending).length > 0) {
         _cancelPendingBatches();
-        _worker.terminate();
-        _spawnWorker();
+        _respawnWorker();
       }
       return new Promise(function (resolve) {
         var id = _nextId++;
         _pending[id] = resolve;
-        _worker.postMessage({
-          type: "analyze",
-          id: id,
-          options: options || [],
-          code: _code,
-          config: _config,
-          codeFile: _codeFile,
-          extraFiles: _extraFiles,
+        var worker = _worker; // bind before the async share fetch
+        _shareFilesPromise.then(function (shareFiles) {
+          // superseded (or killed) while waiting for share.json
+          if (!_pending[id] || worker !== _worker) return;
+          worker.postMessage({
+            type: "analyze",
+            id: id,
+            options: options || [],
+            code: _code,
+            config: _config,
+            codeFile: _codeFile,
+            extraFiles: _extraFiles,
+            shareFiles: shareFiles,
+          });
         });
       });
     },
 
     /**
      * startSession(engine, options) → SessionHandle
-     *
-     * Begin a long-lived interactive ('interactive') or debugger ('dap')
-     * run. stdin is fed synchronously over a SharedArrayBuffer channel
-     * (requires cross-origin isolation); stdout/stderr stream back as raw
-     * bytes. Only one session may run at a time (it monopolises the worker).
-     *
-     * Do NOT include -engine in `options`; the worker appends it from `engine`.
+     * Same contract as the WASM backend (needs cross-origin isolation).
      */
     startSession: function (engine, options) {
       if (typeof SharedArrayBuffer === "undefined" || !self.crossOriginIsolated) {
@@ -212,31 +241,35 @@
         kill: function () {
           var wasActive = _session === handle;
           if (wasActive) _session = null;
-          // The worker is blocked in Atomics.wait and ignores postMessage,
-          // so the only reliable interrupt is to terminate and respawn.
-          _worker.terminate();
-          _spawnWorker();
+          // The worker may be blocked in Atomics.wait; terminate + respawn
+          // is the only reliable interrupt.
+          _respawnWorker();
           if (wasActive) handle._emit("end", -1);
         },
       };
       _session = handle;
 
-      _worker.postMessage({
-        type: "start",
-        id: id,
-        engine: engine,
-        options: options || [],
-        code: _code,
-        config: _config,
-        codeFile: _codeFile,
-        extraFiles: _extraFiles,
-        stdinChannel: channel,
+      var worker = _worker;
+      _shareFilesPromise.then(function (shareFiles) {
+        if (_session !== handle || worker !== _worker) return; // killed meanwhile
+        worker.postMessage({
+          type: "start",
+          id: id,
+          engine: engine,
+          options: options || [],
+          code: _code,
+          config: _config,
+          codeFile: _codeFile,
+          extraFiles: _extraFiles,
+          shareFiles: shareFiles,
+          stdinChannel: channel,
+        });
       });
 
       return handle;
     },
 
-    // ── Code / config helpers (synchronous, no WASM needed) ───────────────
+    // ── Code / config helpers (synchronous, main-thread state) ────────────
 
     setCode: function (code) {
       _code = code;
@@ -252,7 +285,6 @@
     },
 
     // ── Generic virtual-filesystem helpers ────────────────────────────────
-    // Backed by plain JS objects so they work before / between analyses.
 
     writeFile: function (path, content) {
       if (path === _codeFile) {
@@ -301,5 +333,5 @@
     },
   };
 
-  console.log("[Mopsa WASM] mopsaJs API ready");
+  console.log("[Mopsa jsoo] mopsaJs API ready");
 })();

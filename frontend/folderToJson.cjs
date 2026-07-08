@@ -1,6 +1,5 @@
 const fs = require("fs");
 const path = require("path");
-const yargs = require("yargs");
 
 function folderToJson(folderPath) {
   if (!fs.existsSync(folderPath)) {
@@ -35,22 +34,27 @@ function folderToJson(folderPath) {
   return result;
 }
 
-const argv = yargs
-  .usage("Usage: $0 <directory> [-o <output>]")
-  .demandCommand(1, "You need to specify a directory")
-  .option("o", {
-    alias: "output",
-    describe: "Output file",
-    type: "string",
-  })
-  .help().argv;
+// Usage: node folderToJson.cjs <directory> [-o <output>]
+const args = process.argv.slice(2);
+let dirPath = null;
+let output = null;
+for (let i = 0; i < args.length; i++) {
+  if (args[i] === "-o" || args[i] === "--output") {
+    output = args[++i];
+  } else if (dirPath === null) {
+    dirPath = args[i];
+  }
+}
+if (!dirPath) {
+  console.error("Usage: node folderToJson.cjs <directory> [-o <output>]");
+  process.exit(1);
+}
 
-const dirPath = argv._[0];
 const jsonResult = folderToJson(dirPath);
 
-if (argv.output) {
-  fs.writeFileSync(argv.output, JSON.stringify(jsonResult, null, 2));
-  console.log(`JSON saved to ${argv.output}`);
+if (output) {
+  fs.writeFileSync(output, JSON.stringify(jsonResult, null, 2));
+  console.log(`JSON saved to ${output}`);
 } else {
   console.log(JSON.stringify(jsonResult, null, 2));
 }

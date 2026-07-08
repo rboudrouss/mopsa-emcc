@@ -5,6 +5,7 @@ import type { CheckItem } from "../types";
 import { computeAnalysisArgs } from "../analysis-args";
 import { useAppStore } from "../store";
 import { useDebugStore } from "../store-debug";
+import { checkBackendSupport } from "./use-run";
 
 /**
  * Drives a `-engine=dap` session: starts the worker run, wires a DapClient to
@@ -58,6 +59,13 @@ export function useDebugSession() {
     kill();
     const d = useDebugStore.getState();
     d.resetDebug();
+
+    // Auto-start paths bypass useRun, so repeat the backend gate here; the
+    // banner in the right panel explains the details.
+    if (checkBackendSupport()) {
+      d.setError("Not supported by the selected backend.");
+      return;
+    }
     d.setStatus("initializing");
 
     const args = computeAnalysisArgs();

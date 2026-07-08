@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AnsiTerminal, type AnsiTerminalHandle } from "@/components/ui/AnsiTerminal";
 import { computeAnalysisArgs } from "@/lib/analysis-args";
 import { useAppStore } from "@/lib/store";
+import { checkBackendSupport } from "@/lib/hooks/use-run";
 
 type Status = "idle" | "running" | "ended" | "error";
 
@@ -40,6 +41,17 @@ export function InteractiveTerminal() {
     lineRef.current = "";
     const term = termRef.current;
     term?.reset();
+
+    // Auto-run can start sessions without going through useRun, so the
+    // backend gate is repeated here. The banner explains; keep the
+    // terminal line short.
+    if (checkBackendSupport()) {
+      term?.write(
+        "\x1b[33mNot supported by the selected backend (see the message above).\x1b[0m\r\n",
+      );
+      setStatus("idle");
+      return;
+    }
 
     const args = computeAnalysisArgs();
     if (!args) {

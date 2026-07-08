@@ -67,12 +67,14 @@ PERL := /usr/bin/perl
 CAMLIDL_CFLAGS := -I$(OCAML_STDLIB) -I$(shell opam var lib)/camlidl -I$(INSTALL_DIR)/include
 
 # Phony targets
-.PHONY: all final final-node final-web deps gmp mpfr camlidl gmp_caml zarith apron apron_caml \
+.PHONY: all wasm wasm-node wasm-web wasm-web-artifacts final-web frontend-build \
+        deps gmp mpfr camlidl gmp_caml zarith apron apron_caml \
         mopsa_floats mopsa_primitives libcamlrun prims mopsa-bc mopsa-bc-native mopsa-install-native \
         llvm-tblgen clang-wasm clang_to_ml clang-resource-headers \
         docker-image-32bc mopsa-bc-32 extract-32-headers \
+        jsoo-analyzer jsoo-web \
         clean clean-project clean-ocaml clean-mopsa clean-gmp clean-mpfr clean-apron clean-llvm \
-        clean-docker-32bc
+        clean-docker-32bc clean-jsoo
 
 # Targets
 all: final-web
@@ -439,8 +441,8 @@ $(BUILD_DIR)/.linux32-headers-stamp: $(BUILD_DIR)/.docker-32bc-stamp | $(BUILD_D
 		> $(LINUX32_INCLUDE_DIR)/pyconfig.h
 	touch $@
 
-# Build final binary
-final: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o deps $(BUILD_DIR)/ap_fpu_wasm.o | $(DIST_DIR)
+# Build final wasm binary (browser HTML harness)
+wasm: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o deps $(BUILD_DIR)/ap_fpu_wasm.o | $(DIST_DIR)
 	$(EMCC) -Wall -Oz -fno-strict-aliasing -fwrapv \
 	-ffunction-sections -o $(DIST_DIR)/ocamlrun.html \
 	-s ENVIRONMENT='web' --preload-file $(BUILD_DIR)/mopsa.bc \
@@ -454,8 +456,8 @@ final: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o deps
 	-s ERROR_ON_UNDEFINED_SYMBOLS=1 \
 	$(BUILD_DIR)/prims.o $(BUILD_DIR)/libcamlrun.a
 
-# Build final binary for Node.js (run as: node ocamlrun.js mopsa.bc)
-final-node: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o deps $(BUILD_DIR)/ap_fpu_wasm.o | $(DIST_DIR)
+# Build wasm binary for Node.js (run as: node ocamlrun.js mopsa.bc)
+wasm-node: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o deps $(BUILD_DIR)/ap_fpu_wasm.o | $(DIST_DIR)
 	$(EMCC) -Wall -Oz -fno-strict-aliasing -fwrapv \
 	-ffunction-sections -o $(DIST_DIR)/ocamlrun.js \
 	-s ENVIRONMENT='node' --preload-file $(BUILD_DIR)/mopsa.bc@mopsa.bc \
@@ -469,7 +471,7 @@ final-node: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o
 	-s ERROR_ON_UNDEFINED_SYMBOLS=1 \
 	$(BUILD_DIR)/prims.o $(BUILD_DIR)/libcamlrun.a
 
-# Build WASM module + React frontend, output to dist/web/
+# Build the WASM backend artifacts and copy them into frontend/public/.
 # Requires: make deps && make mopsa-bc (builds the OCaml bytecode via Docker)
 #
 # MODULARIZE exposes createMopsaModule() so the JS wrapper (mopsa_api.js)
@@ -478,7 +480,7 @@ final-node: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o
 #
 # The mopsa share directory is preloaded at /share/mopsa so C/Python stubs
 # are available to Mopsa inside the virtual filesystem.
-final-web: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o deps $(BUILD_DIR)/.linux32-headers-stamp $(BUILD_DIR)/ap_fpu_wasm.o | $(DIST_DIR)
+wasm-web-artifacts: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o deps $(BUILD_DIR)/.linux32-headers-stamp $(BUILD_DIR)/ap_fpu_wasm.o | $(DIST_DIR)
 	$(EMCC) -Wall -Oz -fno-strict-aliasing -fwrapv \
 	-ffunction-sections -o $(DIST_DIR)/ocamlrun.js \
 	-s ENVIRONMENT='web' \
@@ -501,7 +503,53 @@ final-web: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o 
 	cp $(DIST_DIR)/ocamlrun.data $(FRONTEND_DIR)/public/
 	cp backend/wasm/mopsa_api.js    $(FRONTEND_DIR)/public/
 	cp backend/wasm/mopsa_worker.js $(FRONTEND_DIR)/public/
+
+frontend-build:
 	cd $(FRONTEND_DIR) && $(NPM) install && $(NPM) exec vite build
+
+# Frontend with the WASM backend only
+wasm-web: wasm-web-artifacts
+	$(MAKE) frontend-build
+
+# Frontend with both backends (WASM + jsoo)
+final-web: wasm-web-artifacts jsoo-web
+	$(MAKE) frontend-build
+
+# ── jsoo backend ─────────────────────────────────────────────────────────────
+# The whole analyzer compiled to plain JavaScript with js_of_ocaml, as a
+# lighter (feature-reduced) alternative to the WASM backend: no C /
+# cross-language analysis (Clang is C++) and no Apron relational domains
+# (C library; load-time primitives are stubbed in backend/jsoo/runtime_stubs.js).
+#
+# Note: jsoo-analyzer reconfigures deps/mopsa-analyzer with --disable-c.
+# The docker32 / native wasm targets re-run ./configure themselves, so this
+# does not corrupt them; just be aware the submodule's analyzer/dune changes.
+JSOO_SWITCH := 4.14.2
+JSOO_OPAM_EXEC := opam exec --switch=$(JSOO_SWITCH) --
+MOPSA_INSTALL_TREE := $(MOPSA_SRC)/_build/install/default/lib
+
+jsoo-analyzer:
+	cd $(MOPSA_SRC) && $(JSOO_OPAM_EXEC) ./configure --disable-c
+	# @analyzer/install populates _build/install/default (library + META);
+	# the .cma target forces the bytecode objects the install tree symlinks;
+	# dune-package must be rebuilt so it no longer references the C parser.
+	$(JSOO_OPAM_EXEC) dune build --root $(MOPSA_SRC) --profile release \
+		"@analyzer/install" \
+		_build/default/analyzer/mopsa_analyzer.cma \
+		_build/install/default/lib/mopsa/dune-package
+
+# The jsoo worker gets the share directory (python stubs, configs) at runtime
+# from the frontend's share.json (see backend/jsoo/mopsa_api.js), so it is
+# regenerated here to stay in sync with the analyzer sources.
+jsoo-web: jsoo-analyzer
+	OCAMLPATH=$(MOPSA_INSTALL_TREE) $(JSOO_OPAM_EXEC) dune build backend/jsoo/mopsa_worker.bc.js
+	cp -f _build/default/backend/jsoo/mopsa_worker.bc.js $(FRONTEND_DIR)/public/mopsa_worker_jsoo.js
+	cp -f backend/jsoo/mopsa_api.js $(FRONTEND_DIR)/public/mopsa_api_jsoo.js
+	cd $(FRONTEND_DIR) && ./generateShareJson.sh
+
+clean-jsoo:
+	rm -f $(FRONTEND_DIR)/public/mopsa_worker_jsoo.js \
+	      $(FRONTEND_DIR)/public/mopsa_api_jsoo.js
 
 # Clean
 clean: clean-mopsa clean-ocaml clean-project clean-gmp clean-mpfr clean-apron clean-llvm
