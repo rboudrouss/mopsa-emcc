@@ -1,4 +1,5 @@
 import type { AnalysisResult, ParsedOutput, SupportedLanguage } from "./types";
+import { isFlagLockedByBackend } from "./backend";
 import {
   BOOL_ARG_FLAGS,
   MOPSA_DEFAULT_VALUES,
@@ -238,6 +239,7 @@ export function computeOptionsFlags(values: Record<string, unknown>): string[] {
   for (const [flag, value] of Object.entries(values)) {
     // "__" prefix = UI-only pseudo-options (__raw, __backend), never argv.
     if (flag.startsWith("__")) continue;
+    if (isFlagLockedByBackend(flag)) continue;
     if (value === null || value === undefined) continue;
     if (value === MOPSA_DEFAULT_VALUES[flag]) continue;
     if (BOOL_ARG_FLAGS.has(flag)) {

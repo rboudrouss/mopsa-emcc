@@ -656,7 +656,7 @@ export const OPTIONS_SCHEMA: { group: string; options: OptionSpec[] }[] = [
         type: "select",
         default: "polyhedra",
         label: "Relational domain",
-        hint: "Relational numeric abstract domain (Apron. the jsoo backend ignores this and always uses VPL)",
+        hint: "Relational numeric abstract domain (Apron). Locked on the jsoo backend, which always uses VPL.",
         choices: ["polyhedra", "lineq", "octagon"],
       },
       {

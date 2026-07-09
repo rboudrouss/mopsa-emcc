@@ -11,7 +11,7 @@ import {
   setCodeFilePath,
 } from "./mopsa-client";
 import { DEFAULT_OPTION_VALUES } from "./options-schema";
-import { getBackendSetting, setBackendSetting, type BackendSetting } from "./backend";
+import { getBackendSetting, isFlagLockedByBackend, setBackendSetting, type BackendSetting } from "./backend";
 import { useDebugStore } from "./store-debug";
 import { loadAndRestoreState, saveState } from "./persistence";
 import { getLanguageFromFileExtension } from "./index";
@@ -548,6 +548,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       setBackendSetting(value as BackendSetting);
       return;
     }
+    if (isFlagLockedByBackend(flag)) return;
     useDebugStore.getState().clearAlarms();
     set((s) => ({
       optionValues: { ...s.optionValues, [flag]: value },
@@ -561,6 +562,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       setBackendSetting("auto");
       return;
     }
+    if (isFlagLockedByBackend(flag)) return;
     useDebugStore.getState().clearAlarms();
     set((s) => ({
       optionValues: { ...s.optionValues, [flag]: DEFAULT_OPTION_VALUES[flag] },

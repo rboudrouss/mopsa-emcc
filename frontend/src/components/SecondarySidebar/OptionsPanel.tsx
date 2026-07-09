@@ -11,6 +11,7 @@ import {
   OPTIONS_SCHEMA,
   type OptionSpec,
 } from "@/lib/options-schema";
+import { isFlagLockedByBackend } from "@/lib/backend";
 import { clearState } from "@/lib/persistence";
 import { cancelPendingSave, useAppStore } from "@/lib/store";
 
@@ -295,9 +296,15 @@ function OptionRow({ spec, group }: { spec: OptionSpec; group?: string }) {
   const resetOption = useAppStore((s) => s.resetOption);
 
   const isModified = value !== DEFAULT_OPTION_VALUES[spec.flag];
+  const isLocked = isFlagLockedByBackend(spec.flag);
 
   return (
     <div
+      title={
+        isLocked
+          ? "Locked by the current backend — see the option's hint."
+          : undefined
+      }
       style={{
         padding: "8px 12px 8px 16px",
         borderLeft: isModified
@@ -307,6 +314,7 @@ function OptionRow({ spec, group }: { spec: OptionSpec; group?: string }) {
         flexDirection: "column",
         gap: 4,
         background: isModified ? "rgba(245,181,68,.03)" : "transparent",
+        opacity: isLocked ? 0.5 : 1,
       }}
     >
       {group && (
@@ -364,7 +372,7 @@ function OptionRow({ spec, group }: { spec: OptionSpec; group?: string }) {
             flexShrink: 0,
           }}
         >
-          {isModified && (
+          {isModified && !isLocked && (
             <button
               onClick={() => resetOption(spec.flag)}
               title="Reset to default"
@@ -386,6 +394,7 @@ function OptionRow({ spec, group }: { spec: OptionSpec; group?: string }) {
             spec={spec}
             value={value}
             onChange={(v) => setOptionValue(spec.flag, v)}
+            disabled={isLocked}
           />
         </div>
       </div>
@@ -397,10 +406,12 @@ function OptionInput({
   spec,
   value,
   onChange,
+  disabled = false,
 }: {
   spec: OptionSpec;
   value: unknown;
   onChange: (v: unknown) => void;
+  disabled?: boolean;
 }) {
   if (spec.type === "bool" || spec.type === "boolArg") {
     const checked = Boolean(value);
@@ -408,6 +419,7 @@ function OptionInput({
       <button
         role="switch"
         aria-checked={checked}
+        disabled={disabled}
         onClick={() => onChange(!checked)}
         style={{
           width: 32,
@@ -445,6 +457,7 @@ function OptionInput({
         value={Number(value)}
         min={spec.min}
         max={spec.max}
+        disabled={disabled}
         onChange={(e) => onChange(parseInt(e.target.value, 10))}
         style={{
           width: 56,
@@ -464,6 +477,7 @@ function OptionInput({
     return (
       <select
         value={String(value ?? spec.default)}
+        disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
         style={{
           padding: "2px 6px",
@@ -490,6 +504,7 @@ function OptionInput({
     <input
       type="text"
       value={String(value ?? "")}
+      disabled={disabled}
       onChange={(e) => onChange(e.target.value)}
       style={{
         width: spec.flag === "__raw" ? 120 : 80,

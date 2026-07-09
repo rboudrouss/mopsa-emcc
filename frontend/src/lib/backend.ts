@@ -90,6 +90,25 @@ export const BACKEND_CAPABILITIES: Record<MopsaBackend, BackendCapabilities> = {
   jsoo: { languages: ["python", "universal"], multilanguage: false },
 };
 
+/**
+ * Flags whose value the current backend cannot honour, and whose user-visible
+ * option must therefore be locked (input disabled + setter no-op) instead of
+ * silently emitting a value that the analyzer would misuse.
+ *
+ * jsoo: `-numeric` is off-limits — the relational domain is always VPL
+ * (backend/jsoo/vpl_domain.ml), and passing `-numeric polyhedra|lineq|octagon`
+ * would re-substitute the Apron instance whose C stubs are no-ops → crash on
+ * the first relational transfer function.
+ */
+const LOCKED_FLAGS_BY_BACKEND: Record<MopsaBackend, ReadonlySet<string>> = {
+  wasm: new Set(),
+  jsoo: new Set(["-numeric"]),
+};
+
+export function isFlagLockedByBackend(flag: string): boolean {
+  return LOCKED_FLAGS_BY_BACKEND[getBackend()].has(flag);
+}
+
 const SWITCH_HINT =
   "Select the WebAssembly backend in Options → Browser Compat to analyze it.";
 
