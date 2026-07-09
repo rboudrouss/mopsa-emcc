@@ -10,6 +10,7 @@ import { getCodeFilePath } from "@/lib/mopsa-client";
 import { findById } from "@/lib/tree";
 import { useAppStore } from "@/lib/store";
 import { useDebugStore } from "@/lib/store-debug";
+import { useIsMobile } from "@/lib/hooks/use-media-query";
 
 function getMonacoLanguage(ext: string): string {
   switch (ext) {
@@ -74,6 +75,7 @@ export function CodeEditor({ resolvedTheme }: CodeEditorProps) {
   const fileTree = useAppStore((s) => s.fileTree);
   const activeFile = useAppStore((s) => s.activeFile);
 
+  const isMobile = useIsMobile();
   const editorRef = useRef<MonacoNS.editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<typeof MonacoNS | null>(null);
   const [mountKey, setMountKey] = useState(0);
@@ -118,11 +120,12 @@ export function CodeEditor({ resolvedTheme }: CodeEditorProps) {
       onMount={handleMount}
       onChange={(v) => setCode(v ?? "")}
       options={{
-        fontSize: 13,
+        fontSize: isMobile ? 12 : 13,
         fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
         fontLigatures: true,
-        lineHeight: 21,
-        minimap: { enabled: true },
+        lineHeight: isMobile ? 19 : 21,
+        minimap: { enabled: !isMobile },
+        folding: !isMobile,
         scrollBeyondLastLine: false,
         smoothScrolling: true,
         cursorSmoothCaretAnimation: "on",
@@ -133,7 +136,6 @@ export function CodeEditor({ resolvedTheme }: CodeEditorProps) {
         tabSize: 2,
         wordWrap: "off",
         glyphMargin: dapMode,
-        folding: true,
       }}
     />
   );

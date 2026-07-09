@@ -38,7 +38,7 @@ const MODES: {
   },
 ];
 
-export function EngineModePicker() {
+export function EngineModePicker({ compact = false }: { compact?: boolean }) {
   const engine = useAppStore(
     (s) => (s.optionValues["-engine"] as Engine) ?? "automatic",
   );
@@ -93,7 +93,7 @@ export function EngineModePicker() {
               size={13}
               color={active ? "var(--color-accent)" : "currentColor"}
             />
-            {label}
+            {(!compact || active) && label}
           </button>
         );
       })}

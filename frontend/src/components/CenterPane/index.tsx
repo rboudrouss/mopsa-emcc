@@ -8,9 +8,11 @@ import { ConfigEditor } from "./ConfigEditor";
 
 interface CenterPaneProps {
   resolvedTheme: "light" | "dark";
+  // Mobile layout provides its own Source/Config/Results tab switcher.
+  hideTabBar?: boolean;
 }
 
-export function CenterPane({ resolvedTheme }: CenterPaneProps) {
+export function CenterPane({ resolvedTheme, hideTabBar }: CenterPaneProps) {
   const activeTab = useAppStore((s) => s.activeTab);
   const setActiveTab = useAppStore((s) => s.setActiveTab);
   const checks = useAppStore((s) => s.checks);
@@ -44,26 +46,28 @@ export function CenterPane({ resolvedTheme }: CenterPaneProps) {
       }}
     >
       {/* Tab bar */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          background: "var(--bg-surface)",
-          borderBottom: "1px solid var(--border)",
-          flexShrink: 0,
-        }}
-      >
-        <Tab
-          label={fileName}
-          active={activeTab === "source"}
-          onClick={() => setActiveTab("source")}
-        />
-        <Tab
-          label="config.json"
-          active={activeTab === "config"}
-          onClick={() => setActiveTab("config")}
-        />
-      </div>
+      {!hideTabBar && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            background: "var(--bg-surface)",
+            borderBottom: "1px solid var(--border)",
+            flexShrink: 0,
+          }}
+        >
+          <Tab
+            label={fileName}
+            active={activeTab === "source"}
+            onClick={() => setActiveTab("source")}
+          />
+          <Tab
+            label="config.json"
+            active={activeTab === "config"}
+            onClick={() => setActiveTab("config")}
+          />
+        </div>
+      )}
 
       {/* Editor area */}
       <div style={{ flex: 1, minHeight: 0 }}>

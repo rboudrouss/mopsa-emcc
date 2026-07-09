@@ -3,9 +3,11 @@ import { XIcon, InfoIcon } from "lucide-react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { ActivityBar } from "@/components/ActivityBar";
 import { CenterPane } from "@/components/CenterPane";
+import { MobileLayout } from "@/components/Mobile";
 import { RightPanel } from "@/components/RightPanel";
 import { SecondarySidebar } from "@/components/SecondarySidebar";
 import { TopBar } from "@/components/TopBar";
+import { useIsMobile } from "@/lib/hooks/use-media-query";
 import { useRun } from "@/lib/hooks/use-run";
 import { useDebouncedFn } from "@/lib/hooks/use-debounced-fn";
 import { useTheme } from "@/lib/hooks/use-theme";
@@ -16,6 +18,7 @@ import { getBackend, isWasmFallback } from "@/lib/backend";
 
 export default function App() {
   const { resolved, toggle } = useTheme();
+  const isMobile = useIsMobile();
   const { data: presets, isSuccess } = usePresets();
   const { run: runAnalysis, isAnalyzing } = useRun();
   const activePanel = useAppStore((s) => s.activePanel);
@@ -98,13 +101,27 @@ export default function App() {
     if (!wasInteractive || (fileSwitched && sigChanged)) requestSessionStart();
   }, [autoRun, engine, activeFile, requestSessionStart]);
 
+  if (isMobile) {
+    return (
+      <>
+        <MobileLayout
+          isAnalyzing={isAnalyzing}
+          onRunClick={runAnalysis}
+          resolvedTheme={resolved}
+          onThemeToggle={toggle}
+        />
+        <JsooBackendBanner />
+      </>
+    );
+  }
+
   return (
     <div
       style={{
         display: "grid",
         gridTemplateColumns: "44px 1fr",
         gridTemplateRows: "48px 1fr",
-        height: "100vh",
+        height: "100dvh",
         width: "100vw",
         overflow: "hidden",
         background: "var(--bg-base)",
@@ -200,7 +217,8 @@ function JsooBackendBanner() {
         display: "flex",
         alignItems: "flex-start",
         gap: 8,
-        maxWidth: 460,
+        maxWidth: "min(460px, calc(100vw - 24px))",
+        width: "max-content",
         padding: "10px 12px",
         background: "var(--bg-elevated)",
         border: "1px solid color-mix(in srgb, #f5b544 45%, transparent)",
