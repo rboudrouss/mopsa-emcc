@@ -1,0 +1,16 @@
+{
+  "name": "mopsa-bench",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Cross-backend performance benchmark harness for Mopsa (native / wasm / jsoo, node & browser)",
+  "type": "module",
+  "scripts": {
+    "bench": "node run.mjs",
+    "bench:node": "node run.mjs --targets native,wasm-node,jsoo-node",
+    "bench:browser": "node run.mjs --targets wasm-browser,jsoo-browser",
+    "report": "node report.mjs"
+  },
+  "optionalDependencies": {
+    "playwright": "^1.48.0"
+  }
+}
