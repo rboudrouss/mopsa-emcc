@@ -3,8 +3,9 @@
  * Web Worker that runs the Mopsa analysis compiled to pure JavaScript
  * (js_of_ocaml), as a lighter alternative to the WASM backend. Feature
  * differences vs WASM: no C / C+Python analysis (the Clang parser is a
- * C++ library) and no Apron-based relational domains (C library; their
- * primitives raise if a config selects them).
+ * C++ library), and relational domains are provided by the pure-OCaml
+ * VPL library (vpl_domain.ml, self-registering plugin) instead of Apron
+ * (C library; its primitives are stubbed and would fail if used).
  *
  * The postMessage protocol is the same as backend/wasm/mopsa_worker.js:
  *
@@ -79,6 +80,11 @@ let str s = Js.Unsafe.inject (Js.string s)
 let num i = Js.Unsafe.inject (Js.number_of_float (float_of_int i))
 
 (* ── Running the analyzer ───────────────────────────────────────────────── *)
+
+(* The VPL relational domain (vpl_domain.ml, this directory) registers and
+   activates itself at module init, no -numeric flag involved (see its
+   header). Referencing the module makes the dependency explicit. *)
+let () = ignore (Vpl_domain.VPL.name)
 
 let build_argv options =
   let is_help = List.mem "-help" options in

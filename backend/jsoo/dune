@@ -7,11 +7,13 @@
 (executable
  (name mopsa_worker)
  (modes js)
- (modules mopsa_worker)
+ (modules mopsa_worker vpl_domain)
  (libraries
   mopsa.mopsa_analyzer
+  vpl-core
   js_of_ocaml
   zarith_stubs_js)
+ (flags (:standard -warn-error -a))
  (link_flags (:standard -linkall))
  (js_of_ocaml
   (flags --opt 3 --disable debugger --setenv TERM=xterm-256color)

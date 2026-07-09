@@ -55,6 +55,12 @@ opam install -y --switch="${SWITCH}" \
     js_of_ocaml-ppx \
     zarith_stubs_js
 
+# VPL (pure-OCaml polyhedra library, rmonat's fork) gives the jsoo build a
+# relational domain that doesn't depend on Apron's C stubs (-numeric vpl).
+if ! opam list --short --installed --switch="${SWITCH}" 2>/dev/null | grep -qx "vpl-core"; then
+    opam pin add vpl-core https://github.com/rmonat/VPL.git -y --switch="${SWITCH}"
+fi
+
 # ── 5. Build the analyzer without C in a /tmp copy ───────────────────────────
 # Outside /workspace so dune doesn't pick up the repo's dune-workspace, and
 # so the host's analyzer/dune (possibly configured differently) is untouched.

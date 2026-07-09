@@ -221,8 +221,9 @@ function JsooBackendBanner() {
             ? "This browser does not support WebAssembly. Using the JavaScript backend. "
             : "JavaScript backend active. "}
         </span>
-        C analysis and relationnal domains are not supported. Only
-        Python and Universal.
+        C analysis is not supported, only Python and Universal are. Relational
+        domains are handled by the pure-OCaml VPL library (polyhedra) instead
+        of Apron.
         {!isWasmFallback() &&
           " The full analyzer is available via Options > Browser Compat > Analysis backend."}
       </div>

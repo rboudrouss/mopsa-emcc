@@ -77,7 +77,7 @@ You can build the Mopsa bytecode (wasm side) and the jsoo worker without Docker,
 - Clang <= 19
 - Install `mopsa` dependencies: `opam install deps/mopsa-analyzer --deps-only`
 - Pin `mopsa` at `deps/mopsa-analyzer`: `opam pin add --switch 4.14.2 mopsa deps/mopsa-analyzer`
-- Extra packages for the jsoo backend: `opam install js_of_ocaml js_of_ocaml-ppx zarith_stubs_js`
+- Extra packages for the jsoo backend: `opam install js_of_ocaml js_of_ocaml-ppx zarith_stubs_js` and `opam pin add vpl-core https://github.com/rmonat/VPL.git` (pure-OCaml relational domain)
 
 ```sh
 make MOPSA_BC_SRC=native JSOO_SRC=native final-web
@@ -126,7 +126,7 @@ The 4.14.2 runtime fork [`ocaml-wasm`](https://github.com/rboudfork/ocaml) is he
 It is feature-reduced compared to WASM:
 
 - **No C / cross-language analysis** since the Clang parser is a C++ library. The analyzer is configured with `--disable-c`. Only Universal and Python.
-- **No Apron relational domains** since Apron is a C library.
+- **Relational domains via [VPL](https://github.com/VERIMAG-Polyhedra/VPL)** ([rmonat's fork](https://github.com/rmonat/VPL)), a pure-OCaml polyhedra library, instead of Apron (a C library).
 - All three engines work (`automatic`, `interactive`, `dap`) and sessions use the same SharedArrayBuffer stdin channel as WASM.
 
 Just like the wasm bytecode, the jsoo worker can be built two ways:

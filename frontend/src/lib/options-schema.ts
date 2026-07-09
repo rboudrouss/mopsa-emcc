@@ -347,7 +347,7 @@ export const OPTIONS_SCHEMA: { group: string; options: OptionSpec[] }[] = [
         type: "select",
         default: "auto",
         label: "Analysis backend",
-        hint: "jsoo is lighter but has no C / cross-language analysis and no relational domains. Changing this reloads the page.",
+        hint: "jsoo is lighter but has no C / cross-language analysis and relational domains use VPL instead of Apron. Changing this reloads the page.",
         choices: ["auto", "wasm", "jsoo"],
       },
     ],
@@ -656,7 +656,7 @@ export const OPTIONS_SCHEMA: { group: string; options: OptionSpec[] }[] = [
         type: "select",
         default: "polyhedra",
         label: "Relational domain",
-        hint: "Relational numeric abstract domain",
+        hint: "Relational numeric abstract domain (Apron. the jsoo backend ignores this and always uses VPL)",
         choices: ["polyhedra", "lineq", "octagon"],
       },
       {

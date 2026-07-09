@@ -7,7 +7,8 @@ import type { SupportedLanguage } from "./types";
  *   - wasm (mopsa_api.js):      the full analyzer compiled with Emscripten.
  *   - jsoo (mopsa_api_jsoo.js): the analyzer compiled to plain JavaScript
  *     with js_of_ocaml. Lighter, but feature-reduced: no C / cross-language
- *     analysis (Clang is a C++ library) and no Apron relational domains.
+ *     analysis (Clang is a C++ library); relational domains are provided by
+ *     the pure-OCaml VPL library (-numeric vpl) instead of Apron.
  *
  * The setting is `auto` (default) | `wasm` | `jsoo`, surfaced as the
  * `__backend` pseudo-option in the Options panel ("Browser Compat"). With

@@ -517,9 +517,7 @@ final-web: wasm-web-artifacts jsoo-web
 
 # ── jsoo backend ─────────────────────────────────────────────────────────────
 # The whole analyzer compiled to plain JavaScript with js_of_ocaml, as a
-# lighter (feature-reduced) alternative to the WASM backend: no C /
-# cross-language analysis (Clang is C++) and no Apron relational domains
-# (C library; load-time primitives are stubbed in backend/jsoo/runtime_stubs.js).
+# lighter (feature-reduced) alternative to the WASM backend
 #
 # Note: jsoo-analyzer reconfigures deps/mopsa-analyzer with --disable-c.
 # The docker32 / native wasm targets re-run ./configure themselves, so this

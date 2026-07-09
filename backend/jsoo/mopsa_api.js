@@ -5,10 +5,6 @@
  * WASM backend (backend/wasm/mopsa_api.js), but backed by the analyzer
  * compiled to pure JavaScript with js_of_ocaml (mopsa_worker_jsoo.js).
  *
- * Feature differences vs the WASM backend:
- *   - no C / C+Python analysis (the Clang parser is a C++ library)
- *   - no Apron-based relational domains (C library)
- *
  * Unlike the WASM worker (which re-instantiates a fresh module per run),
  * the jsoo worker keeps its OCaml runtime state across runs, so the
  * worker is terminated and respawned after every batch result / session
