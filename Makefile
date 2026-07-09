@@ -588,7 +588,7 @@ clean-jsoo:
 	      $(FRONTEND_DIR)/public/mopsa_api_jsoo.js
 
 # Clean
-clean: clean-mopsa clean-ocaml clean-project clean-gmp clean-mpfr clean-apron clean-llvm
+clean: clean-mopsa clean-ocaml clean-project clean-gmp clean-mpfr clean-apron clean-llvm clean-jsoo
 
 clean-project:
 	dune clean
