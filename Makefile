@@ -72,7 +72,7 @@ CAMLIDL_CFLAGS := -I$(OCAML_STDLIB) -I$(shell opam var lib)/camlidl -I$(INSTALL_
         mopsa_floats mopsa_primitives libcamlrun prims mopsa-bc mopsa-bc-native mopsa-install-native \
         llvm-tblgen clang-wasm clang_to_ml clang-resource-headers \
         docker-image-32bc mopsa-bc-32 extract-32-headers \
-        jsoo-analyzer jsoo-web \
+        jsoo-analyzer jsoo-web jsoo-web-native jsoo-web-docker \
         clean clean-project clean-ocaml clean-mopsa clean-gmp clean-mpfr clean-apron clean-llvm \
         clean-docker-32bc clean-jsoo
 
@@ -528,27 +528,65 @@ JSOO_SWITCH := 4.14.2
 JSOO_OPAM_EXEC := opam exec --switch=$(JSOO_SWITCH) --
 MOPSA_INSTALL_TREE := $(MOPSA_SRC)/_build/install/default/lib
 
+# Source of the jsoo worker:
+#   docker (default) : built inside the 32-bit container (mopsa-emcc-32bc),
+#                      sharing the switch and opam cache volume with the wasm
+#                      bytecode build.  Requires only Docker on the host.
+#   native           : built with the host opam switch below.  Fast on
+#                      subsequent runs, but needs the switch configured (see
+#                      "Native build" in README.md).  Use with
+#                      `make JSOO_SRC=native ...`.
+JSOO_SRC ?= docker
+JSOO_SWITCH := 4.14.2
+JSOO_OPAM_EXEC := opam exec --switch=$(JSOO_SWITCH) --
+MOPSA_INSTALL_TREE := $(MOPSA_SRC)/_build/install/default/lib
+
+# Native path: reconfigure the submodule with --disable-c and build its
+# dune install tree in-place, then compile the worker against it.
 jsoo-analyzer:
 	cd $(MOPSA_SRC) && $(JSOO_OPAM_EXEC) ./configure --disable-c
-	# @analyzer/install populates _build/install/default (library + META);
-	# the .cma target forces the bytecode objects the install tree symlinks;
-	# dune-package must be rebuilt so it no longer references the C parser.
+	# `dune build --only-packages mopsa` populates _build/install/default/
+	# with the full library tree (cmi/cma/META/dune-package for every mopsa
+	# sub-library).  It ultimately errors out on the Clang C stub parser —
+	# recent host clang headers reject it — but the failure happens after
+	# every jsoo-relevant artefact has been produced, so we ignore the
+	# non-zero exit and just re-run the dune-package target to guarantee
+	# it is up to date.  Consumed via OCAMLPATH; nothing is installed in
+	# the opam switch.
+	-$(JSOO_OPAM_EXEC) dune build --root $(MOPSA_SRC) --profile release \
+		--only-packages mopsa
 	$(JSOO_OPAM_EXEC) dune build --root $(MOPSA_SRC) --profile release \
-		"@analyzer/install" \
-		_build/default/analyzer/mopsa_analyzer.cma \
 		_build/install/default/lib/mopsa/dune-package
 
-# The jsoo worker gets the share directory (python stubs, configs) at runtime
-# from the frontend's share.json (see backend/jsoo/mopsa_api.js), so it is
-# regenerated here to stay in sync with the analyzer sources.
-jsoo-web: jsoo-analyzer
+jsoo-web-native: jsoo-analyzer | $(BUILD_DIR)
 	OCAMLPATH=$(MOPSA_INSTALL_TREE) $(JSOO_OPAM_EXEC) dune build backend/jsoo/mopsa_worker.bc.js
-	cp -f _build/default/backend/jsoo/mopsa_worker.bc.js $(FRONTEND_DIR)/public/mopsa_worker_jsoo.js
+	cp -f _build/default/backend/jsoo/mopsa_worker.bc.js $(BUILD_DIR)/mopsa_worker_jsoo.js
+
+# Docker path: reuses the mopsa-emcc-32bc image + mopsa-emcc-opam-32 volume
+# from the wasm bytecode build.  Analyzer configure/build happens in /tmp
+# inside the container (host submodule left untouched).
+jsoo-web-docker: $(BUILD_DIR)/.docker-32bc-stamp | $(BUILD_DIR)
+	$(DOCKER) run --rm \
+		--platform linux/386 \
+		-v $(CURDIR):/workspace \
+		-v mopsa-emcc-opam-32:/root/.opam \
+		$(DOCKER_IMAGE_32BC) \
+		bash /workspace/docker/build-jsoo-web.sh
+
+# Assemble the jsoo worker + api + share.json into frontend/public/.
+# JSOO_SRC picks how the worker JS is produced (docker default, native opt-in).
+ifeq ($(JSOO_SRC),native)
+jsoo-web: jsoo-web-native
+else
+jsoo-web: jsoo-web-docker
+endif
+	cp -f $(BUILD_DIR)/mopsa_worker_jsoo.js $(FRONTEND_DIR)/public/mopsa_worker_jsoo.js
 	cp -f backend/jsoo/mopsa_api.js $(FRONTEND_DIR)/public/mopsa_api_jsoo.js
 	cd $(FRONTEND_DIR) && ./generateShareJson.sh
 
 clean-jsoo:
-	rm -f $(FRONTEND_DIR)/public/mopsa_worker_jsoo.js \
+	rm -f $(BUILD_DIR)/mopsa_worker_jsoo.js \
+	      $(FRONTEND_DIR)/public/mopsa_worker_jsoo.js \
 	      $(FRONTEND_DIR)/public/mopsa_api_jsoo.js
 
 # Clean
