@@ -23,31 +23,31 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     perl \
     && rm -rf /var/lib/apt/lists/*
 
-# Build OCaml 4.14.2 from source with --host=i686-linux-gnu.
+# Build OCaml 5.4.1 from source with --host=i686-linux-gnu.
 #
 # Problem: Docker's 64-bit kernel reports x86_64 via uname -m even inside a
 # linux/386 container.  OCaml's configure uses uname to detect the target and
-# would wrongly select TARGET_amd64, causing signals_nat.c to reference
-# REG_RIP (x86-64) which does not exist on i386.
+# would wrongly select TARGET_amd64.  --host=i686-linux-gnu overrides the
+# uname-based detection so configure targets i386 correctly.
 #
-# Fix: --host=i686-linux-gnu overrides the uname-based detection so configure
-# targets i386 correctly.  The compiler in the container already emits i386
-# code by default (Debian i386 packages), so the resulting OCaml installation
-# is a fully functional native i386 toolchain.
+# OCaml 5 note: the native-code backend for 32-bit x86 (i386) was removed in
+# OCaml 5.0, so we build a BYTECODE-ONLY toolchain (--disable-native-compiler
+# + `make world`).  That is all we need: mopsa-32.bc is bytecode, produced by
+# ocamlc, and runs on the wasm32 bytecode interpreter.  Building bytecode with
+# a 31-bit-int i386 ocamlc keeps integer/marshalling widths consistent with
+# the wasm32 runtime.
 RUN curl -fsSL \
-        https://github.com/ocaml/ocaml/archive/refs/tags/4.14.2.tar.gz \
+        https://github.com/ocaml/ocaml/archive/refs/tags/5.4.1.tar.gz \
         | tar xz -C /tmp \
-    && cd /tmp/ocaml-4.14.2 \
+    && cd /tmp/ocaml-5.4.1 \
     && ./configure \
         --prefix=/opt/ocaml-32b \
         --host=i686-linux-gnu \
+        --disable-native-compiler \
         --disable-ocamltest \
-    && sed -i \
-        's/static char sig_alt_stack\[SIGSTKSZ\];/static char sig_alt_stack[65536];/' \
-        runtime/signals_nat.c \
-    && make -j"$(nproc)" world.opt \
+    && make -j"$(nproc)" world \
     && make install \
-    && rm -rf /tmp/ocaml-4.14.2
+    && rm -rf /tmp/ocaml-5.4.1
 
 ENV PATH="/opt/ocaml-32b/bin:${PATH}"
 

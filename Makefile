@@ -36,7 +36,10 @@ EMAR := emar
 OPAM_EXEC := opam exec --
 NPM := pnpm
 DOCKER := docker
-DOCKER_IMAGE_32BC := mopsa-emcc-32bc
+# OCaml 5 experiment: isolated image + opam volume so the working 4.14.2
+# setup (mopsa-emcc-32bc / mopsa-emcc-opam-32) is left untouched.
+DOCKER_IMAGE_32BC := mopsa-emcc-32bc-oc5
+DOCKER_OPAM_VOL_32 := mopsa-emcc-opam-32-oc5
 
 # Source of the OCaml bytecode embedded in the wasm build:
 #   docker32 (default) : 32-bit bytecode built in a linux/386 container so that
@@ -96,7 +99,10 @@ $(BUILD_DIR)/libcamlrun.a: | $(BUILD_DIR)
 	cc -c -o runtime/sak.o runtime/sak.c
 	cc -o runtime/sak runtime/sak.o
 	touch runtime/sak.o runtime/sak
-	CFLAGS="$(CFLAGS)" $(MAKE) -C runtime libcamlrun.a
+	# OCaml 5 removed the per-directory runtime/Makefile: the bytecode runtime
+	# is now built from the top-level Makefile via the target runtime/libcamlrun.a
+	# (OCaml 4.14 used `$(MAKE) -C runtime libcamlrun.a`).
+	CFLAGS="$(CFLAGS)" $(MAKE) runtime/libcamlrun.a
 	cp runtime/libcamlrun.a $(BUILD_DIR)
 	
 prims: $(BUILD_DIR)/prims.o
@@ -397,13 +403,13 @@ $(BUILD_DIR)/mopsa-32.bc: $(BUILD_DIR)/.docker-32bc-stamp | $(BUILD_DIR)
 	$(DOCKER) run --rm \
 		--platform linux/386 \
 		-v $(CURDIR):/workspace \
-		-v mopsa-emcc-opam-32:/root/.opam \
+		-v $(DOCKER_OPAM_VOL_32):/root/.opam \
 		$(DOCKER_IMAGE_32BC) \
 		bash /workspace/docker/build-mopsa-32bc.sh
 
 clean-docker-32bc:
 	$(DOCKER) rmi -f $(DOCKER_IMAGE_32BC) 2>/dev/null || true
-	$(DOCKER) volume rm mopsa-emcc-opam-32 2>/dev/null || true
+	$(DOCKER) volume rm $(DOCKER_OPAM_VOL_32) 2>/dev/null || true
 	rm -f $(BUILD_DIR)/.docker-32bc-stamp $(BUILD_DIR)/mopsa-32.bc
 
 # Extract 32-bit Linux system headers from the Docker image.

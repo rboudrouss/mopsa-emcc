@@ -2,8 +2,9 @@
 # Build 32-bit mopsa_worker.bc inside a 32-bit Docker container.
 #
 # Expected environment (provided by the Docker image / Makefile):
-#   - linux/386 container with OCaml 4.14.2 at /opt/ocaml-32b (built from
-#     source with --host=i686-linux-gnu so the native compiler targets i386)
+#   - linux/386 container with OCaml 5.4.1 at /opt/ocaml-32b (built from
+#     source, bytecode-only, with --host=i686-linux-gnu; OCaml 5 has no i386
+#     native backend, and only bytecode is needed for mopsa-32.bc)
 #   - /workspace  : project root mounted from the host
 #   - /root/.opam : mounted as a named Docker volume (persists between runs)
 #
@@ -14,7 +15,7 @@
 
 set -e
 
-SWITCH="4.14.2"
+SWITCH="5.4.1"
 
 cd /workspace
 
