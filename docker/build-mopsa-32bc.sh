@@ -19,6 +19,18 @@ SWITCH="5.4.1"
 
 cd /workspace
 
+# ── 0. Bytecode-only shims ───────────────────────────────────────────────────
+# OCaml 5 has no native backend on i386, so this is a bytecode-only toolchain:
+# only `ocamlc` exists, not the native-compiled `ocamlc.opt`.  Some packages'
+# configure scripts (mlgmpidl, apron) probe specifically for ocamlc.opt and
+# abort with "OCaml not found" otherwise.  Symlink it to the bytecode ocamlc.
+for tool in ocamlc.opt ocamlfind.opt; do
+    base="${tool%.opt}"
+    if [ ! -e "/opt/ocaml-32b/bin/${tool}" ] && [ -e "/opt/ocaml-32b/bin/${base}" ]; then
+        ln -sf "${base}" "/opt/ocaml-32b/bin/${tool}"
+    fi
+done
+
 # ── 1. Bootstrap opam (first run only) ───────────────────────────────────────
 if [ ! -f /root/.opam/config ]; then
     echo "=== Initialising opam (first run — cached in Docker volume) ==="

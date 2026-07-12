@@ -4,3 +4,8 @@ build/
 dist/
 deps/gmp-6.1.2
 deps/mpfr-4.2.2
+
+# OCaml 5 experiment local artifacts
+*.414bak
+mopsa-ocaml5-working.png
+.playwright-mcp/

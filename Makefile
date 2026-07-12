@@ -48,7 +48,10 @@ DOCKER_OPAM_VOL_32 := mopsa-emcc-opam-32-oc5
 #                        Experimental: tests whether the 32-bit build is really
 #                        required.  Use with `make MOPSA_BC_SRC=native ...`.
 MOPSA_BC_SRC ?= docker32
-NATIVE_SWITCH := 4.14.2
+# OCaml 5 experiment: 5.4.0 host switch (has all mopsa deps installed).
+# Its bytecode magic (Caml1999X036) is identical to the 5.4.1 wasm runtime,
+# so the produced .bc is compatible with the ocaml-wasm 5.4.1 byterunner.
+NATIVE_SWITCH := 5.4.0
 NATIVE_OPAM_EXEC := opam exec --switch=$(NATIVE_SWITCH) --
 NATIVE_BUILD_DIR := $(CURDIR)/_build
 MOPSA_SRC := $(DEPS_DIR)/mopsa-analyzer
@@ -89,6 +92,12 @@ libcamlrun: $(BUILD_DIR)/libcamlrun.a
 $(BUILD_DIR)/libcamlrun.a: | $(BUILD_DIR)
 	cd $(DEPS_DIR)/ocaml-wasm
 	CFLAGS="$(CFLAGS)" $(EMCONFIGURE) ./configure --disable-native-compiler --disable-ocamltest --disable-ocamldoc --disable-systhreads
+	# OCaml 5 / wasm: external C stubs (Zarith, Apron, GMP) that read the
+	# thread-local caml_state directly resolve it to NULL here.  Force them
+	# through the caml_get_domain_state() accessor by leaving
+	# HAS_FULL_THREAD_VARIABLES undefined (configure re-generates s.h each run,
+	# so this sed must follow configure).
+	sed -i 's|^#define HAS_FULL_THREAD_VARIABLES 1|/* HAS_FULL_THREAD_VARIABLES disabled for wasm (see Makefile) */|' runtime/caml/s.h
 	# OCaml 4.14 introduced runtime/sak, a build-time tool used to encode the
 	# stdlib path as a C literal in build_config.h.  emconfigure would compile
 	# it with emcc → .wasm, which can't be exec'd on the host, so the embedded
@@ -112,10 +121,10 @@ $(BUILD_DIR)/prims.o: | $(BUILD_DIR)
 			echo '#include <caml/mlvalues.h>'; \
 	echo '#include <caml/prims.h>'; \
 	sed -e 's/.*/extern value &();/' backend/wasm/primitives.txt; \
-	echo 'c_primitive caml_builtin_cprim[] = {'; \
+	echo 'const c_primitive caml_builtin_cprim[] = {'; \
 	sed -e 's/.*/	&,/' backend/wasm/primitives.txt; \
 	echo '	 0 };'; \
-	echo 'char * caml_names_of_builtin_cprim[] = {'; \
+	echo 'const char * const caml_names_of_builtin_cprim[] = {'; \
 	sed -e 's/.*/	"&",/' backend/wasm/primitives.txt; \
 	echo '	 0 };') > $(BUILD_DIR)/prims.c
 	$(EMCC) $(EMCC_FLAGS) -Wno-incompatible-function-pointer-types -c -I $(OCAML_STDLIB) -o $(BUILD_DIR)/prims.o $(BUILD_DIR)/prims.c
@@ -241,20 +250,28 @@ $(DEPS_BIN_DIR)/mopsa_floats.a:
 	$(EMAR) rcs $@ $(BUILD_DIR)/floats_round.o
 
 # Library primitives that mopsa.bc references at link time (unix + regex).
-# These are extracted from Vincent Chan's old OCaml wasm fork (originally part
-# of his runtime patches).  Kept here as standalone TUs rather than patches to
-# the OCaml runtime: keeps deps/ocaml-wasm minimal, easier to upgrade later.
-# systhreads/integers/ctypes/core_kernel were also in his fork but mopsa.bc
-# never references their primitives (verified via `strings build/mopsa.bc`).
-PRIMS_DIR := $(DEPS_DIR)/primitives
-PRIMS_SOURCES := $(wildcard $(PRIMS_DIR)/unix/*.c) $(wildcard $(PRIMS_DIR)/str/*.c)
-PRIMS_OBJECTS := $(patsubst $(PRIMS_DIR)/%.c,$(BUILD_DIR)/primitives/%.o,$(PRIMS_SOURCES))
+# OCaml 5 renamed the Unix primitives (unix_* -> caml_unix_*) and moved the C
+# stubs into per-platform variants, so we compile them straight from OCaml 5's
+# own otherlibs (deps/ocaml-wasm/otherlibs/{unix,str}) instead of Vincent Chan's
+# old 4.12 fork.  We take the POSIX set: every *.c except *_win32.c and the
+# handful of Windows-only helpers below (which reference Win32-only APIs).
+OC5_UNIX_DIR := $(DEPS_DIR)/ocaml-wasm/otherlibs/unix
+OC5_STR_DIR  := $(DEPS_DIR)/ocaml-wasm/otherlibs/str
+UNIX_WIN_ONLY := close_on createprocess nonblock startup system windir winlist winwait winworker
+UNIX_SRCS := $(filter-out $(UNIX_WIN_ONLY:%=$(OC5_UNIX_DIR)/%.c), \
+               $(filter-out %_win32.c,$(wildcard $(OC5_UNIX_DIR)/*.c)))
+PRIMS_OBJECTS := $(patsubst $(OC5_UNIX_DIR)/%.c,$(BUILD_DIR)/primitives/unix/%.o,$(UNIX_SRCS)) \
+                 $(BUILD_DIR)/primitives/str/strstubs.o
 
 mopsa_primitives: $(DEPS_BIN_DIR)/libmopsa_primitives.a
 
-$(BUILD_DIR)/primitives/%.o: $(PRIMS_DIR)/%.c | $(BUILD_DIR)
+$(BUILD_DIR)/primitives/unix/%.o: $(OC5_UNIX_DIR)/%.c | $(BUILD_DIR)
 	mkdir -p $(dir $@)
-	$(EMCC) $(EMCC_FLAGS) -DHAS_REALPATH -c -I$(OCAML_STDLIB) -I$(PRIMS_DIR)/unix -o $@ $<
+	$(EMCC) $(EMCC_FLAGS) -DHAS_REALPATH -c -I$(OCAML_STDLIB) -I$(OC5_UNIX_DIR) -o $@ $<
+
+$(BUILD_DIR)/primitives/str/%.o: $(OC5_STR_DIR)/%.c | $(BUILD_DIR)
+	mkdir -p $(dir $@)
+	$(EMCC) $(EMCC_FLAGS) -c -I$(OCAML_STDLIB) -o $@ $<
 
 $(DEPS_BIN_DIR)/libmopsa_primitives.a: $(PRIMS_OBJECTS) | $(DEPS_BIN_DIR)
 	$(EMAR) rcs $@ $(PRIMS_OBJECTS)
@@ -262,6 +279,11 @@ $(DEPS_BIN_DIR)/libmopsa_primitives.a: $(PRIMS_OBJECTS) | $(DEPS_BIN_DIR)
 # Apron FPU override: silences the spurious "platform not supported" warning.
 # NUM_MPQ domains use exact GMP arithmetic, so no hardware rounding is needed.
 $(BUILD_DIR)/ap_fpu_wasm.o: backend/wasm/ap_fpu_wasm.c
+	$(EMCC) $(EMCC_FLAGS) -c -o $@ $<
+
+# Stubs for POSIX libc functions emscripten lacks but OCaml 5's Unix otherlib
+# references at link time (e.g. sigsuspend).  Never actually called by mopsa.
+$(BUILD_DIR)/unix_wasm_stubs.o: backend/wasm/unix_wasm_stubs.c
 	$(EMCC) $(EMCC_FLAGS) -c -o $@ $<
 
 # LLVM/Clang wasm build
@@ -446,32 +468,34 @@ $(BUILD_DIR)/.linux32-headers-stamp: $(BUILD_DIR)/.docker-32bc-stamp | $(BUILD_D
 	touch $@
 
 # Build final binary
-final: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o deps $(BUILD_DIR)/ap_fpu_wasm.o | $(DIST_DIR)
+final: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o deps $(BUILD_DIR)/ap_fpu_wasm.o $(BUILD_DIR)/unix_wasm_stubs.o | $(DIST_DIR)
 	$(EMCC) -Wall -Oz -fno-strict-aliasing -fwrapv \
 	-ffunction-sections -o $(DIST_DIR)/ocamlrun.html \
 	-s ENVIRONMENT='web' --preload-file $(BUILD_DIR)/mopsa.bc \
 	--preload-file $(INSTALL_DIR)/lib/clang/9.0.1/include@/clang-headers/include \
 	-s EXPORTED_RUNTIME_METHODS="['ccall', 'cwrap', 'FS', 'run','callMain']" \
 	--pre-js backend/wasm/pre.js --post-js backend/wasm/post.js -L$(LIBS_DIR) \
-	-Wl,--wrap=ap_fpu_init $(BUILD_DIR)/ap_fpu_wasm.o \
+	-Wl,--wrap=ap_fpu_init $(BUILD_DIR)/ap_fpu_wasm.o $(BUILD_DIR)/unix_wasm_stubs.o \
 	$(DEPS_BIN_DIR)/*.a $(LIBS_DIR)/*.a \
-	-s ALLOW_MEMORY_GROWTH=1 -s INITIAL_MEMORY=128MB -s STACK_SIZE=5MB \
+	-s ALLOW_MEMORY_GROWTH=1 -s INITIAL_MEMORY=256MB -s STACK_SIZE=16MB \
 	-s ASSERTIONS=2 \
+	-s EXIT_RUNTIME=1 \
 	-s ERROR_ON_UNDEFINED_SYMBOLS=1 \
 	$(BUILD_DIR)/prims.o $(BUILD_DIR)/libcamlrun.a
 
 # Build final binary for Node.js (run as: node ocamlrun.js mopsa.bc)
-final-node: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o deps $(BUILD_DIR)/ap_fpu_wasm.o | $(DIST_DIR)
+final-node: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o deps $(BUILD_DIR)/ap_fpu_wasm.o $(BUILD_DIR)/unix_wasm_stubs.o | $(DIST_DIR)
 	$(EMCC) -Wall -Oz -fno-strict-aliasing -fwrapv \
 	-ffunction-sections -o $(DIST_DIR)/ocamlrun.js \
 	-s ENVIRONMENT='node' --preload-file $(BUILD_DIR)/mopsa.bc@mopsa.bc \
 	--preload-file $(INSTALL_DIR)/lib/clang/9.0.1/include@/clang-headers/include \
 	-s EXPORTED_RUNTIME_METHODS="['ccall', 'cwrap', 'FS', 'run','callMain']" \
 	--post-js backend/wasm/post.js -L$(LIBS_DIR) \
-	-Wl,--wrap=ap_fpu_init $(BUILD_DIR)/ap_fpu_wasm.o \
+	-Wl,--wrap=ap_fpu_init $(BUILD_DIR)/ap_fpu_wasm.o $(BUILD_DIR)/unix_wasm_stubs.o \
 	$(DEPS_BIN_DIR)/*.a $(LIBS_DIR)/*.a \
-	-s ALLOW_MEMORY_GROWTH=1 -s INITIAL_MEMORY=128MB -s STACK_SIZE=5MB \
+	-s ALLOW_MEMORY_GROWTH=1 -s INITIAL_MEMORY=256MB -s STACK_SIZE=16MB \
 	-s ASSERTIONS=2 \
+	-s EXIT_RUNTIME=1 \
 	-s ERROR_ON_UNDEFINED_SYMBOLS=1 \
 	$(BUILD_DIR)/prims.o $(BUILD_DIR)/libcamlrun.a
 
@@ -484,7 +508,7 @@ final-node: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o
 #
 # The mopsa share directory is preloaded at /share/mopsa so C/Python stubs
 # are available to Mopsa inside the virtual filesystem.
-final-web: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o deps $(BUILD_DIR)/.linux32-headers-stamp $(BUILD_DIR)/ap_fpu_wasm.o | $(DIST_DIR)
+final-web: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o deps $(BUILD_DIR)/.linux32-headers-stamp $(BUILD_DIR)/ap_fpu_wasm.o $(BUILD_DIR)/unix_wasm_stubs.o | $(DIST_DIR)
 	$(EMCC) -Wall -Oz -fno-strict-aliasing -fwrapv \
 	-ffunction-sections -o $(DIST_DIR)/ocamlrun.js \
 	-s ENVIRONMENT='web' \
@@ -496,10 +520,11 @@ final-web: $(BUILD_DIR)/libcamlrun.a $(BUILD_DIR)/mopsa.bc $(BUILD_DIR)/prims.o 
 	--preload-file $(DEPS_DIR)/mopsa-analyzer/share/mopsa@/share/mopsa \
 	-s EXPORTED_RUNTIME_METHODS="['FS','ENV']" \
 	--pre-js backend/wasm/pre.js --post-js backend/wasm/post.js -L$(LIBS_DIR) \
-	-Wl,--wrap=ap_fpu_init $(BUILD_DIR)/ap_fpu_wasm.o \
+	-Wl,--wrap=ap_fpu_init $(BUILD_DIR)/ap_fpu_wasm.o $(BUILD_DIR)/unix_wasm_stubs.o \
 	$(DEPS_BIN_DIR)/*.a $(LIBS_DIR)/*.a \
-	-s ALLOW_MEMORY_GROWTH=1 -s INITIAL_MEMORY=128MB -s STACK_SIZE=5MB \
+	-s ALLOW_MEMORY_GROWTH=1 -s INITIAL_MEMORY=256MB -s STACK_SIZE=16MB \
 	-s ASSERTIONS=0 \
+	-s EXIT_RUNTIME=1 \
 	-s ERROR_ON_UNDEFINED_SYMBOLS=1 \
 	$(BUILD_DIR)/prims.o $(BUILD_DIR)/libcamlrun.a
 	cp $(DIST_DIR)/ocamlrun.js   $(FRONTEND_DIR)/public/
