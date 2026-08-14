@@ -45,6 +45,16 @@ declare global {
       options: string[],
     ) => MopsaSessionHandle;
 
+    /**
+     * Like startSession, but on a dedicated Worker: coexists with batch
+     * analyses and the foreground session. Used for long-lived auxiliary
+     * runs (editor-hover DAP session). kill() terminates its worker.
+     */
+    startBackgroundSession: (
+      engine: "interactive" | "dap",
+      options: string[],
+    ) => MopsaSessionHandle;
+
     writeFile: (filename: string, content: string) => void;
     setCode: (code: string) => void;
     setConfig: (config: string) => void;

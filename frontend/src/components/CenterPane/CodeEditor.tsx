@@ -6,6 +6,7 @@ import type * as MonacoNS from "monaco-editor";
 import { useRef, useState } from "react";
 import { useMonacoDecorations } from "@/lib/hooks/use-monaco-decorations";
 import { useDebugBreakpoints } from "@/lib/hooks/use-debug-breakpoints";
+import { useMopsaHover } from "@/lib/hooks/use-mopsa-hover";
 import { getCodeFilePath } from "@/lib/mopsa-client";
 import { findById } from "@/lib/tree";
 import { useAppStore } from "@/lib/store";
@@ -99,6 +100,7 @@ export function CodeEditor({ resolvedTheme }: CodeEditorProps) {
 
   useMonacoDecorations(editorRef, editorChecks, codeFilePath, mountKey);
   useDebugBreakpoints(editorRef, monacoRef, codeFilePath, dapMode, mountKey);
+  useMopsaHover(monacoRef, mountKey);
 
   const handleBeforeMount: BeforeMount = (monaco) => {
     defineThemes(monaco);

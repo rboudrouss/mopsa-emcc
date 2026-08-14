@@ -236,6 +236,119 @@
       return handle;
     },
 
+    /**
+     * startBackgroundSession(engine, options) → SessionHandle
+     *
+     * Like startSession, but on its OWN dedicated Worker, so it coexists
+     * with batch analyses and the foreground interactive/dap session (which
+     * monopolise the shared worker). Used for long-lived auxiliary runs,
+     * e.g. the editor-hover DAP session that keeps serving `environment`
+     * requests after its analysis finished.
+     *
+     * kill() terminates the dedicated worker outright; the handle is dead
+     * afterwards (start a new background session instead of reusing it).
+     */
+    startBackgroundSession: function (engine, options) {
+      if (typeof SharedArrayBuffer === "undefined" || !self.crossOriginIsolated) {
+        throw new Error(
+          "The " +
+            engine +
+            " engine needs cross-origin isolation (SharedArrayBuffer). " +
+            "Serve COOP/COEP headers.",
+        );
+      }
+
+      var id = _nextId++;
+      var worker = new Worker("./mopsa_worker.js");
+      var channel = self.syncMessage.makeChannel({
+        atomics: { bufferSize: 256 * 1024 },
+      });
+      var listeners = { started: [], data: [], end: [], error: [] };
+      var alive = true;
+
+      function emit(ev, arg) {
+        listeners[ev].slice().forEach(function (cb) {
+          cb(arg);
+        });
+      }
+      function shutdown() {
+        if (!alive) return;
+        alive = false;
+        worker.terminate();
+      }
+
+      worker.onmessage = function (event) {
+        var msg = event.data;
+        if (!msg || msg.id !== id) return;
+        switch (msg.type) {
+          case "started":
+            emit("started");
+            break;
+          case "stdout-bytes":
+            emit("data", msg.bytes);
+            break;
+          case "session-ended":
+            shutdown();
+            emit("end", msg.code);
+            break;
+          case "session-error":
+            shutdown();
+            emit("error", msg.message);
+            break;
+        }
+      };
+      worker.onerror = function (e) {
+        shutdown();
+        emit(
+          "error",
+          "[Worker error] " +
+            ((e && e.message) ||
+              "the background analysis worker crashed unexpectedly"),
+        );
+      };
+
+      var handle = {
+        engine: engine,
+        onStarted: function (cb) {
+          listeners.started.push(cb);
+        },
+        onData: function (cb) {
+          listeners.data.push(cb);
+        },
+        onEnd: function (cb) {
+          listeners.end.push(cb);
+        },
+        onError: function (cb) {
+          listeners.error.push(cb);
+        },
+        sendInput: function (data) {
+          self.syncMessage.writeMessage(channel, { data: data });
+        },
+        sendEof: function () {
+          self.syncMessage.writeMessage(channel, { eof: true });
+        },
+        kill: function () {
+          if (!alive) return;
+          shutdown();
+          emit("end", -1);
+        },
+      };
+
+      worker.postMessage({
+        type: "start",
+        id: id,
+        engine: engine,
+        options: options || [],
+        code: _code,
+        config: _config,
+        codeFile: _codeFile,
+        extraFiles: _extraFiles,
+        stdinChannel: channel,
+      });
+
+      return handle;
+    },
+
     // ── Code / config helpers (synchronous, no WASM needed) ───────────────
 
     setCode: function (code) {
