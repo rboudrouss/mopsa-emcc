@@ -67,13 +67,6 @@ rm -f /tmp/mopsa-src/.git
 cd /tmp/mopsa-src
 ./configure
 
-# On i386 (x87 FPU), FLT_EVAL_METHOD is 2 (extended precision), not 0.
-# floats_round.c requires FLT_EVAL_METHOD == 0.
-# Adding -mfpmath=sse -msse2 forces SSE2 floating-point which gives
-# FLT_EVAL_METHOD == 0, matching the behaviour mopsa expects.
-sed -i 's/(flags -fPIC -frounding-math)/(flags -fPIC -frounding-math -mfpmath=sse -msse2)/' \
-    utils/dune
-
 opam exec -- dune build --build-dir=/tmp/mopsa-build --profile release
 
 OPAM_PREFIX="$(opam var prefix --switch=${SWITCH})"
