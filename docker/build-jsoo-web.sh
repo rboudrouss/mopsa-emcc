@@ -64,7 +64,7 @@ fi
 # Outside /workspace so dune doesn't pick up the repo's dune-workspace, and
 # so the host's analyzer/dune (possibly configured differently) is untouched.
 rsync -a --delete --exclude=_build --exclude=.git \
-    deps/mopsa-analyzer/ /tmp/mopsa-jsoo-src/
+    build/mopsa-analyzer/ /tmp/mopsa-jsoo-src/
 
 cd /tmp/mopsa-jsoo-src
 ./configure --disable-c

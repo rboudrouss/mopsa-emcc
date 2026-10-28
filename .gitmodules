@@ -1,6 +1,3 @@
-[submodule "deps/mopsa-analyzer"]
-	path = deps/mopsa-analyzer
-	url = git@gitlab.com:rboudrouss/mopsa-analyzer-32-bit.git
 [submodule "deps/ocaml-wasm"]
 	path = deps/ocaml-wasm
 	url = git@github.com:rboudfork/ocaml.git

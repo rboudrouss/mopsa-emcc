@@ -11,7 +11,6 @@
 # Variables
 DIST_DIR := $(CURDIR)/dist
 BUILD_DIR := $(CURDIR)/build
-DEPS_DIR := $(CURDIR)/deps
 FRONTEND_DIR := $(CURDIR)/frontend
 LINUX32_INCLUDE_DIR := $(BUILD_DIR)/linux32-include
 
@@ -31,7 +30,9 @@ OCAML_EMCC_FLAGS ?=
 # Mopsa is pinned to the 32-bit fork until its 31-bit fixes are merged upstream.
 MOPSA_REPO ?= https://gitlab.com/rboudrouss/mopsa-analyzer-32-bit.git
 MOPSA_BRANCH ?= main
-MOPSA_SRC := $(DEPS_DIR)/mopsa-analyzer
+# A clone of the same branch, for the jsoo worker (configured with --disable-c)
+# and the frontend's share.json
+MOPSA_SRC := $(BUILD_DIR)/mopsa-analyzer
 
 # Phony targets
 .PHONY: all wasm wasm-node wasm-web wasm-web-artifacts final-web frontend-build \
@@ -56,10 +57,14 @@ $(MOPSA_META):
 	opam pin add --switch=$(SWITCH) -y --no-action mopsa "git+$(MOPSA_REPO)#$(MOPSA_BRANCH)"
 	OPAMKEEPBUILDDIR=true opam install --switch=$(SWITCH) -y mopsa
 
-# Rebuild mopsa from the latest commit of $(MOPSA_BRANCH)
+$(MOPSA_SRC)/.git: | $(BUILD_DIR)
+	git clone --depth 1 --branch $(MOPSA_BRANCH) $(MOPSA_REPO) $(MOPSA_SRC)
+
+# Rebuild mopsa (and update the clone) from the latest commit of $(MOPSA_BRANCH)
 mopsa-update:
 	opam update --switch=$(SWITCH) mopsa
 	OPAMKEEPBUILDDIR=true opam upgrade --switch=$(SWITCH) -y mopsa
+	if [ -d $(MOPSA_SRC)/.git ]; then git -C $(MOPSA_SRC) pull --ff-only; fi
 
 # ── WASM backend (ocaml-emcc) ────────────────────────────────────────────────
 # ocaml-emcc builds the wasm ocamlrun, the C libraries (gmp, mpfr, apron, clang 9:
@@ -177,8 +182,7 @@ final-web: wasm-web-artifacts jsoo-web
 # The whole analyzer compiled to plain JavaScript with js_of_ocaml, as a
 # lighter (feature-reduced) alternative to the WASM backend
 #
-# Note: jsoo-analyzer reconfigures deps/mopsa-analyzer with --disable-c
-# (the submodule's analyzer/dune changes).
+# Note: jsoo-analyzer reconfigures the clone $(MOPSA_SRC) with --disable-c.
 
 # Source of the jsoo worker:
 #   docker (default) : built inside the 32-bit container (mopsa-emcc-32bc),
@@ -193,9 +197,9 @@ JSOO_SWITCH ?= $(SWITCH)
 JSOO_OPAM_EXEC := opam exec --switch=$(JSOO_SWITCH) --
 MOPSA_INSTALL_TREE := $(MOPSA_SRC)/_build/install/default/lib
 
-# Native path: reconfigure the submodule with --disable-c and build its
-# dune install tree in-place, then compile the worker against it.
-jsoo-analyzer:
+# Native path: reconfigure the clone with --disable-c and build its dune
+# install tree in-place, then compile the worker against it.
+jsoo-analyzer: $(MOPSA_SRC)/.git
 	cd $(MOPSA_SRC) && $(JSOO_OPAM_EXEC) ./configure --disable-c
 	# `dune build --only-packages mopsa` populates _build/install/default/
 	# with the full library tree (cmi/cma/META/dune-package for every mopsa
@@ -215,9 +219,9 @@ jsoo-web-native: jsoo-analyzer | $(BUILD_DIR)
 	cp -f _build/default/backend/jsoo/mopsa_worker.bc.js $(BUILD_DIR)/mopsa_worker_jsoo.js
 
 # Docker path: mopsa-emcc-32bc image + mopsa-emcc-opam-32 volume.  Analyzer
-# configure/build happens in /tmp inside the container (host submodule left
+# configure/build happens in /tmp inside the container (host clone left
 # untouched).
-jsoo-web-docker: $(BUILD_DIR)/.docker-32bc-stamp | $(BUILD_DIR)
+jsoo-web-docker: $(BUILD_DIR)/.docker-32bc-stamp $(MOPSA_SRC)/.git | $(BUILD_DIR)
 	$(DOCKER) run --rm \
 		--platform linux/386 \
 		-v $(CURDIR):/workspace \
@@ -234,7 +238,7 @@ jsoo-web: jsoo-web-docker
 endif
 	cp -f $(BUILD_DIR)/mopsa_worker_jsoo.js $(FRONTEND_DIR)/public/mopsa_worker_jsoo.js
 	cp -f backend/jsoo/mopsa_api.js $(FRONTEND_DIR)/public/mopsa_api_jsoo.js
-	cd $(FRONTEND_DIR) && ./generateShareJson.sh
+	cd $(FRONTEND_DIR) && ./generateShareJson.sh $(MOPSA_SRC)/share/mopsa/
 
 clean-jsoo:
 	rm -f $(BUILD_DIR)/mopsa_worker_jsoo.js \
