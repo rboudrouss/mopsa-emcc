@@ -3,5 +3,7 @@
  (modes byte)
  (modules mopsa_worker)
  (libraries mopsa.mopsa_analyzer mopsa.mopsa_build_db)
- (ocamlc_flags -no-check-prims -w -a)
+ ; -w=-a, not -w -a: the ocamlc wrapper of ocaml-emcc would take the -a
+ ; for a library build and forget the C flags of the libraries (-lstdc++)
+ (ocamlc_flags -no-check-prims -w=-a)
  (link_flags -linkall))

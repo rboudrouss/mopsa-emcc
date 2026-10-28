@@ -1,7 +1,8 @@
-# 32-bit OCaml environment for building mopsa.bc for wasm32 target.
+# 32-bit OCaml environment for building the jsoo worker, and source of the
+# 32-bit Linux / CPython headers preloaded in the wasm build.
 # Source code is NOT baked in — it is mounted at /workspace at runtime.
 # The opam switch and packages are cached in the mopsa-emcc-opam-32 Docker
-# volume by build-mopsa-32bc.sh, so only the first run is slow.
+# volume by build-jsoo-web.sh, so only the first run is slow.
 FROM --platform=linux/386 debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \

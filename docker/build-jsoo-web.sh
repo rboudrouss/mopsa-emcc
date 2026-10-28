@@ -1,9 +1,8 @@
 #!/bin/bash
 # Build the js_of_ocaml backend worker inside the 32-bit Docker container.
 #
-# Mirrors docker/build-mopsa-32bc.sh: same image (mopsa-emcc-32bc), same
-# opam volume (mopsa-emcc-opam-32), so the switch and the mopsa deps are
-# shared with the wasm bytecode build and only installed once. js_of_ocaml
+# The switch and the mopsa deps live in the mopsa-emcc-opam-32 volume, so
+# they are only installed once. js_of_ocaml
 # itself is pure OCaml, so building it in the 32-bit container is fine (the
 # generated JS uses 32-bit ints regardless of the host).
 #

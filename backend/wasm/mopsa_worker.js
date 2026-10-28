@@ -62,9 +62,10 @@ var _dataBufferPromise = fetch("./ocamlrun.data")
 // ── Shared helpers ──────────────────────────────────────────────────────────
 
 function buildArgs(options, isHelp) {
-  return ["build/mopsa.bc"]
-    .concat(isHelp ? [] : ["-config", "/config.json"])
-    .concat(["-share-dir", "/share/mopsa", "-I", "/clang-headers", "-I", "/usr/include"])
+  // The bytecode is argv[0] (ocaml-emcc), clang's headers are at the C
+  // parser's resource directory
+  return (isHelp ? [] : ["-config", "/config.json"])
+    .concat(["-share-dir", "/share/mopsa", "-I", "/usr/include"])
     .concat(options || []);
 }
 
