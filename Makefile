@@ -3,7 +3,8 @@
 #   (`make mopsa-install`; the C parser needs a host clang + llvm-dev)
 # - ocaml-emcc (https://github.com/rboudrouss/ocaml-emcc), with cmake for its clang recipe
 # - Emscripten SDK (emcc in PATH)
-# - Docker (32-bit Linux headers, jsoo worker)
+# - js_of_ocaml, js_of_ocaml-ppx, zarith_stubs_js, vpl-core in the switch (jsoo worker)
+# - Docker (32-bit Linux headers)
 #   - Build the image with: `docker build -t mopsa-emcc-32bc -f docker/Dockerfile.mopsa-32bc docker/`
 
 .ONESHELL:
@@ -37,7 +38,7 @@ MOPSA_SRC := $(BUILD_DIR)/mopsa-analyzer
 # Phony targets
 .PHONY: all wasm wasm-node wasm-web wasm-web-artifacts final-web frontend-build \
         mopsa-install mopsa-update docker-image-32bc extract-32-headers \
-        jsoo-analyzer jsoo-web jsoo-web-native jsoo-web-docker \
+        jsoo-analyzer jsoo-worker jsoo-web \
         clean clean-project clean-docker-32bc clean-jsoo
 
 # Targets
@@ -118,7 +119,7 @@ wasm-web-artifacts: $(MOPSA_META) $(BUILD_DIR)/.linux32-headers-stamp | $(DIST_D
 	cp backend/wasm/mopsa_api.js    $(FRONTEND_DIR)/public/
 	cp backend/wasm/mopsa_worker.js $(FRONTEND_DIR)/public/
 
-# ── Docker: 32-bit Linux headers (and the jsoo worker below) ─────────────────
+# ── Docker: 32-bit Linux headers ─────────────────────────────────────────────
 docker-image-32bc: $(BUILD_DIR)/.docker-32bc-stamp
 
 $(BUILD_DIR)/.docker-32bc-stamp: docker/Dockerfile.mopsa-32bc | $(BUILD_DIR)
@@ -131,7 +132,6 @@ $(BUILD_DIR)/.docker-32bc-stamp: docker/Dockerfile.mopsa-32bc | $(BUILD_DIR)
 
 clean-docker-32bc:
 	$(DOCKER) rmi -f $(DOCKER_IMAGE_32BC) 2>/dev/null || true
-	$(DOCKER) volume rm mopsa-emcc-opam-32 2>/dev/null || true
 	rm -f $(BUILD_DIR)/.docker-32bc-stamp
 
 # Extract 32-bit Linux system headers from the Docker image.
@@ -182,23 +182,17 @@ final-web: wasm-web-artifacts jsoo-web
 # The whole analyzer compiled to plain JavaScript with js_of_ocaml, as a
 # lighter (feature-reduced) alternative to the WASM backend
 #
+# Built with the host opam switch, which needs js_of_ocaml, js_of_ocaml-ppx,
+# zarith_stubs_js and vpl-core (see README.md).  js_of_ocaml gives 32-bit ints
+# whatever the compiler, so no 32-bit toolchain is needed.
+#
 # Note: jsoo-analyzer reconfigures the clone $(MOPSA_SRC) with --disable-c.
-
-# Source of the jsoo worker:
-#   docker (default) : built inside the 32-bit container (mopsa-emcc-32bc),
-#                      with its own switch in the mopsa-emcc-opam-32 volume.
-#                      Requires only Docker on the host.
-#   native           : built with the host opam switch below.  Fast on
-#                      subsequent runs, but needs the switch configured (see
-#                      "Native build" in README.md).  Use with
-#                      `make JSOO_SRC=native ...`.
-JSOO_SRC ?= docker
 JSOO_SWITCH ?= $(SWITCH)
 JSOO_OPAM_EXEC := opam exec --switch=$(JSOO_SWITCH) --
 MOPSA_INSTALL_TREE := $(MOPSA_SRC)/_build/install/default/lib
 
-# Native path: reconfigure the clone with --disable-c and build its dune
-# install tree in-place, then compile the worker against it.
+# Reconfigure the clone with --disable-c and build its dune install tree
+# in-place, then compile the worker against it.
 jsoo-analyzer: $(MOPSA_SRC)/.git
 	cd $(MOPSA_SRC) && $(JSOO_OPAM_EXEC) ./configure --disable-c
 	# `dune build --only-packages mopsa` populates _build/install/default/
@@ -214,28 +208,12 @@ jsoo-analyzer: $(MOPSA_SRC)/.git
 	$(JSOO_OPAM_EXEC) dune build --root $(MOPSA_SRC) --profile release \
 		_build/install/default/lib/mopsa/dune-package
 
-jsoo-web-native: jsoo-analyzer | $(BUILD_DIR)
+jsoo-worker: jsoo-analyzer | $(BUILD_DIR)
 	OCAMLPATH=$(MOPSA_INSTALL_TREE) $(JSOO_OPAM_EXEC) dune build backend/jsoo/mopsa_worker.bc.js
 	cp -f _build/default/backend/jsoo/mopsa_worker.bc.js $(BUILD_DIR)/mopsa_worker_jsoo.js
 
-# Docker path: mopsa-emcc-32bc image + mopsa-emcc-opam-32 volume.  Analyzer
-# configure/build happens in /tmp inside the container (host clone left
-# untouched).
-jsoo-web-docker: $(BUILD_DIR)/.docker-32bc-stamp $(MOPSA_SRC)/.git | $(BUILD_DIR)
-	$(DOCKER) run --rm \
-		--platform linux/386 \
-		-v $(CURDIR):/workspace \
-		-v mopsa-emcc-opam-32:/root/.opam \
-		$(DOCKER_IMAGE_32BC) \
-		bash /workspace/docker/build-jsoo-web.sh
-
 # Assemble the jsoo worker + api + share.json into frontend/public/.
-# JSOO_SRC picks how the worker JS is produced (docker default, native opt-in).
-ifeq ($(JSOO_SRC),native)
-jsoo-web: jsoo-web-native
-else
-jsoo-web: jsoo-web-docker
-endif
+jsoo-web: jsoo-worker
 	cp -f $(BUILD_DIR)/mopsa_worker_jsoo.js $(FRONTEND_DIR)/public/mopsa_worker_jsoo.js
 	cp -f backend/jsoo/mopsa_api.js $(FRONTEND_DIR)/public/mopsa_api_jsoo.js
 	cd $(FRONTEND_DIR) && ./generateShareJson.sh $(MOPSA_SRC)/share/mopsa/

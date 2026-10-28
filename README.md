@@ -16,7 +16,7 @@ The frontend actually ships two backends: the full WASM build, and a lighter pur
 | `ocaml-emcc.conf`, `emcc-recipes/` | ocaml-emcc configuration: wasm32 target, clang 9 and apron recipes              |
 | `build/`         | Temporary build artefacts: clone of Mopsa for the jsoo backend, 32-bit headers (`_build/` is reserved for dune output) |
 | `dist/`          | Final `.wasm`, `.js`, `.html` and `.data` outputs                                                 |
-| `docker/`        | 32-bit image: Linux / CPython headers for the WASM build, jsoo worker build                       |
+| `docker/`        | 32-bit image: Linux / CPython headers for the WASM build                                          |
 
 Mopsa itself is not vendored: it is installed in the opam switch, pinned to the `main` branch of the [32-bit fork](https://gitlab.com/rboudrouss/mopsa-analyzer-32-bit) until its fixes for 31-bit integers are merged upstream (`MOPSA_REPO` / `MOPSA_BRANCH` in the Makefile).
 
@@ -24,10 +24,10 @@ Mopsa itself is not vendored: it is installed in the opam switch, pinned to the 
 
 - **An OCaml 4.14.2 opam switch**, named `4.14.2` by default (`make SWITCH=<name> ...` for another one).
    - `make mopsa-install` (run by the WASM targets the first time) pins and installs `mopsa` there, natively, with `OPAMKEEPBUILDDIR=true`: ocaml-emcc rebuilds its C stubs from the build directory opam keeps. Its C parser needs a **host clang and LLVM** (`clang libclang-dev libclang-cpp-dev llvm-dev` on Debian/Ubuntu), of any version Mopsa supports.
-   - For the **native** jsoo build, the same switch also needs `js_of_ocaml` (≥ 6.0), `js_of_ocaml-ppx`, `zarith_stubs_js`
+   - For the jsoo backend, the same switch also needs `js_of_ocaml` (≥ 6.0), `js_of_ocaml-ppx`, `zarith_stubs_js` and VPL, a pure-OCaml relational domain: `opam install js_of_ocaml js_of_ocaml-ppx zarith_stubs_js` and `opam pin add vpl-core https://github.com/rmonat/VPL.git`
 - **[ocaml-emcc](https://github.com/rboudrouss/ocaml-emcc)** in `PATH` (or `make OCAML_EMCC=/path/to/ocaml-emcc ...`), and `cmake` (+ `ninja` preferably) for its clang recipe
 - **Emscripten SDK**, with `emcc` in `PATH` (`source emsdk_env.sh`)
-- **Docker**: to extract the 32-bit Linux / CPython headers preloaded in the web build, and for the default jsoo build
+- **Docker**: to extract the 32-bit Linux / CPython headers preloaded in the web build
 - **Node.js & npm**: for the React frontend
    - **pnpm** is the default in the makefile, you can change it.
 
@@ -57,32 +57,22 @@ make jsoo-web   # jsoo backend artifacts only (no frontend build)
 
 Step targets are also available if you only want to (re)run a single stage.
 
-### Native jsoo build
-
-The jsoo worker can be built without Docker, with the host opam switch:
-- Packages for the jsoo backend: `opam install js_of_ocaml js_of_ocaml-ppx zarith_stubs_js` and `opam pin add vpl-core https://github.com/rmonat/VPL.git` (pure-OCaml relational domain)
-
-```sh
-make JSOO_SRC=native final-web
-```
-
-> **Note:** `wasm` and `wasm-node` need no Docker at all, but the web builds still need the Docker image once, to extract the 32-bit Linux / CPython headers (`make extract-32-headers`).
+> **Note:** `wasm`, `wasm-node` and `jsoo-web` need no Docker at all, but the WASM web build needs the Docker image once, to extract the 32-bit Linux / CPython headers (`make extract-32-headers`).
 
 ### Other entry points
 
 - `make wasm`: standalone browser build `dist/ocamlrun.html`
 - `make wasm-node`: Node.js build `dist/node/mopsa.js` on the real file system, run like the native `mopsa` (see the Makefile for the clang headers to pass)
 - `make wasm-web-artifacts`: MODULARIZE'd WASM build copied into `frontend/public/` (no frontend build)
-- `make jsoo-web`: jsoo backend copied into `frontend/public/` (+ regenerates `share.json`). Picks the worker source from `JSOO_SRC` (`docker`, default; or `native`).
-- `make jsoo-web-docker`: build only the jsoo worker via the `mopsa-emcc-32bc` container → `build/mopsa_worker_jsoo.js`
-- `make jsoo-web-native`: build only the jsoo worker with the host switch → `build/mopsa_worker_jsoo.js`
+- `make jsoo-web`: jsoo backend copied into `frontend/public/` (+ regenerates `share.json`)
+- `make jsoo-worker`: build only the jsoo worker → `build/mopsa_worker_jsoo.js`
 - `make frontend-build`: `pnpm install` + `vite build` only
 
 ## Cleaning
 
 ```sh
 make clean              # build/, dist/, _build/ and the jsoo outputs
-make clean-docker-32bc  # remove the 32-bit Docker image and the opam cache volume
+make clean-docker-32bc  # remove the 32-bit Docker image
 ```
 
 The libraries ocaml-emcc built stay in the switch (`$OPAM_SWITCH_PREFIX/emcc-sysroot`), see `ocaml-emcc help`.
@@ -109,10 +99,7 @@ It is feature-reduced compared to WASM:
 - **Relational domains via [VPL](https://github.com/VERIMAG-Polyhedra/VPL)** ([rmonat's fork](https://github.com/rmonat/VPL)), a pure-OCaml polyhedra library, instead of Apron (a C library).
 - All three engines work (`automatic`, `interactive`, `dap`) and sessions use the same SharedArrayBuffer stdin channel as WASM.
 
-The analyzer is configured with `--disable-c` in a shallow clone of the pinned Mopsa branch (`build/mopsa-analyzer`), and the jsoo worker can be built two ways:
-
-- **Docker** (default, `JSOO_SRC=docker`): compiled inside the `mopsa-emcc-32bc` container, with its own switch in the `mopsa-emcc-opam-32` volume. Zero host setup beyond Docker.
-- **Native** (`JSOO_SRC=native`): compiled with the host opam switch. Faster on rebuilds but needs the switch prepped (see [Native jsoo build](#native-jsoo-build)).
+The analyzer is configured with `--disable-c` in a shallow clone of the pinned Mopsa branch (`build/mopsa-analyzer`), and the worker is compiled against it with the host opam switch (`JSOO_SWITCH`, the same as `SWITCH` by default). js_of_ocaml gives 32-bit integers whatever the compiler, so no 32-bit toolchain is needed.
 
 The frontend’s `share.json` is regenerated from the same clone by `make jsoo-web` and served to the worker at runtime, so the two backends share the same stubs / config presets.
 
