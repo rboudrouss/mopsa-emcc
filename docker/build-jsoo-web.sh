@@ -33,12 +33,7 @@ fi
 
 eval "$(opam env --switch=${SWITCH})"
 
-# ── 3. Pin camlidl to the local submodule (first run only) ───────────────────
-if ! opam list --short --installed --switch="${SWITCH}" 2>/dev/null | grep -qx "camlidl"; then
-    opam pin add camlidl /workspace/deps/camlidl --no-action -y
-fi
-
-# ── 4. Install mopsa + jsoo dependencies (cached after first run) ────────────
+# ── 3. Install mopsa + jsoo dependencies (cached after first run) ────────────
 opam install -y --switch="${SWITCH}" \
     dune \
     ocamlfind \
@@ -60,7 +55,7 @@ if ! opam list --short --installed --switch="${SWITCH}" 2>/dev/null | grep -qx "
     opam pin add vpl-core https://github.com/rmonat/VPL.git -y --switch="${SWITCH}"
 fi
 
-# ── 5. Build the analyzer without C in a /tmp copy ───────────────────────────
+# ── 4. Build the analyzer without C in a /tmp copy ───────────────────────────
 # Outside /workspace so dune doesn't pick up the repo's dune-workspace, and
 # so the host's analyzer/dune (possibly configured differently) is untouched.
 rsync -a --delete --exclude=_build --exclude=.git \
@@ -80,7 +75,7 @@ opam exec -- dune build --profile release \
 
 cd /workspace
 
-# ── 6. Build the jsoo worker ─────────────────────────────────────────────────
+# ── 5. Build the jsoo worker ─────────────────────────────────────────────────
 # --build-dir keeps artefacts in /tmp so they don't overwrite the host's
 # _build/ directory.
 OCAMLPATH=/tmp/mopsa-jsoo-src/_build/install/default/lib \
