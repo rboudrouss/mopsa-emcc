@@ -1,1 +1,1 @@
-(dirs :standard \ deps build dist)
+(dirs :standard \ build dist)

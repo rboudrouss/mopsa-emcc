@@ -14,7 +14,6 @@ The frontend actually ships two backends: the full WASM build, and a lighter pur
 | `backend/jsoo/`  | js_of_ocaml backend: worker entry point, runtime primitive stubs, JS API glue                     |
 | `frontend/`      | React app consuming the WASM module                                                               |
 | `ocaml-emcc.conf`, `emcc-recipes/` | ocaml-emcc configuration: wasm32 target, clang 9 and apron recipes              |
-| `deps/`          | Submodules of the former hand-written WASM build (only `camlidl` is still used, by the Docker jsoo build) |
 | `build/`         | Temporary build artefacts: clone of Mopsa for the jsoo backend, 32-bit headers (`_build/` is reserved for dune output) |
 | `dist/`          | Final `.wasm`, `.js`, `.html` and `.data` outputs                                                 |
 | `docker/`        | 32-bit image: Linux / CPython headers for the WASM build, jsoo worker build                       |
