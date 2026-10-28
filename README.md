@@ -16,7 +16,7 @@ The frontend actually ships two backends: the full WASM build, and a lighter pur
 | `ocaml-emcc.conf`, `emcc-recipes/` | ocaml-emcc configuration: wasm32 target, clang 9 and apron recipes              |
 | `build/`         | Temporary build artefacts: clone of Mopsa for the jsoo backend, 32-bit headers (`_build/` is reserved for dune output) |
 | `dist/`          | Final `.wasm`, `.js`, `.html` and `.data` outputs                                                 |
-| `docker/`        | 32-bit image: Linux / CPython headers for the WASM build                                          |
+| `docker/`        | i386 Debian image, source of the Linux / CPython headers of the WASM web build                    |
 
 Mopsa itself is not vendored: it is installed in the opam switch, pinned to the `main` branch of the [32-bit fork](https://gitlab.com/rboudrouss/mopsa-analyzer-32-bit) until its fixes for 31-bit integers are merged upstream (`MOPSA_REPO` / `MOPSA_BRANCH` in the Makefile).
 
@@ -27,14 +27,9 @@ Mopsa itself is not vendored: it is installed in the opam switch, pinned to the 
    - For the jsoo backend, the same switch also needs `js_of_ocaml` (≥ 6.0), `js_of_ocaml-ppx`, `zarith_stubs_js` and VPL, a pure-OCaml relational domain: `opam install js_of_ocaml js_of_ocaml-ppx zarith_stubs_js` and `opam pin add vpl-core https://github.com/rmonat/VPL.git`
 - **[ocaml-emcc](https://github.com/rboudrouss/ocaml-emcc)** in `PATH` (or `make OCAML_EMCC=/path/to/ocaml-emcc ...`), and `cmake` (+ `ninja` preferably) for its clang recipe
 - **Emscripten SDK**, with `emcc` in `PATH` (`source emsdk_env.sh`)
-- **Docker**: to extract the 32-bit Linux / CPython headers preloaded in the web build
+- **Docker**: to extract the 32-bit Linux / CPython headers preloaded in the web build (a small i386 Debian image, built by `make docker-image`)
 - **Node.js & npm**: for the React frontend
    - **pnpm** is the default in the makefile, you can change it.
-
-Build the docker image :
-```sh
-docker build -t mopsa-emcc-32bc -f docker/Dockerfile.mopsa-32bc docker/
-```
 
 ## Building
 
@@ -72,7 +67,7 @@ Step targets are also available if you only want to (re)run a single stage.
 
 ```sh
 make clean              # build/, dist/, _build/ and the jsoo outputs
-make clean-docker-32bc  # remove the 32-bit Docker image
+make clean-docker       # remove the Docker image
 ```
 
 The libraries ocaml-emcc built stay in the switch (`$OPAM_SWITCH_PREFIX/emcc-sysroot`), see `ocaml-emcc help`.

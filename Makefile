@@ -5,7 +5,7 @@
 # - Emscripten SDK (emcc in PATH)
 # - js_of_ocaml, js_of_ocaml-ppx, zarith_stubs_js, vpl-core in the switch (jsoo worker)
 # - Docker (32-bit Linux headers)
-#   - Build the image with: `docker build -t mopsa-emcc-32bc -f docker/Dockerfile.mopsa-32bc docker/`
+#   - `make docker-image`, run by the web build
 
 .ONESHELL:
 
@@ -17,7 +17,7 @@ LINUX32_INCLUDE_DIR := $(BUILD_DIR)/linux32-include
 
 NPM := pnpm
 DOCKER := docker
-DOCKER_IMAGE_32BC := mopsa-emcc-32bc
+DOCKER_IMAGE := mopsa-emcc-linux32
 
 # opam switch holding mopsa and its dependencies.  ocaml-emcc builds its wasm
 # runtime and C libraries in $(SWITCH_PREFIX)/emcc-sysroot.
@@ -37,9 +37,9 @@ MOPSA_SRC := $(BUILD_DIR)/mopsa-analyzer
 
 # Phony targets
 .PHONY: all wasm wasm-node wasm-web wasm-web-artifacts final-web frontend-build \
-        mopsa-install mopsa-update docker-image-32bc extract-32-headers \
+        mopsa-install mopsa-update docker-image extract-32-headers \
         jsoo-analyzer jsoo-worker jsoo-web \
-        clean clean-project clean-docker-32bc clean-jsoo
+        clean clean-project clean-docker clean-jsoo
 
 # Targets
 all: final-web
@@ -120,31 +120,31 @@ wasm-web-artifacts: $(MOPSA_META) $(BUILD_DIR)/.linux32-headers-stamp | $(DIST_D
 	cp backend/wasm/mopsa_worker.js $(FRONTEND_DIR)/public/
 
 # ── Docker: 32-bit Linux headers ─────────────────────────────────────────────
-docker-image-32bc: $(BUILD_DIR)/.docker-32bc-stamp
+docker-image: $(BUILD_DIR)/.docker-image-stamp
 
-$(BUILD_DIR)/.docker-32bc-stamp: docker/Dockerfile.mopsa-32bc | $(BUILD_DIR)
+$(BUILD_DIR)/.docker-image-stamp: docker/Dockerfile.linux32-headers | $(BUILD_DIR)
 	DOCKER_BUILDKIT=1 $(DOCKER) build \
 		--platform linux/386 \
-		-t $(DOCKER_IMAGE_32BC) \
-		-f docker/Dockerfile.mopsa-32bc \
+		-t $(DOCKER_IMAGE) \
+		-f docker/Dockerfile.linux32-headers \
 		docker/
 	touch $@
 
-clean-docker-32bc:
-	$(DOCKER) rmi -f $(DOCKER_IMAGE_32BC) 2>/dev/null || true
-	rm -f $(BUILD_DIR)/.docker-32bc-stamp
+clean-docker:
+	$(DOCKER) rmi -f $(DOCKER_IMAGE) 2>/dev/null || true
+	rm -f $(BUILD_DIR)/.docker-image-stamp
 
 # Extract 32-bit Linux system headers from the Docker image.
 extract-32-headers: $(BUILD_DIR)/.linux32-headers-stamp
 
-$(BUILD_DIR)/.linux32-headers-stamp: $(BUILD_DIR)/.docker-32bc-stamp | $(BUILD_DIR)
+$(BUILD_DIR)/.linux32-headers-stamp: $(BUILD_DIR)/.docker-image-stamp | $(BUILD_DIR)
 	mkdir -p $(LINUX32_INCLUDE_DIR)
-	$(DOCKER) run --rm --platform linux/386 $(DOCKER_IMAGE_32BC) \
+	$(DOCKER) run --rm --platform linux/386 $(DOCKER_IMAGE) \
 		sh -c 'cd /usr/include && tar -c \
 			$$(find . -maxdepth 1 -name "*.h") \
 			asm-generic arpa netinet net linux' \
 		| tar -x -C $(LINUX32_INCLUDE_DIR)
-	$(DOCKER) run --rm --platform linux/386 $(DOCKER_IMAGE_32BC) \
+	$(DOCKER) run --rm --platform linux/386 $(DOCKER_IMAGE) \
 		sh -c 'cd /usr/include/i386-linux-gnu && tar -c \
 			$$(find . -maxdepth 1 -name "*.h") \
 			bits sys gnu asm' \
@@ -152,7 +152,7 @@ $(BUILD_DIR)/.linux32-headers-stamp: $(BUILD_DIR)/.docker-32bc-stamp | $(BUILD_D
 	# CPython headers (Python.h, pyport.h, ...) come from the 32-bit image too,
 	# flattened into the include root.  The find keeps this robust to the Python
 	# version shipped by the base image.
-	$(DOCKER) run --rm --platform linux/386 $(DOCKER_IMAGE_32BC) \
+	$(DOCKER) run --rm --platform linux/386 $(DOCKER_IMAGE) \
 		sh -c 'cd "$$(dirname $$(find /usr/include -name Python.h | head -1))" && tar -c .' \
 		| tar -x -C $(LINUX32_INCLUDE_DIR)
 	# Debian ships pyconfig.h as a multiarch wrapper that #includes the real
@@ -162,7 +162,7 @@ $(BUILD_DIR)/.linux32-headers-stamp: $(BUILD_DIR)/.docker-32bc-stamp | $(BUILD_D
 	# flatten.  Resolve the wrapper here by overwriting the flattened pyconfig.h
 	# with the real i386 variant, so SIZEOF_LONG/SIZEOF_VOID_P (4) match the
 	# glibc 32-bit data model and pyport.h's LONG_BIT == 8*SIZEOF_LONG holds.
-	$(DOCKER) run --rm --platform linux/386 $(DOCKER_IMAGE_32BC) \
+	$(DOCKER) run --rm --platform linux/386 $(DOCKER_IMAGE) \
 		sh -c 'cat "$$(find /usr/include -path "*i386-linux-gnu/python*/pyconfig.h" | head -1)"' \
 		> $(LINUX32_INCLUDE_DIR)/pyconfig.h
 	touch $@
