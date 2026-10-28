@@ -2,7 +2,7 @@
 
 A WebAssembly build of [Mopsa](https://gitlab.com/mopsa/mopsa-analyzer), a modular open-source static analyzer for C and Python, runnable directly in the browser or in Node.js.
 
-This repository orchestrates the cross-compilation of OCaml, Clang/LLVM, GMP, MPFR, Apron and the Mopsa analyzer itself to `wasm32-unknown-emscripten`, producing a self-contained `ocamlrun.wasm` shipped with a React frontend.
+This repository builds the analyzer with [ocaml-emcc](https://github.com/rboudrouss/ocaml-emcc), which compiles OCaml's runtime, Clang/LLVM, GMP, MPFR, Apron and Mopsa's C stubs to `wasm32-unknown-emscripten`, producing a self-contained `ocamlrun.wasm` shipped with a React frontend.
 
 The frontend actually ships two backends: the full WASM build, and a lighter pure-JavaScript build of the analyzer compiled with `js_of_ocaml` (see [The js_of_ocaml backend](#the-js_of_ocaml-backend)).
 
@@ -10,42 +10,27 @@ The frontend actually ships two backends: the full WASM build, and a lighter pur
 
 | Path             | Contents                                                                                          |
 | ---------------- | ------------------------------------------------------------------------------------------------- |
-| `backend/wasm/`  | OCaml entry point (`mopsa_worker.ml`), primitive table, FPU stub, JS API and Web Worker glue      |
+| `backend/wasm/`  | OCaml entry point (`mopsa_worker.ml`), JS API and Web Worker glue                                 |
 | `backend/jsoo/`  | js_of_ocaml backend: worker entry point, runtime primitive stubs, JS API glue                     |
 | `frontend/`      | React app consuming the WASM module                                                               |
-| `deps/`          | Submodules and vendored source trees for every native dependency                                  |
-| `libs/`          | Install prefix for built libraries (`make install` lands here)                                    |
-| `build/`         | Temporary build artefacts (`_build/` is reserved for dune output)                                 |
+| `ocaml-emcc.conf`, `emcc-recipes/` | ocaml-emcc configuration: wasm32 target, clang 9 and apron recipes              |
+| `deps/`          | Submodules of the former hand-written WASM build (only `camlidl` is still used, by the Docker jsoo build) |
+| `build/`         | Temporary build artefacts: clone of Mopsa for the jsoo backend, 32-bit headers (`_build/` is reserved for dune output) |
 | `dist/`          | Final `.wasm`, `.js`, `.html` and `.data` outputs                                                 |
-| `docker/`        | Image and scripts for the 32-bit Mopsa bytecode build                                             |
+| `docker/`        | 32-bit image: Linux / CPython headers for the WASM build, jsoo worker build                       |
 
-The `deps/` submodules are:
-
-- `ocaml-wasm`: OCaml 4.14.2 runtime patched for `wasm32` (fork)
-- `mopsa-analyzer`: the analyzer, patched for Clang 9 & WASM support (fork)
-- `llvm-project`: LLVM/Clang 9.x
-- `apron`, `mlgmpidl`, `Zarith`, `camlidl`: numeric / FFI libraries
-- `primitives`: standard ocaml libs
-
-Plus the vendored `gmp-6.1.2/` and `mpfr-4.2.2/` source trees.
+Mopsa itself is not vendored: it is installed in the opam switch, pinned to the `main` branch of the [32-bit fork](https://gitlab.com/rboudrouss/mopsa-analyzer-32-bit) until its fixes for 31-bit integers are merged upstream (`MOPSA_REPO` / `MOPSA_BRANCH` in the Makefile).
 
 ## Prerequisites
 
-- **OCaml 4.14.2** with `camlidl` installed. (Necessary to generate APRON's ocaml primitives)
-   - For the **native** jsoo build, the same switch also needs `js_of_ocaml` (≥ 6.0), `js_of_ocaml-ppx`, `zarith_stubs_js` on top of the Mopsa deps
-   - The **Docker** jsoo build reuses the `mopsa-emcc-32bc` image + `mopsa-emcc-opam-32` volume of the wasm bytecode step, so no extra host setup
-- **Emscripten SDK**: update `EMSDK_TOOLCHAIN` and `EMSDK_SYSROOT` in the Makefile to match your install path
-- **Docker**: required for the default 32-bit bytecode build and to extract the 32-bit Linux / CPython headers (see *Native build* to skip it for the bytecode step)
-- **gcc-11 / g++-11**: needed to compile the older LLVM 9 source tree
+- **An OCaml 4.14.2 opam switch**, named `4.14.2` by default (`make SWITCH=<name> ...` for another one).
+   - `make mopsa-install` (run by the WASM targets the first time) pins and installs `mopsa` there, natively, with `OPAMKEEPBUILDDIR=true`: ocaml-emcc rebuilds its C stubs from the build directory opam keeps. Its C parser needs a **host clang and LLVM** (`clang libclang-dev libclang-cpp-dev llvm-dev` on Debian/Ubuntu), of any version Mopsa supports.
+   - For the **native** jsoo build, the same switch also needs `js_of_ocaml` (≥ 6.0), `js_of_ocaml-ppx`, `zarith_stubs_js`
+- **[ocaml-emcc](https://github.com/rboudrouss/ocaml-emcc)** in `PATH` (or `make OCAML_EMCC=/path/to/ocaml-emcc ...`), and `cmake` (+ `ninja` preferably) for its clang recipe
+- **Emscripten SDK**, with `emcc` in `PATH` (`source emsdk_env.sh`)
+- **Docker**: to extract the 32-bit Linux / CPython headers preloaded in the web build, and for the default jsoo build
 - **Node.js & npm**: for the React frontend
    - **pnpm** is the default in the makefile, you can change it.
-- Standard build tools: `make`, `cmake`, `ninja`, `perl`, `m4`
-
-After cloning:
-
-```sh
-git submodule update --init --recursive
-```
 
 Build the docker image :
 ```sh
@@ -60,7 +45,9 @@ The most common workflow:
 make final-web
 ```
 
-This builds **both backends** (WASM + jsoo) and the React frontend. Note that the LLVM/CLANG step can take ~30 min depending on your machine!
+This builds **both backends** (WASM + jsoo) and the React frontend. The first WASM build also builds ocaml-emcc's wasm runtime and C libraries in the switch (`$OPAM_SWITCH_PREFIX/emcc-sysroot`): its clang 9 recipe takes about 15 min on 4 cores.
+
+`make mopsa-update` rebuilds `mopsa` from the latest commit of the pinned branch.
 
 To build the frontend with a single backend:
 
@@ -71,26 +58,21 @@ make jsoo-web   # jsoo backend artifacts only (no frontend build)
 
 Step targets are also available if you only want to (re)run a single stage.
 
-### Native build
+### Native jsoo build
 
-You can build the Mopsa bytecode (wasm side) and the jsoo worker without Docker, using a host opam switch instead of the 32-bit container. This requires a Mopsa-compatible host:
-- Clang <= 19
-- Install `mopsa` dependencies: `opam install deps/mopsa-analyzer --deps-only`
-- Pin `mopsa` at `deps/mopsa-analyzer`: `opam pin add --switch 4.14.2 mopsa deps/mopsa-analyzer`
-- Extra packages for the jsoo backend: `opam install js_of_ocaml js_of_ocaml-ppx zarith_stubs_js` and `opam pin add vpl-core https://github.com/rmonat/VPL.git` (pure-OCaml relational domain)
+The jsoo worker can be built without Docker, with the host opam switch:
+- Packages for the jsoo backend: `opam install js_of_ocaml js_of_ocaml-ppx zarith_stubs_js` and `opam pin add vpl-core https://github.com/rmonat/VPL.git` (pure-OCaml relational domain)
 
 ```sh
-make MOPSA_BC_SRC=native JSOO_SRC=native final-web
+make JSOO_SRC=native final-web
 ```
 
-Both variables are independent: use `MOPSA_BC_SRC=native` alone to skip Docker on the wasm bytecode step, or `JSOO_SRC=native` alone to skip it on the jsoo worker step.
-
-> **Note:** these switches only remove Docker from their respective analyzer builds. `wasm` and `wasm-node` can then be built with no Docker at all, but the web builds still need the Docker image once, to extract the 32-bit Linux / CPython headers (`make extract-32-headers`).
+> **Note:** `wasm` and `wasm-node` need no Docker at all, but the web builds still need the Docker image once, to extract the 32-bit Linux / CPython headers (`make extract-32-headers`).
 
 ### Other entry points
 
 - `make wasm`: standalone browser build `dist/ocamlrun.html`
-- `make wasm-node`: Node.js build `node dist/ocamlrun.js mopsa.bc …`
+- `make wasm-node`: Node.js build `dist/node/mopsa.js` on the real file system, run like the native `mopsa` (see the Makefile for the clang headers to pass)
 - `make wasm-web-artifacts`: MODULARIZE'd WASM build copied into `frontend/public/` (no frontend build)
 - `make jsoo-web`: jsoo backend copied into `frontend/public/` (+ regenerates `share.json`). Picks the worker source from `JSOO_SRC` (`docker`, default; or `native`).
 - `make jsoo-web-docker`: build only the jsoo worker via the `mopsa-emcc-32bc` container → `build/mopsa_worker_jsoo.js`
@@ -100,12 +82,11 @@ Both variables are independent: use `MOPSA_BC_SRC=native` alone to skip Docker o
 ## Cleaning
 
 ```sh
-make clean              # everything except the Docker volume
+make clean              # build/, dist/, _build/ and the jsoo outputs
 make clean-docker-32bc  # remove the 32-bit Docker image and the opam cache volume
 ```
 
-Per-component clean targets are also available: `clean-ocaml`, `clean-mopsa`,
-`clean-gmp`, `clean-mpfr`, `clean-apron`, `clean-llvm`, `clean-jsoo`.
+The libraries ocaml-emcc built stay in the switch (`$OPAM_SWITCH_PREFIX/emcc-sysroot`), see `ocaml-emcc help`.
 
 ## Licence
 
@@ -115,9 +96,9 @@ All other code is owned by its respective authors and is not covered by this lic
 
 ## How it works
 
-`ocamlrun`, OCaml's bytecode interpreter, is cross-compiled to WebAssembly through emscripten. Every C library is linked statically into a single `ocamlrun.wasm` (the final wasm is "only" 15mb). The Mopsa bytecode (`mopsa.bc`) is preloaded into emscripten's virtual filesystem, together with Clang's resource headers, the Linux 32-bit headers, and the Mopsa stubs directory.
+`ocamlrun`, OCaml's bytecode interpreter, is cross-compiled to WebAssembly through emscripten by [ocaml-emcc](https://github.com/rboudrouss/ocaml-emcc), from the sources of the switch's compiler. The C stubs of every library the bytecode links (Mopsa's own, its Clang-based C parser, zarith, mlgmpidl, apron) are rebuilt with emcc and linked statically into a single `ocamlrun.wasm` (about 16 MB). The bytecode of `backend/wasm/mopsa_worker` is preloaded into emscripten's virtual filesystem (`ocamlrun.data`), together with Clang's resource headers, the Linux 32-bit headers, and the Mopsa stubs directory.
 
-The 4.14.2 runtime fork [`ocaml-wasm`](https://github.com/rboudfork/ocaml) is heavily inspired by [Vincent Chan's fork](https://github.com/vincentdchan/ocaml), to which it adds patches for codegen issues affecting `Hd_val` / `Tag_val` (forced 32-bit loads, non-l-value `Tag_val` plus a new `Tag_set` macro).
+The bytecode is the switch's (64-bit) one, run with 31-bit integers on wasm32: `ocaml-emcc` checks that every literal fits, and the fork of Mopsa avoids the computations that would overflow (C integers are zarith values).
 
 ## The js_of_ocaml backend
 
@@ -129,12 +110,12 @@ It is feature-reduced compared to WASM:
 - **Relational domains via [VPL](https://github.com/VERIMAG-Polyhedra/VPL)** ([rmonat's fork](https://github.com/rmonat/VPL)), a pure-OCaml polyhedra library, instead of Apron (a C library).
 - All three engines work (`automatic`, `interactive`, `dap`) and sessions use the same SharedArrayBuffer stdin channel as WASM.
 
-Just like the wasm bytecode, the jsoo worker can be built two ways:
+The analyzer is configured with `--disable-c` in a shallow clone of the pinned Mopsa branch (`build/mopsa-analyzer`), and the jsoo worker can be built two ways:
 
-- **Docker** (default, `JSOO_SRC=docker`): compiled inside the `mopsa-emcc-32bc` container, sharing the same opam volume as the wasm bytecode build. Zero host setup beyond Docker.
-- **Native** (`JSOO_SRC=native`): compiled with the host opam switch. Faster on rebuilds but needs the switch prepped (see [Native build](#native-build)).
+- **Docker** (default, `JSOO_SRC=docker`): compiled inside the `mopsa-emcc-32bc` container, with its own switch in the `mopsa-emcc-opam-32` volume. Zero host setup beyond Docker.
+- **Native** (`JSOO_SRC=native`): compiled with the host opam switch. Faster on rebuilds but needs the switch prepped (see [Native jsoo build](#native-jsoo-build)).
 
-The frontend’s `share.json` is regenerated by `make jsoo-web` and served to the worker at runtime, so the two backends share exactly the same stubs / config presets.
+The frontend’s `share.json` is regenerated from the same clone by `make jsoo-web` and served to the worker at runtime, so the two backends share the same stubs / config presets.
 
 ## Acknowledgements
 
