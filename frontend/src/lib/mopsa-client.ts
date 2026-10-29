@@ -8,9 +8,7 @@ import {
 
 // ── Default code snippets per language ───────────────────────────────────────
 export const DEFAULT_CODE: Record<SupportedLanguage, string> = {
-  c: `#include <stdio.h>
-#include <stdlib.h>
-#include <time.h>
+  c: `#include <stdlib.h>
 
 int sign(int x) {
     if (x > 0) return 1;
@@ -23,12 +21,10 @@ int classify(int a, int b) {
 }
 
 int main() {
-    srand(time(NULL));
-
     int a = rand() % 11;
     int b = rand() % 11;
 
-    printf("a = %d, b = %d\n", a, b);
+    printf("a = %d, b = %d\\n", a, b);
 
     return classify(a, b);
 }
