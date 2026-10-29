@@ -31,9 +31,9 @@ OCAML_EMCC_FLAGS ?=
 # Mopsa is pinned to the 32-bit fork until its 31-bit fixes are merged upstream.
 MOPSA_REPO ?= https://gitlab.com/rboudrouss/mopsa-analyzer-32-bit.git
 MOPSA_BRANCH ?= main
-# A clone of the same branch, for the jsoo worker (configured with --disable-c)
-# and the frontend's share.json
-MOPSA_SRC := $(BUILD_DIR)/mopsa-analyzer
+# Build directory of mopsa kept by opam (OPAMKEEPBUILDDIR): its configured
+# sources, from which ocaml-emcc rebuilds the C stubs and the jsoo worker is built
+MOPSA_KEPT_SRC = $(SWITCH_PREFIX)/.opam-switch/build/mopsa.$$(opam var --switch=$(SWITCH) mopsa:version)
 
 # Phony targets
 .PHONY: all wasm wasm-node wasm-web wasm-web-artifacts final-web frontend-build \
@@ -58,14 +58,10 @@ $(MOPSA_META):
 	opam pin add --switch=$(SWITCH) -y --no-action mopsa "git+$(MOPSA_REPO)#$(MOPSA_BRANCH)"
 	OPAMKEEPBUILDDIR=true opam install --switch=$(SWITCH) -y mopsa
 
-$(MOPSA_SRC)/.git: | $(BUILD_DIR)
-	git clone --depth 1 --branch $(MOPSA_BRANCH) $(MOPSA_REPO) $(MOPSA_SRC)
-
-# Rebuild mopsa (and update the clone) from the latest commit of $(MOPSA_BRANCH)
+# Rebuild mopsa from the latest commit of $(MOPSA_BRANCH)
 mopsa-update:
 	opam update --switch=$(SWITCH) mopsa
 	OPAMKEEPBUILDDIR=true opam upgrade --switch=$(SWITCH) -y mopsa
-	if [ -d $(MOPSA_SRC)/.git ]; then git -C $(MOPSA_SRC) pull --ff-only; fi
 
 # ── WASM backend (ocaml-emcc) ────────────────────────────────────────────────
 # ocaml-emcc builds the wasm ocamlrun, the C libraries (gmp, mpfr, apron, clang 9:
@@ -75,7 +71,7 @@ OCAML_EMCC_BUILD = $(OPAM_EXEC) $(OCAML_EMCC) build $(1) --exe backend/wasm/mops
 
 # Clang's resource headers, found by the C parser at the resource directory of
 # the host clang that mopsa was configured with (baked into its dune file).
-CLANG_RESOURCE_DIR = $$(sed -n 's|.*(echo "\(/[^"]*\)").*|\1|p' $(SWITCH_PREFIX)/.opam-switch/build/mopsa.*/parsers/c/lib/parser/dune)
+CLANG_RESOURCE_DIR = $$(sed -n 's|.*(echo "\(/[^"]*\)").*|\1|p' $(MOPSA_KEPT_SRC)/parsers/c/lib/parser/dune)
 CLANG_HEADERS = $$($(OPAM_EXEC) $(OCAML_EMCC) env --sysroot)/lib/clang/9.0.1/include
 MOPSA_SHARE := $(SWITCH_PREFIX)/share/mopsa
 
@@ -186,15 +182,25 @@ final-web: wasm-web-artifacts jsoo-web
 # zarith_stubs_js and vpl-core (see README.md).  js_of_ocaml gives 32-bit ints
 # whatever the compiler, so no 32-bit toolchain is needed.
 #
-# Note: jsoo-analyzer reconfigures the clone $(MOPSA_SRC) with --disable-c.
+# The analyzer is built from a copy of mopsa's kept build directory (without
+# its _build), reconfigured with --disable-c: the kept one must stay configured
+# for C, ocaml-emcc rebuilds its stubs from there.
 JSOO_SWITCH ?= $(SWITCH)
 JSOO_OPAM_EXEC := opam exec --switch=$(JSOO_SWITCH) --
+MOPSA_SRC := $(BUILD_DIR)/mopsa-jsoo
 MOPSA_INSTALL_TREE := $(MOPSA_SRC)/_build/install/default/lib
 
-# Reconfigure the clone with --disable-c and build its dune install tree
-# in-place, then compile the worker against it.
-jsoo-analyzer: $(MOPSA_SRC)/.git
+# Copied again whenever mopsa is reinstalled (`make mopsa-update`)
+$(MOPSA_SRC)/.configured: $(MOPSA_META) | $(BUILD_DIR)
+	rm -rf $(MOPSA_SRC)
+	mkdir -p $(MOPSA_SRC)
+	tar -C $(MOPSA_KEPT_SRC) --exclude=./_build -cf - . | tar -C $(MOPSA_SRC) -xf -
 	cd $(MOPSA_SRC) && $(JSOO_OPAM_EXEC) ./configure --disable-c
+	touch $@
+
+# Build the dune install tree of the copy in-place, then compile the worker
+# against it.
+jsoo-analyzer: $(MOPSA_SRC)/.configured
 	# `dune build --only-packages mopsa` populates _build/install/default/
 	# with the full library tree (cmi/cma/META/dune-package for every mopsa
 	# sub-library).  It ultimately errors out on the Clang C stub parser —
@@ -213,10 +219,10 @@ jsoo-worker: jsoo-analyzer | $(BUILD_DIR)
 	cp -f _build/default/backend/jsoo/mopsa_worker.bc.js $(BUILD_DIR)/mopsa_worker_jsoo.js
 
 # Assemble the jsoo worker + api + share.json into frontend/public/.
-jsoo-web: jsoo-worker
+jsoo-web: jsoo-worker $(MOPSA_META)
 	cp -f $(BUILD_DIR)/mopsa_worker_jsoo.js $(FRONTEND_DIR)/public/mopsa_worker_jsoo.js
 	cp -f backend/jsoo/mopsa_api.js $(FRONTEND_DIR)/public/mopsa_api_jsoo.js
-	cd $(FRONTEND_DIR) && ./generateShareJson.sh $(MOPSA_SRC)/share/mopsa/
+	cd $(FRONTEND_DIR) && ./generateShareJson.sh $(MOPSA_SHARE)/
 
 clean-jsoo:
 	rm -f $(BUILD_DIR)/mopsa_worker_jsoo.js \

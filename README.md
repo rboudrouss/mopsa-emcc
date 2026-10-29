@@ -14,7 +14,7 @@ The frontend actually ships two backends: the full WASM build, and a lighter pur
 | `backend/jsoo/`  | js_of_ocaml backend: worker entry point, runtime primitive stubs, JS API glue                     |
 | `frontend/`      | React app consuming the WASM module                                                               |
 | `ocaml-emcc.conf`, `emcc-recipes/` | ocaml-emcc configuration: wasm32 target, clang 9 and apron recipes              |
-| `build/`         | Temporary build artefacts: clone of Mopsa for the jsoo backend, 32-bit headers (`_build/` is reserved for dune output) |
+| `build/`         | Temporary build artefacts: copy of Mopsa's sources for the jsoo backend, 32-bit headers (`_build/` is reserved for dune output) |
 | `dist/`          | Final `.wasm`, `.js`, `.html` and `.data` outputs                                                 |
 | `docker/`        | i386 Debian image, source of the Linux / CPython headers of the WASM web build                    |
 
@@ -94,9 +94,9 @@ It is feature-reduced compared to WASM:
 - **Relational domains via [VPL](https://github.com/VERIMAG-Polyhedra/VPL)** ([rmonat's fork](https://github.com/rmonat/VPL)), a pure-OCaml polyhedra library, instead of Apron (a C library).
 - All three engines work (`automatic`, `interactive`, `dap`) and sessions use the same SharedArrayBuffer stdin channel as WASM.
 
-The analyzer is configured with `--disable-c` in a shallow clone of the pinned Mopsa branch (`build/mopsa-analyzer`), and the worker is compiled against it with the host opam switch (`JSOO_SWITCH`, the same as `SWITCH` by default). js_of_ocaml gives 32-bit integers whatever the compiler, so no 32-bit toolchain is needed.
+The analyzer is configured with `--disable-c` in a copy of the sources opam kept when installing Mopsa (`build/mopsa-jsoo`, copied again after `make mopsa-update`), and the worker is compiled against it with the host opam switch (`JSOO_SWITCH`, the same as `SWITCH` by default). js_of_ocaml gives 32-bit integers whatever the compiler, so no 32-bit toolchain is needed.
 
-The frontend’s `share.json` is regenerated from the same clone by `make jsoo-web` and served to the worker at runtime, so the two backends share the same stubs / config presets.
+The frontend’s `share.json` is regenerated from Mopsa's share directory installed in the switch by `make jsoo-web` and served to the worker at runtime, so the two backends share the same stubs / config presets.
 
 ## Acknowledgements
 
