@@ -22,10 +22,12 @@ Mopsa itself is not vendored: it is installed in the opam switch, pinned to the 
 
 ## Prerequisites
 
-- **An OCaml 4.14.2 opam switch**, named `4.14.2` by default (`make SWITCH=<name> ...` for another one).
+The opam switch and the opam packages below are created / installed by the Makefile when missing (`make deps` installs them all at once); the other prerequisites are system ones.
+
+- **An OCaml 4.14.2 opam switch**, named `4.14.2` by default (`make SWITCH=<name> ...` for another one). When it does not exist, the Makefile creates it with `ocaml-base-compiler.$(OCAML_VERSION)` (4.14.2), without selecting it.
    - `make mopsa-install` (run by the WASM targets the first time) pins and installs `mopsa` there, natively, with `OPAMKEEPBUILDDIR=true`: ocaml-emcc rebuilds its C stubs from the build directory opam keeps. Its C parser needs a **host clang and LLVM** (`clang libclang-dev libclang-cpp-dev llvm-dev` on Debian/Ubuntu), of any version Mopsa supports.
-   - For the jsoo backend, the same switch also needs `js_of_ocaml` (≥ 6.0), `js_of_ocaml-ppx`, `zarith_stubs_js` and VPL, a pure-OCaml relational domain: `opam install js_of_ocaml js_of_ocaml-ppx zarith_stubs_js` and `opam pin add vpl-core https://github.com/rmonat/VPL.git`
-- **[ocaml-emcc](https://github.com/rboudrouss/ocaml-emcc)** in `PATH` (or `make OCAML_EMCC=/path/to/ocaml-emcc ...`), and `cmake` (+ `ninja` preferably) for its clang recipe
+   - For the jsoo backend, the same switch also needs `js_of_ocaml` (≥ 6.0), `js_of_ocaml-ppx`, `zarith_stubs_js` and VPL, a pure-OCaml relational domain, pinned to `https://github.com/rmonat/VPL.git` (`make jsoo-deps`)
+- **[ocaml-emcc](https://github.com/rboudrouss/ocaml-emcc)**: pinned in the switch (`make ocaml-emcc-install`) unless one is in `PATH` or given with `make OCAML_EMCC=/path/to/ocaml-emcc ...`. Its clang recipe needs `cmake` (+ `ninja` preferably)
 - **Emscripten SDK**, with `emcc` in `PATH` (`source emsdk_env.sh`)
 - **Docker**: to extract the 32-bit Linux / CPython headers preloaded in the web build (a small i386 Debian image, built by `make docker-image`)
 - **Node.js & npm**: for the React frontend
