@@ -16,13 +16,18 @@ jobs:
     timeout-minutes: 180
     env:
       EMSDK: ${{ github.workspace }}/../emsdk
-      # the switch of setup-ocaml, local to the workspace (_opam)
-      SWITCH: ${{ github.workspace }}
+      # opam installs the system packages (depexts) without asking
+      OPAMCONFIRMLEVEL: unsafe-yes
+      # created by the Makefile: a switch inside the workspace would put the
+      # dune builds of its packages under mopsa-emcc's dune-project
+      SWITCH: '4.14.2'
     steps:
       - uses: actions/checkout@v7
-      - uses: ocaml/setup-ocaml@v3
-        with:
-          ocaml-compiler: 4.14.2
+      - name: Install opam
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y opam
+          opam init -y --bare --disable-sandboxing
       - uses: actions/setup-node@v7
         with:
           node-version: 24
@@ -41,18 +46,20 @@ jobs:
       # cmake is on the runner
       - name: Install ninja (clang recipe)
         run: sudo apt-get install -y ninja-build
+      # the switch, mopsa, ocaml-emcc and the jsoo backend's packages
+      - name: make deps
+        run: make deps
       # The wasm runtime and C libraries ocaml-emcc builds (clang 9: about
-      # 15 min), again when ocaml-emcc or the recipes change
+      # 15 min), again when ocaml-emcc or the recipes change; restored in
+      # the switch once created
       - name: ocaml-emcc's commit
         id: ocaml-emcc
         run: echo "sha=$(git ls-remote https://github.com/rboudrouss/ocaml-emcc.git HEAD | cut -f1)" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@v6
         with:
-          path: _opam/emcc-sysroot
+          path: ~/.opam/4.14.2/emcc-sysroot
           key: emcc-sysroot-${{ runner.os }}-${{ env.EMSDK_VERSION }}-${{ steps.ocaml-emcc.outputs.sha }}-${{ hashFiles('ocaml-emcc.conf', 'emcc-recipes/**') }}
           restore-keys: emcc-sysroot-${{ runner.os }}-${{ env.EMSDK_VERSION }}-
-      - name: make deps
-        run: make deps
       - name: make final-web
         run: |
           source "$EMSDK/emsdk_env.sh"
@@ -77,4 +84,4 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: logs
-          path: _opam/emcc-sysroot/*/build/*/*.log
+          path: ~/.opam/4.14.2/emcc-sysroot/*/build/*/*.log
