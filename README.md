@@ -4,6 +4,8 @@ A WebAssembly build of [Mopsa](https://gitlab.com/mopsa/mopsa-analyzer), a modul
 
 This repository builds the analyzer with [ocaml-emcc](https://github.com/rboudrouss/ocaml-emcc), which compiles OCaml's runtime, Clang/LLVM, GMP, MPFR, Apron and Mopsa's C stubs to `wasm32-unknown-emscripten`, producing a self-contained `ocamlrun.wasm` shipped with a React frontend.
 
+Mopsa's bytecode runs on ocaml-emcc's interpreter (`interpreted: yes` in `ocaml-emcc.conf`). ocaml-emcc's default mode, which compiles the bytecode to C with c_of_ocaml, recurses on the browser's own stack (about 1 MB in a worker): OCaml 4.14's `List.map` overflows it as soon as a C file includes `<stdlib.h>`.
+
 The frontend actually ships two backends: the full WASM build, and a lighter pure-JavaScript build of the analyzer compiled with `js_of_ocaml` (see [The js_of_ocaml backend](#the-js_of_ocaml-backend)).
 
 ## Project layout
