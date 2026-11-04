@@ -10,6 +10,8 @@
 #   - `make docker-image`, run by the web build
 
 .ONESHELL:
+# A recipe is one shell script: stop it at its first failing command
+.SHELLFLAGS := -ec
 
 # Variables
 DIST_DIR := $(CURDIR)/dist
@@ -256,8 +258,8 @@ jsoo-analyzer: $(MOPSA_SRC)/.configured
 	# non-zero exit and just re-run the dune-package target to guarantee
 	# it is up to date.  Consumed via OCAMLPATH; nothing is installed in
 	# the opam switch.
-	-$(JSOO_OPAM_EXEC) dune build --root $(MOPSA_SRC) --profile release \
-		--only-packages mopsa
+	$(JSOO_OPAM_EXEC) dune build --root $(MOPSA_SRC) --profile release \
+		--only-packages mopsa || true
 	$(JSOO_OPAM_EXEC) dune build --root $(MOPSA_SRC) --profile release \
 		_build/install/default/lib/mopsa/dune-package
 
