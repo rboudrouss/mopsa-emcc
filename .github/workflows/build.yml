@@ -21,8 +21,6 @@ jobs:
       # created by the Makefile: a switch inside the workspace would put the
       # dune builds of its packages under mopsa-emcc's dune-project
       SWITCH: '4.14.2'
-      # the containers of docker build resolve no name on the runner
-      DOCKER_BUILD_FLAGS: --network=host
     steps:
       - uses: actions/checkout@v7
       - name: Install opam
