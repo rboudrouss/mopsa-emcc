@@ -22,6 +22,8 @@ LINUX32_INCLUDE_DIR := $(BUILD_DIR)/linux32-include
 NPM := pnpm
 DOCKER := docker
 DOCKER_IMAGE := mopsa-emcc-linux32
+# Extra options of `docker build` (e.g. `--network=host` without DNS in its containers)
+DOCKER_BUILD_FLAGS ?=
 
 # opam switch holding mopsa and its dependencies.  ocaml-emcc builds its wasm
 # runtime and C libraries in $(SWITCH_PREFIX)/emcc-sysroot.
@@ -151,7 +153,7 @@ wasm-web-artifacts: $(MOPSA_META) $(OCAML_EMCC_DEP) $(BUILD_DIR)/.linux32-header
 docker-image: $(BUILD_DIR)/.docker-image-stamp
 
 $(BUILD_DIR)/.docker-image-stamp: docker/Dockerfile.linux32-headers | $(BUILD_DIR)
-	DOCKER_BUILDKIT=1 $(DOCKER) build \
+	DOCKER_BUILDKIT=1 $(DOCKER) build $(DOCKER_BUILD_FLAGS) \
 		--platform linux/386 \
 		-t $(DOCKER_IMAGE) \
 		-f docker/Dockerfile.linux32-headers \
