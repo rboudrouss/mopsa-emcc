@@ -12,7 +12,9 @@ env:
 jobs:
   # `make final-web`: both backends (WASM + jsoo) and the frontend
   build:
-    runs-on: ubuntu-latest
+    # i386 containers resolve no name on ubuntu-26.04 (docker image of the
+    # 32-bit headers)
+    runs-on: ubuntu-24.04
     timeout-minutes: 180
     env:
       EMSDK: ${{ github.workspace }}/../emsdk
