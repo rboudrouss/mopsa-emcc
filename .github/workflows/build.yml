@@ -1,0 +1,80 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  EMSDK_VERSION: 6.0.11
+
+jobs:
+  # `make final-web`: both backends (WASM + jsoo) and the frontend
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      EMSDK: ${{ github.workspace }}/../emsdk
+      # the switch of setup-ocaml, local to the workspace (_opam)
+      SWITCH: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: 4.14.2
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/cache@v6
+        with:
+          path: ${{ env.EMSDK }}
+          key: emsdk-${{ runner.os }}-${{ env.EMSDK_VERSION }}
+      - name: Install emsdk
+        run: |
+          [ -d "$EMSDK" ] || git clone --depth 1 https://github.com/emscripten-core/emsdk.git "$EMSDK"
+          "$EMSDK/emsdk" install "$EMSDK_VERSION"
+          "$EMSDK/emsdk" activate "$EMSDK_VERSION"
+      # cmake is on the runner
+      - name: Install ninja (clang recipe)
+        run: sudo apt-get install -y ninja-build
+      # The wasm runtime and C libraries ocaml-emcc builds (clang 9: about
+      # 15 min), again when ocaml-emcc or the recipes change
+      - name: ocaml-emcc's commit
+        id: ocaml-emcc
+        run: echo "sha=$(git ls-remote https://github.com/rboudrouss/ocaml-emcc.git HEAD | cut -f1)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v6
+        with:
+          path: _opam/emcc-sysroot
+          key: emcc-sysroot-${{ runner.os }}-${{ env.EMSDK_VERSION }}-${{ steps.ocaml-emcc.outputs.sha }}-${{ hashFiles('ocaml-emcc.conf', 'emcc-recipes/**') }}
+          restore-keys: emcc-sysroot-${{ runner.os }}-${{ env.EMSDK_VERSION }}-
+      - name: make deps
+        run: make deps
+      - name: make final-web
+        run: |
+          source "$EMSDK/emsdk_env.sh"
+          make final-web
+      # The same build for node, on a C file including system headers
+      - name: Smoke test (make wasm-node)
+        run: |
+          source "$EMSDK/emsdk_env.sh"
+          make wasm-node
+          printf '#include <stdlib.h>\nint main() { int x = rand() %% 2; return 10 / x; }\n' > /tmp/a.c
+          SYSROOT=$(opam exec --switch="$SWITCH" -- ocaml-emcc env --sysroot)
+          node dist/node/mopsa.js -share-dir="$(opam var --switch="$SWITCH" prefix)/share/mopsa" \
+            -config=c/default.json -target-triple=x86_64-pc-linux-gnu \
+            -I "$SYSROOT/lib/clang/9.0.1/include" -I /usr/include/x86_64-linux-gnu -I /usr/include \
+            -no-color /tmp/a.c | tee /tmp/a.out
+          grep -q "Division by zero" /tmp/a.out
+      - uses: actions/upload-artifact@v7
+        with:
+          name: frontend-dist
+          path: frontend/dist
+      - if: failure() || cancelled()
+        uses: actions/upload-artifact@v7
+        with:
+          name: logs
+          path: _opam/emcc-sysroot/*/build/*/*.log
