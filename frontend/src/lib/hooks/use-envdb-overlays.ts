@@ -16,7 +16,8 @@ import { useAppStore } from "../store";
  *     background on the lines it found unreachable (every state is ⊥);
  *   - inline values: after the code of a line, the abstract values of its
  *     variables once it has run, and of the next line's variables before
- *     that one runs (cursor line only, or every line).
+ *     that one runs when its statement changes them (cursor line only, or
+ *     every line).
  */
 
 const MAX_INLINE = 70;
@@ -93,8 +94,8 @@ export function inlineParts(env: unknown, python = false): InlinePart[] {
 }
 
 /**
- * The text shown at the end of a line: the state after it, then the state
- * before the next line, each variable once. A variable whose value differs
+ * The text shown at the end of a line: the state after it, then what
+ * changes in the state before the next line, each variable once. A variable whose value differs
  * between the two (entering a branch or a loop) shows both, "i = 0 → [0,9]".
  */
 export function mergedInlineText(after: InlinePart[], before: InlinePart[]): string {
@@ -104,14 +105,30 @@ export function mergedInlineText(after: InlinePart[], before: InlinePart[]): str
     const q = next.get(p.name);
     next.delete(p.name);
     if (!q || q.value === p.value) return show(p);
-    // A type next to a value is no news (Python: the value is more precise).
-    if (q.isType && !p.isType) return show(p);
-    if (p.isType && !q.isType) return show(q);
+    if (q.isType !== p.isType) return show(p.isType ? q : p);
     return `${show(p)} → ${q.value}`;
   });
   for (const q of next.values()) parts.push(show(q));
   const text = parts.join(", ");
   return text.length > MAX_INLINE ? text.slice(0, MAX_INLINE - 1) + "…" : text;
+}
+
+/** A type next to a value is no news (Python: the value is more precise). */
+function sameNews(p: InlinePart, q: InlinePart): boolean {
+  return p.value === q.value || p.isType !== q.isType;
+}
+
+/**
+ * The variables of the state before a line worth showing on the line above:
+ * the ones its statement changes. The others show on the line itself, in
+ * the state after it.
+ */
+export function changedBefore(before: InlinePart[], after: InlinePart[]): InlinePart[] {
+  const post = new Map(after.map((p) => [p.name, p]));
+  return before.filter((p) => {
+    const q = post.get(p.name);
+    return !q || !sameNews(p, q);
+  });
 }
 
 /** Whether the variable shows in the source line: not a temporary or the
@@ -121,21 +138,41 @@ function inSource(name: string, source: string): boolean {
   return !base || new RegExp(`(^|[^\\w$])${base.replace(/\$/g, "\\$")}($|[^\\w$])`).test(source);
 }
 
-/** Per call stack: the variables of the source line, bottom states left out. */
+/** Per call stack: the variables of the source line, null when bottom. */
 function partsByContext(
   res: EnvQueryResult<EnvironmentsBody> | undefined,
   python: boolean,
   source: string,
-): Map<string, InlinePart[]> {
-  const out = new Map<string, InlinePart[]>();
+): Map<string, InlinePart[] | null> {
+  const out = new Map<string, InlinePart[] | null>();
   if (!res || res.kind !== "ok") return out;
   for (const c of res.body.contexts)
-    if (!c.bottom)
-      out.set(
-        JSON.stringify(c.callstack),
-        inlineParts(c.env, python).filter((p) => inSource(p.name, source)),
-      );
+    out.set(
+      JSON.stringify(c.callstack),
+      c.bottom ? null : inlineParts(c.env, python).filter((p) => inSource(p.name, source)),
+    );
   return out;
+}
+
+type LineStates = {
+  /** After the line; none for a statement spanning the next lines. */
+  post: Map<string, InlinePart[] | null>;
+  /** Entering the line. */
+  entry: Map<string, InlinePart[] | null>;
+};
+
+/**
+ * What line L shows under call stack `cs`: the state after L, or before it
+ * when nothing comes after (a return), then the variables of the state
+ * before L + 1 that L + 1 changes, when L + 1 doesn't show them itself.
+ */
+function lineText(cs: string, cur: LineStates, next: LineStates | undefined): string {
+  const post = cur.post.get(cs);
+  const own = (post === null ? cur.entry.get(cs) : post) ?? [];
+  const nextPost = next?.post.get(cs);
+  const ahead =
+    !next || nextPost === null ? [] : changedBefore(next.entry.get(cs) ?? [], nextPost ?? []);
+  return mergedInlineText(own, ahead);
 }
 
 export function useEnvdbOverlays(
@@ -222,7 +259,7 @@ export function useEnvdbOverlays(
     }
     let cancelled = false;
     void (async () => {
-      // Line L shows the state after L and the state before L + 1.
+      // See lineText: line L needs the states of L and L + 1.
       let lines: number[];
       if (inlineValues === "cursor") lines = cursorKey ? [cursorKey] : [];
       else {
@@ -234,25 +271,30 @@ export function useEnvdbOverlays(
       const model = editor.getModel();
       if (cancelled || !model) return;
       lines = lines.filter((l) => l <= model.getLineCount());
-      const [after, before] = await Promise.all([
-        Promise.all(lines.map((l) => envEngine.getEnvironments(codeFilePath, l, "line", "post"))),
-        Promise.all(lines.map((l) => envEngine.getEnvironments(codeFilePath, l + 1, "line", "entry"))),
-      ]);
+      const queried = [...new Set(lines.flatMap((l) => [l, l + 1]))].filter(
+        (l) => l <= model.getLineCount(),
+      );
+      const [posts, entries] = await Promise.all(
+        (["post", "entry"] as const).map((when) =>
+          Promise.all(queried.map((l) => envEngine.getEnvironments(codeFilePath, l, "line", when))),
+        ),
+      );
       if (cancelled) return;
+      const states = new Map<number, LineStates>();
+      queried.forEach((l, i) => {
+        const source = model.getLineContent(l);
+        states.set(l, {
+          post: partsByContext(posts[i], python, source),
+          entry: partsByContext(entries[i], python, source),
+        });
+      });
       const decos: Monaco.editor.IModelDeltaDecoration[] = [];
-      lines.forEach((line, i) => {
-        const a = partsByContext(after[i], python, model.getLineContent(line));
-        const b = partsByContext(
-          before[i],
-          python,
-          line < model.getLineCount() ? model.getLineContent(line + 1) : "",
-        );
+      lines.forEach((line) => {
+        const cur = states.get(line)!;
+        const next = states.get(line + 1);
+        const contexts = new Set([...cur.post.keys(), ...cur.entry.keys(), ...(next?.entry.keys() ?? [])]);
         const texts = [
-          ...new Set(
-            [...new Set([...a.keys(), ...b.keys()])]
-              .map((cs) => mergedInlineText(a.get(cs) ?? [], b.get(cs) ?? []))
-              .filter(Boolean),
-          ),
+          ...new Set([...contexts].map((cs) => lineText(cs, cur, next)).filter(Boolean)),
         ];
         if (texts.length === 0) return;
         const text =
