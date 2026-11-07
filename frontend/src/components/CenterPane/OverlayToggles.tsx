@@ -1,16 +1,12 @@
 import { useEditorNav, type InlineValuesMode } from "@/lib/editor-nav";
 
-const NEXT: Record<InlineValuesMode, InlineValuesMode> = {
-  off: "cursor",
-  cursor: "all",
-  all: "off",
-};
-
-const VALUES_LABEL: Record<InlineValuesMode, string> = {
-  off: "Values: off",
-  cursor: "Values: cursor line",
-  all: "Values: all lines",
-};
+const VALUES: { mode: InlineValuesMode; label: string }[] = [
+  { mode: "off", label: "Values: off" },
+  { mode: "cursor", label: "Values: cursor line" },
+  { mode: "all", label: "Values: all lines" },
+  { mode: "before", label: "Values: only before" },
+  { mode: "after", label: "Values: only after" },
+];
 
 /** Tab-bar switches of the editor overlays fed by the analysis states. */
 export function OverlayToggles() {
@@ -37,13 +33,22 @@ export function OverlayToggles() {
       >
         Safe checks
       </Toggle>
-      <Toggle
-        on={inlineValues !== "off"}
-        onClick={() => setInlineValues(NEXT[inlineValues])}
-        title="Abstract values at the end of the lines (click to cycle: off, cursor line, all lines)"
+      <select
+        value={inlineValues}
+        onChange={(e) => setInlineValues(e.target.value as InlineValuesMode)}
+        title={
+          "Abstract values at the end of the lines: on the cursor line or every line, " +
+          "the state after each line and what the next one changes; or only the " +
+          "state before, or only the state after, each line"
+        }
+        style={{ ...toggleStyle(inlineValues !== "off"), padding: "2px 4px", fontFamily: "inherit" }}
       >
-        {VALUES_LABEL[inlineValues]}
-      </Toggle>
+        {VALUES.map(({ mode, label }) => (
+          <option key={mode} value={mode}>
+            {label}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }
@@ -60,21 +65,21 @@ function Toggle({
   children: React.ReactNode;
 }) {
   return (
-    <button
-      onClick={onClick}
-      title={title}
-      style={{
-        padding: "2px 8px",
-        fontSize: 11,
-        borderRadius: 4,
-        cursor: "pointer",
-        background: on ? "color-mix(in srgb, #f5b544 12%, transparent)" : "none",
-        border: `1px solid ${on ? "color-mix(in srgb, #f5b544 50%, transparent)" : "var(--border)"}`,
-        color: on ? "var(--color-accent)" : "var(--text-muted)",
-        whiteSpace: "nowrap",
-      }}
-    >
+    <button onClick={onClick} title={title} style={toggleStyle(on)}>
       {children}
     </button>
   );
+}
+
+function toggleStyle(on: boolean): React.CSSProperties {
+  return {
+    padding: "2px 8px",
+    fontSize: 11,
+    borderRadius: 4,
+    cursor: "pointer",
+    background: on ? "color-mix(in srgb, #f5b544 12%, transparent)" : "none",
+    border: `1px solid ${on ? "color-mix(in srgb, #f5b544 50%, transparent)" : "var(--border)"}`,
+    color: on ? "var(--color-accent)" : "var(--text-muted)",
+    whiteSpace: "nowrap",
+  };
 }

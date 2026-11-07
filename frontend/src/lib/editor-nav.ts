@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { useAppStore } from "./store";
 import { getAllFilePaths, getWorkspaceForFile } from "./tree";
 
-export type InlineValuesMode = "off" | "cursor" | "all";
+export type InlineValuesMode = "off" | "cursor" | "all" | "before" | "after";
 
 const VIEW_KEY = "mopsa-editor-view";
 

@@ -17,7 +17,8 @@ import { useAppStore } from "../store";
  *   - inline values: after the code of a line, the abstract values of its
  *     variables once it has run, and of the next line's variables before
  *     that one runs when its statement changes them (cursor line only, or
- *     every line).
+ *     every line); or, on every line, only the state before it or only the
+ *     state after it.
  */
 
 const MAX_INLINE = 70;
@@ -247,7 +248,7 @@ export function useEnvdbOverlays(
     valuesRef.current?.clear();
   }, [code]);
 
-  // Inline values. The cursor only matters in "cursor" mode: in "all" mode,
+  // Inline values. The cursor only matters in "cursor" mode: in the others,
   // moving it must not refetch and redraw every line.
   const cursorKey = inlineValues === "cursor" ? cursorLine : null;
   const python = codeFilePath.endsWith(".py");
@@ -259,43 +260,53 @@ export function useEnvdbOverlays(
     }
     let cancelled = false;
     void (async () => {
-      // See lineText: line L needs the states of L and L + 1.
+      // "all": line L shows the state after L and what L + 1 changes
+      // (see lineText); "before" / "after": line L shows its own state only.
+      const mode = inlineValues;
       let lines: number[];
-      if (inlineValues === "cursor") lines = cursorKey ? [cursorKey] : [];
+      if (mode === "cursor") lines = cursorKey ? [cursorKey] : [];
       else {
         const res = await envEngine.getLines(codeFilePath);
         if (res.kind !== "ok") return;
         const reached = res.body.files[codeFilePath]?.reached ?? [];
-        lines = [...new Set(reached.flatMap((l) => [l - 1, l]))].filter((l) => l >= 1);
+        lines =
+          mode === "all"
+            ? [...new Set(reached.flatMap((l) => [l - 1, l]))].filter((l) => l >= 1)
+            : reached;
       }
       const model = editor.getModel();
       if (cancelled || !model) return;
       lines = lines.filter((l) => l <= model.getLineCount());
-      const queried = [...new Set(lines.flatMap((l) => [l, l + 1]))].filter(
-        (l) => l <= model.getLineCount(),
-      );
-      const [posts, entries] = await Promise.all(
-        (["post", "entry"] as const).map((when) =>
-          Promise.all(queried.map((l) => envEngine.getEnvironments(codeFilePath, l, "line", when))),
-        ),
-      );
+      const merged = mode === "all" || mode === "cursor";
+      const queried = merged
+        ? [...new Set(lines.flatMap((l) => [l, l + 1]))].filter((l) => l <= model.getLineCount())
+        : lines;
+      const fetch = (when: "pre" | "entry" | "post") =>
+        Promise.all(queried.map((l) => envEngine.getEnvironments(codeFilePath, l, "line", when)));
+      const [firsts, seconds] = merged
+        ? await Promise.all([fetch("post"), fetch("entry")])
+        : [await fetch(mode === "before" ? "pre" : "post"), []];
       if (cancelled) return;
+      // Merged modes: the states after and entering each line. The others:
+      // the one state shown, in `post`.
       const states = new Map<number, LineStates>();
       queried.forEach((l, i) => {
         const source = model.getLineContent(l);
         states.set(l, {
-          post: partsByContext(posts[i], python, source),
-          entry: partsByContext(entries[i], python, source),
+          post: partsByContext(firsts[i], python, source),
+          entry: partsByContext(seconds[i], python, source),
         });
       });
       const decos: Monaco.editor.IModelDeltaDecoration[] = [];
       lines.forEach((line) => {
         const cur = states.get(line)!;
         const next = states.get(line + 1);
-        const contexts = new Set([...cur.post.keys(), ...cur.entry.keys(), ...(next?.entry.keys() ?? [])]);
-        const texts = [
-          ...new Set([...contexts].map((cs) => lineText(cs, cur, next)).filter(Boolean)),
-        ];
+        const perContext = merged
+          ? [...new Set([...cur.post.keys(), ...cur.entry.keys(), ...(next?.entry.keys() ?? [])])].map(
+              (cs) => lineText(cs, cur, next),
+            )
+          : [...cur.post.values()].map((parts) => mergedInlineText(parts ?? [], []));
+        const texts = [...new Set(perContext.filter(Boolean))];
         if (texts.length === 0) return;
         const text =
           texts[0] +
