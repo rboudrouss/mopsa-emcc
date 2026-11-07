@@ -7,6 +7,7 @@ import { StatTiles } from "./StatTiles";
 import { WarningsBox } from "./WarningsBox";
 import { InteractiveTerminal } from "./InteractiveTerminal";
 import { EngineModePicker } from "./EngineModePicker";
+import { StatesPanel } from "./StatesPanel";
 
 export function RightPanel({ isAnalyzing }: { isAnalyzing: boolean }) {
   const engine = useAppStore(
@@ -175,6 +176,8 @@ function ScanResults({ isAnalyzing }: { isAnalyzing: boolean }) {
           <KindBreakdown checks={checks} />
         </>
       )}
+
+      {analysisSuccess === true && !analysisError && <StatesPanel />}
 
       {!analysisError && <WarningsBox warnings={warnings} />}
 

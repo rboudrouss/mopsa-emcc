@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import type * as MonacoNS from "monaco-editor";
-import { hoverEngine } from "../hover/hover-engine";
-import { formatHover } from "../hover/env-format";
+import { envEngine } from "../envdb/env-engine";
+import { formatHover } from "../envdb/hover-format";
 import { getCodeFilePath } from "../mopsa-client";
 
 // Monaco is a page-global: register the provider once, whatever the number
@@ -10,9 +10,9 @@ let registered = false;
 
 /**
  * Hover-for-abstract-state: hovering an identifier in the code editor asks
- * the background hover engine for the abstract environment Mopsa computed
+ * the background envdb engine for the abstract environment Mopsa computed
  * at that line, and shows the matching variable(s). Works in every engine
- * mode (scan / interactive / debug) — the hover session is independent.
+ * mode (scan / interactive) — the hover session is independent.
  */
 export function useMopsaHover(
   monacoRef: React.RefObject<typeof MonacoNS | null>,
@@ -22,7 +22,7 @@ export function useMopsaHover(
     const monaco = monacoRef.current;
     if (!monaco || registered) return;
     registered = true;
-    hoverEngine.init();
+    envEngine.init();
 
     monaco.languages.registerHoverProvider(["c", "python"], {
       provideHover: async (model, position, token) => {
@@ -30,7 +30,7 @@ export function useMopsaHover(
         if (!word) return null;
         // The visible model is always the active code file.
         const file = getCodeFilePath();
-        const res = await hoverEngine.getEnvironment(
+        const res = await envEngine.getEnvironment(
           file,
           position.lineNumber,
         );

@@ -1,4 +1,4 @@
-import type { HoverEnvResult } from "./hover-engine";
+import type { HoverEnvResult } from "./env-engine";
 
 /**
  * Turns the JSON print-object returned by Mopsa's `environment` DAP request

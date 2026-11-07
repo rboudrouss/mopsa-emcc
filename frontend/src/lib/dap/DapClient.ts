@@ -59,8 +59,17 @@ export class DapClient {
     });
   }
 
-  sendRequest<T = unknown>(command: string, args?: unknown): Promise<T> {
-    const fire = () => this.fire<T>(command, args);
+  /**
+   * `timeoutMs` rejects a request left unanswered: Mopsa silently skips
+   * commands it doesn't know (an older build), which would otherwise stall
+   * this queue forever.
+   */
+  sendRequest<T = unknown>(
+    command: string,
+    args?: unknown,
+    timeoutMs?: number,
+  ): Promise<T> {
+    const fire = () => this.fire<T>(command, args, timeoutMs);
     const result = this.queue.then(fire, fire);
     // Advance the queue once this request settles (resolved or rejected),
     // so the next request only writes after the worker freed the slot.
@@ -71,7 +80,11 @@ export class DapClient {
     return result;
   }
 
-  private fire<T>(command: string, args?: unknown): Promise<T> {
+  private fire<T>(
+    command: string,
+    args?: unknown,
+    timeoutMs?: number,
+  ): Promise<T> {
     const seq = this.seq++;
     const msg: DapMessage = { seq, type: "request", command };
     if (args !== undefined) (msg as { arguments?: unknown }).arguments = args;
@@ -82,10 +95,22 @@ export class DapClient {
       "\r\n\r\n" +
       json;
     return new Promise<T>((resolve, reject) => {
+      let timer: number | undefined;
       this.pending.set(seq, {
-        resolve: resolve as (b: unknown) => void,
-        reject,
+        resolve: (b: unknown) => {
+          window.clearTimeout(timer);
+          resolve(b as T);
+        },
+        reject: (e: Error) => {
+          window.clearTimeout(timer);
+          reject(e);
+        },
       });
+      if (timeoutMs !== undefined)
+        timer = window.setTimeout(() => {
+          this.pending.delete(seq);
+          reject(new Error(`DAP request '${command}' timed out`));
+        }, timeoutMs);
       this.send(frame);
     });
   }

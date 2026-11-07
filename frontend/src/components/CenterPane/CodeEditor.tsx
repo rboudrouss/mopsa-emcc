@@ -3,13 +3,14 @@ import MonacoEditor, {
   type OnMount,
 } from "@monaco-editor/react";
 import type * as MonacoNS from "monaco-editor";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMonacoDecorations } from "@/lib/hooks/use-monaco-decorations";
 import { useMopsaHover } from "@/lib/hooks/use-mopsa-hover";
 import { getCodeFilePath } from "@/lib/mopsa-client";
 import { findById } from "@/lib/tree";
 import { useAppStore } from "@/lib/store";
 import { useIsMobile } from "@/lib/hooks/use-media-query";
+import { useEditorNav } from "@/lib/editor-nav";
 
 function getMonacoLanguage(ext: string): string {
   switch (ext) {
@@ -94,6 +95,27 @@ export function CodeEditor({ resolvedTheme }: CodeEditorProps) {
   useMonacoDecorations(editorRef, editorChecks, codeFilePath, mountKey);
   useMopsaHover(monacoRef, mountKey);
 
+  // Reveal requests from the panels (States, call stacks). Applied once the
+  // editor shows the requested line: after a file switch the new content
+  // lands a render later, hence `code` in the deps.
+  const revealRequest = useEditorNav((s) => s.revealRequest);
+  const handledReveal = useRef(0);
+  useEffect(() => {
+    const editor = editorRef.current;
+    const model = editor?.getModel();
+    if (!editor || !model || !revealRequest) return;
+    if (revealRequest.nonce === handledReveal.current) return;
+    if (revealRequest.line > model.getLineCount()) return;
+    handledReveal.current = revealRequest.nonce;
+    const line = revealRequest.line;
+    editor.revealLineInCenterIfOutsideViewport(line);
+    editor.setPosition({
+      lineNumber: line,
+      column: model.getLineFirstNonWhitespaceColumn(line) || 1,
+    });
+    editor.focus();
+  }, [revealRequest, code, mountKey]);
+
   const handleBeforeMount: BeforeMount = (monaco) => {
     defineThemes(monaco);
   };
@@ -101,6 +123,11 @@ export function CodeEditor({ resolvedTheme }: CodeEditorProps) {
   const handleMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
     monacoRef.current = monaco;
+    const nav = useEditorNav.getState();
+    nav.setCursorLine(editor.getPosition()?.lineNumber ?? null);
+    editor.onDidChangeCursorPosition((e) =>
+      nav.setCursorLine(e.position.lineNumber),
+    );
     setMountKey((k) => k + 1);
   };
 
