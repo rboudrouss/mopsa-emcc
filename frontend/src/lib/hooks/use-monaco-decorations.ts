@@ -1,6 +1,6 @@
 import type * as Monaco from "monaco-editor";
 import { useEffect, useRef } from "react";
-import type { CheckItem } from "../types";
+import type { Assumption, CheckItem, PanicInfo } from "../types";
 import { inFile } from "../index";
 
 function toRange(r: CheckItem["range"]): Monaco.IRange {
@@ -17,6 +17,8 @@ export function useMonacoDecorations(
   checks: CheckItem[],
   codeFilePath: string,
   mountKey: number,
+  assumptions: Assumption[] = [],
+  panic: PanicInfo | null = null,
 ) {
   const collectionRef =
     useRef<Monaco.editor.IEditorDecorationsCollection | null>(null);
@@ -93,7 +95,44 @@ export function useMonacoDecorations(
       }
     }
 
+    // Local soundness assumptions: dotted blue, the results hold only if
+    // they are acceptable.
+    for (const a of assumptions) {
+      const r = a.range;
+      if (!r?.start || !r.end || !inFile(r.start.file, codeFilePath)) continue;
+      decorations.push({
+        range: toRange({ start: r.start, end: r.end }),
+        options: {
+          inlineClassName: "mopsa-assumption-span",
+          hoverMessage: {
+            value: `**ℹ️ Assumption**\n\n${a.message}\n\nThe analysis is sound only under this hypothesis.`,
+            isTrusted: false,
+          },
+          minimap: { color: "#60a5fa", position: 1 },
+        },
+      });
+    }
+
+    // Where a failed analysis stopped.
+    const ps = panic?.range?.start;
+    if (ps && inFile(ps.file, codeFilePath)) {
+      decorations.push({
+        range: {
+          startLineNumber: ps.line,
+          startColumn: 1,
+          endLineNumber: ps.line,
+          endColumn: 1,
+        },
+        options: {
+          isWholeLine: true,
+          className: "mopsa-panic-line",
+          hoverMessage: { value: "**✕ The analysis failed here**" },
+          minimap: { color: "#f87171", position: 1 },
+        },
+      });
+    }
+
     collectionRef.current?.clear();
     collectionRef.current = editor.createDecorationsCollection(decorations);
-  }, [checks, codeFilePath, editorRef, mountKey]);
+  }, [checks, assumptions, panic, codeFilePath, editorRef, mountKey]);
 }

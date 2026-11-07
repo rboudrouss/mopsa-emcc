@@ -92,7 +92,16 @@ export function CodeEditor({ resolvedTheme }: CodeEditorProps) {
   // interactive REPL: switching engines drops the (now-stale) decorations.
   const editorChecks = engine === "interactive" ? [] : checks;
 
-  useMonacoDecorations(editorRef, editorChecks, codeFilePath, mountKey);
+  const assumptions = useAppStore((s) => s.assumptions);
+  const panic = useAppStore((s) => s.panic);
+  useMonacoDecorations(
+    editorRef,
+    editorChecks,
+    codeFilePath,
+    mountKey,
+    engine === "interactive" ? [] : assumptions,
+    engine === "interactive" ? null : panic,
+  );
   useMopsaHover(monacoRef, mountKey);
 
   // Reveal requests from the panels (States, call stacks). Applied once the

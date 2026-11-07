@@ -119,6 +119,12 @@ body {
 .mopsa-error-span {
   text-decoration: underline wavy #f87171;
 }
+.mopsa-assumption-span {
+  text-decoration: underline dotted #60a5fa;
+}
+.mopsa-panic-line {
+  background: rgba(248, 113, 113, 0.1);
+}
 .mopsa-callsite-span {
   text-decoration: underline dotted rgba(245, 181, 68, 0.55);
 }

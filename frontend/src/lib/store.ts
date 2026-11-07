@@ -36,8 +36,10 @@ import type {
   ActivePanel,
   ActiveTab,
   AnalysisResult,
+  Assumption,
   CheckItem,
   FileTreeNode,
+  PanicInfo,
   SavedConfig,
   SupportedLanguage,
   WorkspaceMode,
@@ -165,6 +167,15 @@ function computeConfigBucketSwap(
   return updates;
 }
 
+// Parsing errors carry their location in the message only
+// ("Parsing error raised: /ws/a.c:1:9: 'x.h' file not found").
+function locationInMessage(msg: string): PanicInfo["range"] {
+  const m = /(\/?[\w./-]+\.\w+):(\d+):(\d+)/.exec(msg);
+  if (!m) return null;
+  const start = { file: m[1], line: +m[2], column: +m[3] };
+  return { start, end: start };
+}
+
 // ── Store interface ───────────────────────────────────────────────────────────
 
 interface AppStore {
@@ -187,6 +198,9 @@ interface AppStore {
 
   // ── Analysis results ─────────────────────────────────────────────────────
   checks: CheckItem[];
+  assumptions: Assumption[];
+  // Location / control context of a failed analysis, when Mopsa gave one.
+  panic: PanicInfo | null;
   warnings: string;
   rawOutput: string;
   selectivity: string | null;
@@ -282,6 +296,8 @@ const _initialActiveFile = _restored?.activeFile ?? findFirstFile(_initialTree);
 // edit. Re-runs (manual or auto) repopulate them.
 const CLEARED_ANALYSIS = {
   checks: [] as CheckItem[],
+  assumptions: [] as Assumption[],
+  panic: null as PanicInfo | null,
   warnings: "",
   rawOutput: "",
   selectivity: null,
@@ -302,6 +318,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
   customConfigs: _restored?.customConfigs ?? {},
   presets: null,
   checks: [],
+  assumptions: [],
+  panic: null,
   warnings: "",
   rawOutput: "",
   selectivity: null,
@@ -454,6 +472,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
       set({
         rawOutput: r.raw,
         checks: [],
+        assumptions: [],
+        panic: null,
         warnings: "",
         selectivity: null,
         analysisTime: r.durationMs / 1000,
@@ -469,9 +489,21 @@ export const useAppStore = create<AppStore>((set, get) => ({
     } else if (!p.success) {
       error = p.exception ?? "Analysis failed";
     }
+    const panic: PanicInfo | null =
+      p && !p.success
+        ? {
+            range: p.range?.start
+              ? p.range
+              : locationInMessage(p.exception ?? ""),
+            callstack: p.callstack ?? [],
+            backtrace: p.backtrace || null,
+          }
+        : null;
     set({
       rawOutput: r.raw,
       checks: p?.checks ?? [],
+      assumptions: p?.assumptions ?? [],
+      panic,
       warnings: extractPreJson(r.raw),
       selectivity: p?.selectivity ?? null,
       analysisTime: r.durationMs / 1000,

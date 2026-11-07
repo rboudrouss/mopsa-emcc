@@ -8,6 +8,8 @@ import { WarningsBox } from "./WarningsBox";
 import { InteractiveTerminal } from "./InteractiveTerminal";
 import { EngineModePicker } from "./EngineModePicker";
 import { StatesPanel } from "./StatesPanel";
+import { AssumptionsBox } from "./AssumptionsBox";
+import { PanicDetails } from "./PanicDetails";
 
 export function RightPanel({ isAnalyzing }: { isAnalyzing: boolean }) {
   const engine = useAppStore(
@@ -69,6 +71,8 @@ export function RightPanel({ isAnalyzing }: { isAnalyzing: boolean }) {
 
 function ScanResults({ isAnalyzing }: { isAnalyzing: boolean }) {
   const checks = useAppStore((s) => s.checks);
+  const assumptions = useAppStore((s) => s.assumptions);
+  const panic = useAppStore((s) => s.panic);
   const warnings = useAppStore((s) => s.warnings);
   const rawOutput = useAppStore((s) => s.rawOutput);
   const selectivity = useAppStore((s) => s.selectivity);
@@ -143,6 +147,7 @@ function ScanResults({ isAnalyzing }: { isAnalyzing: boolean }) {
           >
             {analysisError}
           </span>
+          {panic && <PanicDetails panic={panic} />}
         </div>
       )}
 
@@ -176,6 +181,8 @@ function ScanResults({ isAnalyzing }: { isAnalyzing: boolean }) {
           <KindBreakdown checks={checks} />
         </>
       )}
+
+      <AssumptionsBox assumptions={assumptions} />
 
       {analysisSuccess === true && !analysisError && <StatesPanel />}
 

@@ -26,6 +26,26 @@ export interface CheckItem {
   }[];
 }
 
+/** A soundness assumption Mopsa made; global when it has no range. */
+export interface Assumption {
+  message: string;
+  range?: { start?: CheckRange; end?: CheckRange };
+}
+
+/** Frame of a panic's control context: a call or a loop iteration. */
+export interface PanicFrame {
+  function?: string;
+  loop_info?: string;
+  range: { start?: CheckRange; end?: CheckRange };
+}
+
+/** Where a failed analysis stopped. */
+export interface PanicInfo {
+  range: { start?: CheckRange; end?: CheckRange } | null;
+  callstack: PanicFrame[];
+  backtrace: string | null;
+}
+
 export interface ParsedOutput {
   success: boolean;
   time: number;
@@ -33,9 +53,11 @@ export interface ParsedOutput {
   files: string[];
   selectivity: string;
   checks: CheckItem[];
-  assumptions: unknown[];
+  assumptions?: Assumption[];
   exception?: string;
   backtrace?: string;
+  range?: { start?: CheckRange; end?: CheckRange };
+  callstack?: PanicFrame[];
 }
 
 export interface AnalysisResult {
