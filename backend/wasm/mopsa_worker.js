@@ -35,22 +35,48 @@
 
 importScripts("./ocamlrun.js", "./sync-message.js");
 
+// ocamlrun.wasm and ocamlrun.data come from ?assets=BASE_URL (another origin,
+// such as an R2 bucket, CORS enabled) when mopsa_api.js passes one, else from
+// the worker's own directory.
+var _assetsUrl = (
+  new URLSearchParams(self.location.search).get("assets") || "."
+).replace(/\/+$/, "");
+
+function _fetchOk(name) {
+  return fetch(_assetsUrl + "/" + name).then(function (r) {
+    if (!r.ok) throw new Error(name + ": HTTP " + r.status);
+    return r;
+  });
+}
+
+// compileStreaming needs the application/wasm content type: compile the bytes
+// when the server sends another one
 var _wasmModulePromise = (
   typeof WebAssembly.compileStreaming === "function"
-    ? WebAssembly.compileStreaming(fetch("./ocamlrun.wasm"))
-    : fetch("./ocamlrun.wasm")
+    ? WebAssembly.compileStreaming(_fetchOk("ocamlrun.wasm")).catch(function (e) {
+        console.warn("[Mopsa Worker] compileStreaming failed, compiling the bytes:", e);
+        return null;
+      })
+    : Promise.resolve(null)
+)
+  .then(function (mod) {
+    return (
+      mod ||
+      _fetchOk("ocamlrun.wasm")
         .then(function (r) {
           return r.arrayBuffer();
         })
         .then(function (bytes) {
           return WebAssembly.compile(bytes);
         })
-).catch(function (e) {
-  console.error("[Mopsa Worker] WASM pre-compilation failed:", e);
-  return null;
-});
+    );
+  })
+  .catch(function (e) {
+    console.error("[Mopsa Worker] WASM pre-compilation failed:", e);
+    return null;
+  });
 
-var _dataBufferPromise = fetch("./ocamlrun.data")
+var _dataBufferPromise = _fetchOk("ocamlrun.data")
   .then(function (r) {
     return r.arrayBuffer();
   })

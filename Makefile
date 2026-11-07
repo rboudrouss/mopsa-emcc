@@ -49,7 +49,7 @@ MOPSA_KEPT_SRC = $(SWITCH_PREFIX)/.opam-switch/build/mopsa.$$(opam var --switch=
 # Phony targets
 .PHONY: all wasm wasm-node wasm-web wasm-web-artifacts final-web frontend-build \
         deps switch mopsa-install mopsa-update ocaml-emcc-install ocaml-emcc-update jsoo-deps \
-        docker-image extract-32-headers \
+        docker-image extract-32-headers wasm-r2-upload \
         jsoo-analyzer jsoo-worker jsoo-web \
         clean clean-project clean-docker clean-jsoo
 
@@ -212,8 +212,41 @@ $(BUILD_DIR)/.linux32-headers-stamp: $(BUILD_DIR)/.docker-image-stamp | $(BUILD_
 		> $(LINUX32_INCLUDE_DIR)/pyconfig.h
 	touch $@
 
+# ── Serving ocamlrun.wasm and ocamlrun.data apart ───────────────────────────
+# Cloudflare Pages serves no file over 25 MiB, and ocamlrun.wasm is bigger: the
+# two files can be served from another origin (an R2 bucket on a custom
+# domain, with a CORS policy allowing the page's origin):
+#   make wasm-r2-upload R2_BUCKET=<bucket>
+#   make frontend-build MOPSA_ASSETS_URL=https://<bucket's domain>
+# They go in a directory named after the hash of the build, as they must match
+# the ocamlrun.js served with the page: an upload never replaces the files of
+# a page still in use, nor do caches serve old ones.
+MOPSA_ASSETS_URL ?=
+R2_BUCKET ?=
+WRANGLER ?= npx wrangler
+WASM_ASSETS = $(addprefix $(FRONTEND_DIR)/public/ocamlrun.,js wasm data)
+WASM_ASSETS_VERSION = $$(cat $(WASM_ASSETS) | sha256sum | cut -c1-16)
+
+wasm-r2-upload:
+	test -n "$(R2_BUCKET)" || { echo "R2_BUCKET is not set" >&2; exit 1; }
+	v=$(WASM_ASSETS_VERSION)
+	for f in wasm:application/wasm data:application/octet-stream; do
+		$(WRANGLER) r2 object put "$(R2_BUCKET)/$$v/ocamlrun.$${f%%:*}" --remote \
+			--file $(FRONTEND_DIR)/public/ocamlrun.$${f%%:*} --content-type $${f#*:} \
+			--cache-control "public, max-age=31536000, immutable"
+	done
+	echo "uploaded to $(R2_BUCKET)/$$v/"
+
 frontend-build:
-	cd $(FRONTEND_DIR) && $(NPM) install && $(NPM) exec vite build
+	cd $(FRONTEND_DIR) && $(NPM) install
+ifneq ($(MOPSA_ASSETS_URL),)
+	v=$(WASM_ASSETS_VERSION)
+	cd $(FRONTEND_DIR) && VITE_MOPSA_ASSETS_URL=$(MOPSA_ASSETS_URL)/$$v $(NPM) exec vite build
+	rm -f $(FRONTEND_DIR)/dist/ocamlrun.wasm $(FRONTEND_DIR)/dist/ocamlrun.data
+	echo "ocamlrun.wasm and ocamlrun.data from $(MOPSA_ASSETS_URL)/$$v/"
+else
+	cd $(FRONTEND_DIR) && $(NPM) exec vite build
+endif
 
 # Frontend with the WASM backend only
 wasm-web: wasm-web-artifacts

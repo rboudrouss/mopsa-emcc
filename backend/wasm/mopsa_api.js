@@ -108,8 +108,20 @@
     });
   }
 
+  // Base URL of ocamlrun.wasm and ocamlrun.data when they are served apart
+  // (VITE_MOPSA_ASSETS_URL at build time, see the Makefile), passed to the
+  // worker in its URL.  Vite leaves %VITE_...% as is when the variable is
+  // not defined.
+  var _assetsMeta = document.querySelector('meta[name="mopsa-assets-url"]');
+  var _assetsUrl = _assetsMeta ? _assetsMeta.content.trim() : "";
+  var _workerUrl =
+    "./mopsa_worker.js" +
+    (_assetsUrl && _assetsUrl.charAt(0) !== "%"
+      ? "?assets=" + encodeURIComponent(_assetsUrl)
+      : "");
+
   function _spawnWorker() {
-    _worker = new Worker("./mopsa_worker.js");
+    _worker = new Worker(_workerUrl);
     _worker.onmessage = _handleMessage;
     _worker.onerror = _handleError;
   }
@@ -259,7 +271,7 @@
       }
 
       var id = _nextId++;
-      var worker = new Worker("./mopsa_worker.js");
+      var worker = new Worker(_workerUrl);
       var channel = self.syncMessage.makeChannel({
         atomics: { bufferSize: 256 * 1024 },
       });

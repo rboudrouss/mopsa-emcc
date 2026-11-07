@@ -1,5 +1,5 @@
 import path from "path";
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 import tailwindcss from "@tailwindcss/vite";
@@ -14,73 +14,103 @@ const crossOriginIsolation = {
   "Cross-Origin-Embedder-Policy": "require-corp",
 };
 
-export default defineConfig({
-  server: { headers: crossOriginIsolation },
-  preview: { headers: crossOriginIsolation },
-  build: {
-    rollupOptions: {
-      output: {
-        manualChunks(id) {
-          if (id.includes("monaco-editor")) return "monaco";
-          if (id.includes("node_modules")) return "vendor";
-          if (id.includes("share.json")) return "share";
+export default defineConfig(({ mode }) => {
+  // Base URL of ocamlrun.wasm and ocamlrun.data when they are served apart
+  // (see index.html and the Makefile)
+  const assetsUrl = loadEnv(
+    mode,
+    process.cwd(),
+    "VITE_MOPSA_ASSETS_URL",
+  ).VITE_MOPSA_ASSETS_URL?.replace(/\/+$/, "");
+  return {
+    server: { headers: crossOriginIsolation },
+    preview: { headers: crossOriginIsolation },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes("monaco-editor")) return "monaco";
+            if (id.includes("node_modules")) return "vendor";
+            if (id.includes("share.json")) return "share";
+          },
         },
       },
     },
-  },
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
+    resolve: {
+      alias: {
+        "@": path.resolve(__dirname, "./src"),
+      },
     },
-  },
-  plugins: [
-    enablePWA &&
-      VitePWA({
-        registerType: "autoUpdate",
-        workbox: {
-          maximumFileSizeToCacheInBytes: 500000000,
-        },
-        includeAssets: [
-          "web-app-manifest-192x192.png",
-          "web-app-manifest-512x512.png",
-          "screenshot-desktop.png",
-          "screenshot-other.png",
-        ],
-        manifest: {
-          name: "MopsaJs",
-          short_name: "MopsaJs",
-          theme_color: "#ffffff",
-          background_color: "#ffffff",
-          display: "standalone",
-          description: "Modular Open Platform for Static Analysis.",
-          icons: [
-            {
-              src: "/web-app-manifest-192x192.png",
-              sizes: "192x192",
-              type: "image/png",
-            },
-            {
-              src: "/web-app-manifest-512x512.png",
-              sizes: "512x512",
-              type: "image/png",
-            },
+    plugins: [
+      enablePWA &&
+        VitePWA({
+          registerType: "autoUpdate",
+          workbox: {
+            maximumFileSizeToCacheInBytes: 500000000,
+            // Served apart: cached when first fetched, under URLs that change
+            // with their contents
+            ...(assetsUrl && {
+              globIgnores: ["**/ocamlrun.wasm", "**/ocamlrun.data"],
+              runtimeCaching: [
+                {
+                  // a RegExp: generateSW writes it into sw.js
+                  urlPattern: new RegExp(
+                    "^" +
+                      assetsUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") +
+                      "/",
+                  ),
+                  handler: "CacheFirst",
+                  options: {
+                    cacheName: "mopsa-wasm",
+                    expiration: { maxEntries: 4 },
+                    cacheableResponse: { statuses: [200] },
+                  },
+                },
+              ],
+            }),
+          },
+          includeAssets: [
+            "web-app-manifest-192x192.png",
+            "web-app-manifest-512x512.png",
+            "screenshot-desktop.png",
+            "screenshot-other.png",
           ],
-          screenshots: [
-            {
-              src: "/screenshot-desktop.png",
-              sizes: "1662x1003",
-              type: "image/png",
-              form_factor: "wide",
-            },
-            {
-              src: "/screenshot-other.png",
-              sizes: "650x863",
-              type: "image/png",
-            },
-          ],
-        },
-      }),
-    react(),
-    tailwindcss(),
-  ],
+          manifest: {
+            name: "MopsaJs",
+            short_name: "MopsaJs",
+            theme_color: "#ffffff",
+            background_color: "#ffffff",
+            display: "standalone",
+            description: "Modular Open Platform for Static Analysis.",
+            icons: [
+              {
+                src: "/web-app-manifest-192x192.png",
+                sizes: "192x192",
+                type: "image/png",
+              },
+              {
+                src: "/web-app-manifest-512x512.png",
+                sizes: "512x512",
+                type: "image/png",
+              },
+            ],
+            screenshots: [
+              {
+                src: "/screenshot-desktop.png",
+                sizes: "1662x1003",
+                type: "image/png",
+                form_factor: "wide",
+              },
+              {
+                src: "/screenshot-other.png",
+                sizes: "650x863",
+                type: "image/png",
+              },
+            ],
+          },
+        }),
+      react(),
+      tailwindcss(),
+    ],
+  };
 });

@@ -28,6 +28,11 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
     />
 
+    <!-- Base URL of ocamlrun.wasm and ocamlrun.data when they are not served
+         with the page (Cloudflare Pages serves no file over 25 MiB), set by
+         VITE_MOPSA_ASSETS_URL at build time: see the Makefile -->
+    <meta name="mopsa-assets-url" content="%VITE_MOPSA_ASSETS_URL%" />
+
     <script src="./sync-message.js"></script>
     <script>
       (function () {
