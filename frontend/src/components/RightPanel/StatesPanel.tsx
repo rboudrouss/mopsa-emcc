@@ -184,6 +184,7 @@ export function StatesPanel() {
             phase={phase}
             result={result?.key === key ? result.res : null}
             line={cursorLine}
+            scope={scope}
           />
         </>
       )}
@@ -195,10 +196,12 @@ function StatesBody({
   phase,
   result,
   line,
+  scope,
 }: {
   phase: string;
   result: EnvQueryResult<EnvironmentsBody> | null;
   line: number | null;
+  scope: EnvScope;
 }) {
   if (line === null)
     return <Muted>Put the cursor on a line of the code to see its states.</Muted>;
@@ -240,13 +243,15 @@ function StatesBody({
         </span>
       )}
       {contexts.map((c, i) => (
-        <ContextCard key={i} ctx={c} />
+        <ContextCard key={i} ctx={c} openDepth={scope === "state" ? 1 : 2} />
       ))}
     </div>
   );
 }
 
-function ContextCard({ ctx }: { ctx: EnvContext }) {
+/** `openDepth`: tree levels expanded at first (the whole state of the
+ *  domains is big: stdio stubs, heap cells…). */
+function ContextCard({ ctx, openDepth }: { ctx: EnvContext; openDepth: number }) {
   // Mopsa lists the innermost call first; show the chain outermost first.
   const chain = [...ctx.callstack].reverse();
   const site = ctx.callstack[0]?.range.start;
@@ -301,7 +306,7 @@ function ContextCard({ ctx }: { ctx: EnvContext }) {
             ⊥ (unreachable in this context)
           </span>
         ) : (
-          <EnvTree value={ctx.env} />
+          <EnvTree value={ctx.env} openDepth={openDepth} />
         )}
       </div>
     </div>
@@ -343,7 +348,7 @@ function leafText(v: unknown): string {
   return String(v);
 }
 
-function EnvTree({ value }: { value: unknown }) {
+function EnvTree({ value, openDepth }: { value: unknown; openDepth: number }) {
   if (isLeaf(value))
     return (
       <span style={{ fontFamily: MONO, fontSize: 12 }}>{leafText(value)}</span>
@@ -357,21 +362,30 @@ function EnvTree({ value }: { value: unknown }) {
         (no variable)
       </span>
     );
-  return <EnvEntries entries={entries} depth={0} />;
+  return <EnvEntries entries={entries} depth={0} openDepth={openDepth} />;
 }
 
 function EnvEntries({
   entries,
   depth,
+  openDepth,
 }: {
   entries: [string, unknown][];
   depth: number;
+  openDepth: number;
 }) {
   const names = shortKeys(entries.map(([k]) => k));
   return (
     <div style={{ display: "flex", flexDirection: "column" }}>
       {entries.map(([k, v]) => (
-        <EnvEntry key={k} name={names.get(k) ?? k} full={k} value={v} depth={depth} />
+        <EnvEntry
+          key={k}
+          name={names.get(k) ?? k}
+          full={k}
+          value={v}
+          depth={depth}
+          openDepth={openDepth}
+        />
       ))}
     </div>
   );
@@ -382,13 +396,15 @@ function EnvEntry({
   full,
   value,
   depth,
+  openDepth,
 }: {
   name: string;
   full: string;
   value: unknown;
   depth: number;
+  openDepth: number;
 }) {
-  const [open, setOpen] = useState(depth < 2);
+  const [open, setOpen] = useState(depth < openDepth);
   const row: React.CSSProperties = {
     fontFamily: MONO,
     fontSize: 12,
@@ -422,7 +438,9 @@ function EnvEntry({
           <span style={{ color: "var(--text-muted)" }}> ({entries.length})</span>
         )}
       </div>
-      {open && <EnvEntries entries={entries} depth={depth + 1} />}
+      {open && (
+        <EnvEntries entries={entries} depth={depth + 1} openDepth={openDepth} />
+      )}
     </>
   );
 }
