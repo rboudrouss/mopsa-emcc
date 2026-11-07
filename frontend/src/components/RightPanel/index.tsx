@@ -11,6 +11,7 @@ import { ProfilePanel } from "./ProfilePanel";
 import { AnalyzingView } from "./AnalyzingView";
 import { CompareBox, PinBaselineButton } from "./CompareBox";
 import { PanicDetails } from "./PanicDetails";
+import { FoldHeader, useFold } from "./Fold";
 
 export function RightPanel({ isAnalyzing }: { isAnalyzing: boolean }) {
   const rawOutput = useAppStore((s) => s.rawOutput);
@@ -69,6 +70,8 @@ function Results() {
   const analysisSuccess = useAppStore((s) => s.analysisSuccess);
   const profiler = useAppStore((s) => s.optionValues["__profiler"] === true);
   const ok = analysisSuccess === true && !analysisError;
+  const [summaryOpen, toggleSummary] = useFold("summary", true);
+  const [checksOpen, toggleChecks] = useFold("checks", true);
 
   return (
     <>
@@ -104,13 +107,22 @@ function Results() {
 
       {analysisSuccess === true && (
         <>
-          <SectionHeader title="Summary" action={<PinBaselineButton />} />
-          <StatTiles
-            checks={checks}
-            selectivity={selectivity}
-            analysisTime={analysisTime}
+          <FoldHeader
+            title="Summary"
+            open={summaryOpen}
+            onToggle={toggleSummary}
+            actions={<PinBaselineButton />}
           />
-          <CompareBox />
+          {summaryOpen && (
+            <>
+              <StatTiles
+                checks={checks}
+                selectivity={selectivity}
+                analysisTime={analysisTime}
+              />
+              <CompareBox />
+            </>
+          )}
         </>
       )}
 
@@ -129,8 +141,8 @@ function Results() {
 
       {checks.length > 0 && (
         <>
-          <SectionHeader title="Checks" />
-          <KindBreakdown checks={checks} />
+          <FoldHeader title="Checks" open={checksOpen} onToggle={toggleChecks} />
+          {checksOpen && <KindBreakdown checks={checks} />}
         </>
       )}
 
@@ -196,32 +208,6 @@ function BackendNoticeBanner() {
       >
         <XIcon size={13} />
       </button>
-    </div>
-  );
-}
-
-function SectionHeader({
-  title,
-  action,
-}: {
-  title: string;
-  action?: React.ReactNode;
-}) {
-  return (
-    <div style={{ display: "flex", alignItems: "center" }}>
-      <span
-        style={{
-          fontSize: 11,
-          fontWeight: 600,
-          color: "var(--text-muted)",
-          textTransform: "uppercase",
-          letterSpacing: "0.06em",
-          flex: 1,
-        }}
-      >
-        {title}
-      </span>
-      {action}
     </div>
   );
 }

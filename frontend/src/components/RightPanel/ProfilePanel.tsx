@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
-import { ChevronDownIcon, FlameIcon, LoaderCircleIcon } from "lucide-react";
+import { FlameIcon, LoaderCircleIcon } from "lucide-react";
 import { computeAnalysisArgs } from "@/lib/analysis-args";
 import { getBackend } from "@/lib/backend";
+import { FoldHeader } from "./Fold";
 
 const MONO = "'JetBrains Mono', monospace";
 const FLAME_FILE = "/tmp/mopsa-flamegraph.txt";
@@ -107,16 +108,7 @@ export function ProfilePanel() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <button onClick={() => setOpen(!open)} style={headerButton}>
-        <ChevronDownIcon
-          size={12}
-          style={{
-            transform: open ? "none" : "rotate(-90deg)",
-            transition: "transform 120ms",
-          }}
-        />
-        Profile
-      </button>
+      <FoldHeader title="Profile" open={open} onToggle={() => setOpen(!open)} />
       {open && (
         <>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -270,21 +262,6 @@ function FlameView({
     </div>
   );
 }
-
-const headerButton: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 4,
-  padding: 0,
-  background: "none",
-  border: "none",
-  cursor: "pointer",
-  fontSize: 11,
-  fontWeight: 600,
-  color: "var(--text-muted)",
-  textTransform: "uppercase",
-  letterSpacing: "0.06em",
-};
 
 const linkButton: React.CSSProperties = {
   background: "none",
