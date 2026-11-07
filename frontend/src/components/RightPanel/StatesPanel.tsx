@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  ChevronDownIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   LoaderCircleIcon,
@@ -16,6 +15,7 @@ import { useEnvEngine } from "@/lib/hooks/use-env-engine";
 import { useEditorNav, revealInEditor } from "@/lib/editor-nav";
 import { getCodeFilePath } from "@/lib/mopsa-client";
 import { useAppStore } from "@/lib/store";
+import { FoldHeader, useFold } from "./Fold";
 
 const MONO = "'JetBrains Mono', monospace";
 
@@ -38,8 +38,19 @@ const SCOPES: { value: EnvScope; label: string; title: string }[] = [
   },
 ];
 
-const OPEN_KEY = "mopsa-states-open";
+type When = "pre" | "post";
+
+const WHENS: { value: When; label: string; title: string }[] = [
+  { value: "pre", label: "Before", title: "The states reaching the line" },
+  {
+    value: "post",
+    label: "After",
+    title: "The states once the line has run",
+  },
+];
+
 const SCOPE_KEY = "mopsa-states-scope";
+const WHEN_KEY = "mopsa-states-when";
 
 function readLocal<T extends string>(key: string, fallback: T): T {
   try {
@@ -58,12 +69,13 @@ function writeLocal(key: string, value: string): void {
 }
 
 /**
- * Abstract states panel (Scan mode): the states Mopsa computed at the line
+ * Abstract states panel: the states Mopsa computed before or after the line
  * under the editor cursor, one per call stack, read from the environment
  * database of the background DAP session (see env-engine.ts).
  */
 export function StatesPanel() {
-  const [open, setOpen] = useState(() => readLocal(OPEN_KEY, "1") === "1");
+  const [open, toggleOpen] = useFold("states", true);
+  const [when, setWhen] = useState<When>(() => readLocal<When>(WHEN_KEY, "pre"));
   const [scope, setScope] = useState<EnvScope>(() =>
     readLocal<EnvScope>(SCOPE_KEY, "line"),
   );
@@ -83,19 +95,19 @@ export function StatesPanel() {
   } | null>(null);
   const [lines, setLines] = useState<number[] | null>(null);
 
-  const key = `${generation} ${file} ${cursorLine} ${scope}`;
+  const key = `${generation} ${file} ${cursorLine} ${scope} ${when}`;
   const settled = phase === "ready" || phase === "error";
 
   useEffect(() => {
     if (!open || !settled || cursorLine === null) return;
     let cancelled = false;
-    void envEngine.getEnvironments(file, cursorLine, scope).then((res) => {
+    void envEngine.getEnvironments(file, cursorLine, scope, when).then((res) => {
       if (!cancelled) setResult({ key, res });
     });
     return () => {
       cancelled = true;
     };
-  }, [open, settled, key, file, cursorLine, scope]);
+  }, [open, settled, key, file, cursorLine, scope, when]);
 
   useEffect(() => {
     if (!open || !settled) return;
@@ -113,9 +125,9 @@ export function StatesPanel() {
     };
   }, [open, settled, generation, file]);
 
-  const toggleOpen = () => {
-    writeLocal(OPEN_KEY, open ? "0" : "1");
-    setOpen(!open);
+  const pickWhen = (w: When) => {
+    writeLocal(WHEN_KEY, w);
+    setWhen(w);
   };
   const pickScope = (s: EnvScope) => {
     writeLocal(SCOPE_KEY, s);
@@ -132,20 +144,13 @@ export function StatesPanel() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <button onClick={toggleOpen} style={headerButton}>
-          <ChevronDownIcon
-            size={12}
-            style={{
-              transform: open ? "none" : "rotate(-90deg)",
-              transition: "transform 120ms",
-            }}
-          />
-          Abstract states
-        </button>
-        <div style={{ flex: 1 }} />
-        {open && (
+      <FoldHeader
+        title="Abstract states"
+        open={open}
+        onToggle={toggleOpen}
+        actions={
           <>
+            <Segmented label="When" items={WHENS} value={when} onPick={pickWhen} />
             <NavButton
               title={prevLine ? `Previous state: line ${prevLine}` : "No previous state"}
               disabled={prevLine === undefined}
@@ -161,8 +166,8 @@ export function StatesPanel() {
               <ChevronRightIcon size={13} />
             </NavButton>
           </>
-        )}
-      </div>
+        }
+      />
 
       {open && (
         <>
@@ -178,13 +183,14 @@ export function StatesPanel() {
               {fileName}:{cursorLine ?? "–"}
             </span>
             <div style={{ flex: 1 }} />
-            <ScopePicker scope={scope} onPick={pickScope} />
+            <Segmented label="Variables shown" items={SCOPES} value={scope} onPick={pickScope} />
           </div>
           <StatesBody
             phase={phase}
             result={result?.key === key ? result.res : null}
             line={cursorLine}
             scope={scope}
+            when={when}
           />
         </>
       )}
@@ -197,11 +203,13 @@ function StatesBody({
   result,
   line,
   scope,
+  when,
 }: {
   phase: string;
   result: EnvQueryResult<EnvironmentsBody> | null;
   line: number | null;
   scope: EnvScope;
+  when: When;
 }) {
   if (line === null)
     return <Muted>Put the cursor on a line of the code to see its states.</Muted>;
@@ -221,6 +229,14 @@ function StatesBody({
     return <Muted>Abstract states unavailable: {result.reason}</Muted>;
 
   const contexts = result.body.contexts;
+  if (contexts.length === 0 && when === "post")
+    return (
+      <Muted>
+        No state after line {line}: the analysis never reached it, it holds no
+        statement, or its statement spans the next lines (a loop, a
+        conditional: see the lines of its body).
+      </Muted>
+    );
   if (contexts.length === 0)
     return (
       <Muted>
@@ -231,7 +247,9 @@ function StatesBody({
   if (contexts.every((c) => c.bottom))
     return (
       <Muted>
-        Unreachable at line {line}: every state reaching it is ⊥.
+        {when === "post"
+          ? `Line ${line} never completes: every state after it is ⊥.`
+          : `Unreachable at line ${line}: every state reaching it is ⊥.`}
       </Muted>
     );
 
@@ -449,17 +467,21 @@ function EnvEntry({
 
 // ── Small pieces ──────────────────────────────────────────────────────────
 
-function ScopePicker({
-  scope,
+function Segmented<T extends string>({
+  label,
+  items,
+  value,
   onPick,
 }: {
-  scope: EnvScope;
-  onPick: (s: EnvScope) => void;
+  label: string;
+  items: { value: T; label: string; title: string }[];
+  value: T;
+  onPick: (v: T) => void;
 }) {
   return (
     <div
       role="radiogroup"
-      aria-label="Variables shown"
+      aria-label={label}
       style={{
         display: "flex",
         gap: 1,
@@ -469,15 +491,15 @@ function ScopePicker({
         borderRadius: 5,
       }}
     >
-      {SCOPES.map(({ value, label, title }) => {
-        const active = value === scope;
+      {items.map((item) => {
+        const active = item.value === value;
         return (
           <button
-            key={value}
+            key={item.value}
             role="radio"
             aria-checked={active}
-            title={title}
-            onClick={() => onPick(value)}
+            title={item.title}
+            onClick={() => onPick(item.value)}
             style={{
               padding: "2px 7px",
               fontSize: 11,
@@ -489,7 +511,7 @@ function ScopePicker({
               fontWeight: active ? 600 : 500,
             }}
           >
-            {label}
+            {item.label}
           </button>
         );
       })}
@@ -548,21 +570,6 @@ function Muted({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
-
-const headerButton: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 4,
-  padding: 0,
-  background: "none",
-  border: "none",
-  cursor: "pointer",
-  fontSize: 11,
-  fontWeight: 600,
-  color: "var(--text-muted)",
-  textTransform: "uppercase",
-  letterSpacing: "0.06em",
-};
 
 const linkButton: React.CSSProperties = {
   background: "none",
