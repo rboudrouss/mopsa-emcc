@@ -8,6 +8,7 @@ import {
 import { PulseDot } from "@/components/ui/PulseDot";
 import { EntryPointPicker } from "@/components/TopBar/EntryPointPicker";
 import { useAppStore } from "@/lib/store";
+import { ShareButton } from "@/components/ShareButton";
 import { findById, getActiveAnalysisMode } from "@/lib/tree";
 
 interface MobileTopBarProps {
@@ -77,6 +78,8 @@ export function MobileTopBar({
         >
           {autoRun ? <ZapIcon size={14} /> : <ZapOffIcon size={14} />}
         </button>
+
+        <ShareButton />
 
         <button
           onClick={onThemeToggle}

@@ -1,5 +1,6 @@
 import { MoonIcon, PlayIcon, SunIcon, ZapIcon, ZapOffIcon } from "lucide-react";
 import { PulseDot } from "@/components/ui/PulseDot";
+import { ShareButton } from "@/components/ShareButton";
 import { useAppStore } from "@/lib/store";
 import { EntryPointPicker } from "@/components/TopBar/EntryPointPicker";
 import { Languages } from "lucide-react";
@@ -180,6 +181,8 @@ export function TopBar({
         <PlayIcon size={14} />
         Run
       </button>
+
+      <ShareButton />
 
       {/* Theme toggle */}
       <button

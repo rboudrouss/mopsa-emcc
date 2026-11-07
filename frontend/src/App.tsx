@@ -15,6 +15,7 @@ import { usePresets } from "@/lib/hooks/use-presets";
 import { useAppStore } from "@/lib/store";
 import { computeRunSignature } from "@/lib/analysis-args";
 import { getBackend, isWasmFallback } from "@/lib/backend";
+import { importSharedWorkspace } from "@/lib/share";
 
 export default function App() {
   const { resolved, toggle } = useTheme();
@@ -48,6 +49,14 @@ export default function App() {
       applyPreset("default.json", firstConfig);
     }
   }, [isSuccess, presets, applyPreset, setPresets]);
+
+  // Open the workspace of a share link (#share=…) once presets are known.
+  const sharedImported = useRef(false);
+  useEffect(() => {
+    if (!isSuccess || !presets || sharedImported.current) return;
+    sharedImported.current = true;
+    void importSharedWorkspace(presets);
+  }, [isSuccess, presets]);
 
   const debouncedRun = useDebouncedFn(runAnalysis, 500);
 
