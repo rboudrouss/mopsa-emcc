@@ -8,6 +8,7 @@ import { WarningsBox } from "./WarningsBox";
 import { InteractiveTerminal } from "./InteractiveTerminal";
 import { EngineModePicker } from "./EngineModePicker";
 import { StatesPanel } from "./StatesPanel";
+import { CompareBox, PinBaselineButton } from "./CompareBox";
 import { AssumptionsBox } from "./AssumptionsBox";
 import { PanicDetails } from "./PanicDetails";
 
@@ -153,12 +154,13 @@ function ScanResults({ isAnalyzing }: { isAnalyzing: boolean }) {
 
       {analysisSuccess === true && (
         <>
-          <SectionHeader title="Summary" />
+          <SectionHeader title="Summary" action={<PinBaselineButton />} />
           <StatTiles
             checks={checks}
             selectivity={selectivity}
             analysisTime={analysisTime}
           />
+          <CompareBox />
         </>
       )}
 
@@ -293,18 +295,28 @@ function BackendNoticeBanner() {
   );
 }
 
-function SectionHeader({ title }: { title: string }) {
+function SectionHeader({
+  title,
+  action,
+}: {
+  title: string;
+  action?: React.ReactNode;
+}) {
   return (
-    <div
-      style={{
-        fontSize: 11,
-        fontWeight: 600,
-        color: "var(--text-muted)",
-        textTransform: "uppercase",
-        letterSpacing: "0.06em",
-      }}
-    >
-      {title}
+    <div style={{ display: "flex", alignItems: "center" }}>
+      <span
+        style={{
+          fontSize: 11,
+          fontWeight: 600,
+          color: "var(--text-muted)",
+          textTransform: "uppercase",
+          letterSpacing: "0.06em",
+          flex: 1,
+        }}
+      >
+        {title}
+      </span>
+      {action}
     </div>
   );
 }
