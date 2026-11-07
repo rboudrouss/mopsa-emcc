@@ -4,6 +4,8 @@ import { findById } from "@/lib/tree";
 import { inFile } from "@/lib/index";
 import { IssueCard } from "@/components/ui/IssueCard";
 import { CodeEditor } from "./CodeEditor";
+import { revealInEditor } from "@/lib/editor-nav";
+import type { CheckItem } from "@/lib/types";
 import { ConfigEditor } from "./ConfigEditor";
 
 interface CenterPaneProps {
@@ -111,6 +113,7 @@ export function CenterPane({ resolvedTheme, hideTabBar }: CenterPaneProps) {
               check={check}
               index={i}
               codeFilePath={codeFilePath}
+              onClick={() => revealIssue(check, codeFilePath)}
             />
           ))}
         </div>
@@ -152,4 +155,17 @@ function Tab({ label, active, onClick }: TabProps) {
       {label}
     </button>
   );
+}
+
+/** Jumps to an issue: its own line when it is in the open file, else the
+ *  call site in this file that leads to it. */
+function revealIssue(check: CheckItem, codeFilePath: string) {
+  const start = check.range.start;
+  if (!start) return;
+  if (inFile(start.file, codeFilePath)) return revealInEditor(null, start.line);
+  const site = check.callstack.find(
+    (f) => f.range?.start && inFile(f.range.start.file, codeFilePath),
+  )?.range.start;
+  if (site) revealInEditor(null, site.line);
+  else revealInEditor(start.file, start.line);
 }
