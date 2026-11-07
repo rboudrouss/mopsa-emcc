@@ -257,6 +257,7 @@ export function computeOptionsFlags(values: Record<string, unknown>): string[] {
 
 export async function analyzeJson(
   extraOptions: string[],
+  onProgress?: (entries: MopsaProgressEntry[]) => void,
 ): Promise<AnalysisResult | null> {
   let isHelp =
     extraOptions.includes("-help") ||
@@ -274,7 +275,7 @@ export async function analyzeJson(
   const t0 = performance.now();
   let raw: string | null = "";
   try {
-    raw = await mopsaJs.analyze(options);
+    raw = await mopsaJs.analyze(options, onProgress);
   } catch (e) {
     raw = String(e);
   }

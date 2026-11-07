@@ -22,6 +22,13 @@ declare global {
     kill: () => void;
   }
 
+  /** One frame of Mopsa's progress hook (-progress-json), outermost first. */
+  interface MopsaProgressEntry {
+    function: string;
+    line: number;
+    percent: number;
+  }
+
   /** The Mopsa WASM API injected by post.js after the module initialises. */
   const mopsaJs: {
     /** Default universal-language config JSON string. */
@@ -33,7 +40,10 @@ declare global {
      * interrupted by terminating + respawning the worker). Async because it
      * hands off to the OCaml event loop in WASM.
      */
-    analyze: (options: string[]) => Promise<string | null>;
+    analyze: (
+      options: string[],
+      onProgress?: (entries: MopsaProgressEntry[]) => void,
+    ) => Promise<string | null>;
 
     /**
      * Start a long-lived interactive or DAP session. Do NOT pass -engine in
@@ -56,10 +66,15 @@ declare global {
     ) => MopsaSessionHandle;
 
     /**
-     * Run a short, side-effect-free command (-help, -list=…) on a throwaway
-     * worker: never supersedes nor waits for analyses or sessions.
+     * Run a side-effect-free command (-help, -list=…, a profiled run) on a
+     * throwaway worker: never supersedes nor waits for analyses or
+     * sessions. `files` holds the paths of `readFiles` the run wrote (WASM
+     * backend only).
      */
-    query: (options: string[]) => Promise<string>;
+    query: (
+      options: string[],
+      readFiles?: string[],
+    ) => Promise<{ output: string; files: Record<string, string> }>;
 
     writeFile: (filename: string, content: string) => void;
     setCode: (code: string) => void;

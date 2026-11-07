@@ -45,6 +45,7 @@ const SKIPPED = new Set([
   "-working-dir",
   "-interactive",
   "-v",
+  "-progress-json",
 ]);
 
 const CURATED = new Set(
@@ -198,13 +199,13 @@ export function useHelpOptions(): HelpEntry[] | null {
     queryFn: async () => {
       if (typeof mopsaJs.query !== "function") return null;
       // -help prints when parsed: -format and -config must come first.
-      const raw = await mopsaJs.query([
+      const { output } = await mopsaJs.query([
         "-format=json",
         "-config",
         "/config.json",
         "-help",
       ]);
-      return parseHelp(raw);
+      return parseHelp(output);
     },
     enabled: !!configText,
     staleTime: Infinity,

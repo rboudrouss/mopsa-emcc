@@ -40,6 +40,7 @@
   // ── Worker setup ─────────────────────────────────────────────────────────
   var _worker = null;
   var _pending = {}; // id → resolve function (batch analyses)
+  var _progress = {}; // id → progress callback (batch analyses)
   var _nextId = 0;
   var _session = null; // active interactive/dap session handle, or null
 
@@ -48,10 +49,18 @@
     if (!msg) return;
     switch (msg.type) {
       case "result": // batch analysis finished
+        delete _progress[msg.id];
         if (_pending[msg.id]) {
           var resolve = _pending[msg.id];
           delete _pending[msg.id];
           resolve(msg.output);
+        }
+        break;
+      case "progress": // -progress-json line of a batch analysis
+        if (_progress[msg.id]) {
+          try {
+            _progress[msg.id](JSON.parse(msg.data));
+          } catch (_) {}
         }
         break;
       case "started":
@@ -101,6 +110,7 @@
   // maps null straight through and useAnalysis skips it, so the last good
   // result stays on screen until the newest analysis completes.
   function _cancelPendingBatches() {
+    _progress = {};
     Object.keys(_pending).forEach(function (id) {
       var resolve = _pending[id];
       delete _pending[id];
@@ -132,11 +142,12 @@
     configUni: CONFIG_UNI,
 
     /**
-     * analyze(options: string[]) → Promise<string | null>
+     * analyze(options: string[], onProgress?) → Promise<string | null>
      *
      * Sends the current code/config/files to the Web Worker, which
      * instantiates a fresh WASM module, runs the Mopsa CLI, and posts back
-     * the captured output.
+     * the captured output. `onProgress` receives the entries of each
+     * `-progress-json` line (hook progress) while the analysis runs.
      *
      * Auto-analysis fires a fresh run on every edit, but a C+Python batch can
      * take ~20s and the worker runs WASM synchronously — it ignores postMessage
@@ -147,7 +158,7 @@
      * interrupt sessions use, since a blocked worker can't be cancelled
      * otherwise. Only the latest request ever produces a real result.
      */
-    analyze: function (options) {
+    analyze: function (options, onProgress) {
       if (!_session && Object.keys(_pending).length > 0) {
         _cancelPendingBatches();
         _worker.terminate();
@@ -156,6 +167,7 @@
       return new Promise(function (resolve) {
         var id = _nextId++;
         _pending[id] = resolve;
+        if (onProgress) _progress[id] = onProgress;
         _worker.postMessage({
           type: "analyze",
           id: id,
@@ -169,13 +181,14 @@
     },
 
     /**
-     * query(options) → Promise<string>
+     * query(options, readFiles?) → Promise<{ output, files }>
      *
-     * Runs a short, side-effect-free Mopsa command (-help, -list=…) on a
-     * dedicated, throwaway Worker, so it neither supersedes nor waits for
-     * the batch analyses and sessions of the shared worker.
+     * Runs a side-effect-free Mopsa command (-help, -list=…, a profiled
+     * run) on a dedicated, throwaway Worker, so it neither supersedes nor
+     * waits for the batch analyses and sessions of the shared worker.
+     * `files` maps each path of `readFiles` the run wrote to its content.
      */
-    query: function (options) {
+    query: function (options, readFiles) {
       return new Promise(function (resolve) {
         var id = _nextId++;
         var worker = new Worker(_workerUrl);
@@ -183,13 +196,15 @@
           var msg = event.data;
           if (!msg || msg.type !== "result" || msg.id !== id) return;
           worker.terminate();
-          resolve(msg.output);
+          resolve({ output: msg.output, files: msg.files || {} });
         };
         worker.onerror = function (e) {
           worker.terminate();
-          resolve(
-            "[Worker error] " + ((e && e.message) || "the query worker crashed"),
-          );
+          resolve({
+            output:
+              "[Worker error] " + ((e && e.message) || "the query worker crashed"),
+            files: {},
+          });
         };
         worker.postMessage({
           type: "analyze",
@@ -199,6 +214,7 @@
           config: _config,
           codeFile: _codeFile,
           extraFiles: _extraFiles,
+          readFiles: readFiles || [],
         });
       });
     },

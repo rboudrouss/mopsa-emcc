@@ -146,11 +146,27 @@ function withWasm(moduleConfig, wasmModule, dataBuffer, onInstantiateError) {
 
 // ── Batch mode (-engine=automatic) ────────────────────────────────────────────
 
+// Prefix of the JSON lines Mopsa's `progress` hook prints with -progress-json.
+var PROGRESS_PREFIX = "MOPSA_PROGRESS ";
+
 function runBatch(msg) {
   var id = msg.id;
   var options = msg.options || [];
   var output = "";
   var isHelp = options.indexOf("-help") !== -1;
+  var mod = null; // the module instance, for readFiles once it exited
+
+  // Files the caller wants back (e.g. -flamegraph samples), read from the
+  // virtual FS after the run; missing ones are left out.
+  function readBack() {
+    var files = {};
+    (msg.readFiles || []).forEach(function (path) {
+      try {
+        files[path] = mod.FS.readFile(path, { encoding: "utf8" });
+      } catch (_) {}
+    });
+    return files;
+  }
 
   Promise.all([_wasmModulePromise, _dataBufferPromise]).then(function (results) {
     var moduleConfig = withWasm(
@@ -160,9 +176,23 @@ function runBatch(msg) {
           output += line + "\n";
         },
         printErr: function (line) {
+          // -progress-json lines stream to the page instead of the output.
+          if (line.lastIndexOf(PROGRESS_PREFIX, 0) === 0) {
+            self.postMessage({
+              type: "progress",
+              id: id,
+              data: line.slice(PROGRESS_PREFIX.length),
+            });
+            return;
+          }
           output += line + "\n";
         },
-        preRun: [makePreRun(msg.code, msg.config, msg.codeFile, msg.extraFiles)],
+        preRun: [
+          makePreRun(msg.code, msg.config, msg.codeFile, msg.extraFiles),
+          function (M) {
+            mod = M;
+          },
+        ],
       },
       results[0],
       results[1],
@@ -177,12 +207,12 @@ function runBatch(msg) {
 
     createMopsaModule(moduleConfig)
       .then(function () {
-        self.postMessage({ type: "result", id: id, output: output });
+        self.postMessage({ type: "result", id: id, output: output, files: readBack() });
       })
       .catch(function (e) {
         if (e && typeof e === "object" && "status" in e) {
           // Normal OCaml exit() output is already captured.
-          self.postMessage({ type: "result", id: id, output: output });
+          self.postMessage({ type: "result", id: id, output: output, files: readBack() });
         } else {
           self.postMessage({
             type: "result",

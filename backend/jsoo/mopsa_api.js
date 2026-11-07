@@ -161,7 +161,8 @@
      * cancels any in-flight/queued one (resolved with null) and restarts
      * from a fresh worker.
      */
-    analyze: function (options) {
+    // onProgress is ignored: the jsoo worker doesn't stream its output.
+    analyze: function (options, _onProgress) {
       if (!_session && Object.keys(_pending).length > 0) {
         _cancelPendingBatches();
         _respawnWorker();
@@ -188,13 +189,14 @@
     },
 
     /**
-     * query(options) → Promise<string>
+     * query(options, readFiles?) → Promise<{ output, files }>
      *
-     * Runs a short, side-effect-free Mopsa command (-help, -list=…) on a
-     * dedicated, throwaway Worker, so it neither supersedes nor waits for
-     * the batch analyses and sessions of the shared worker.
+     * Runs a side-effect-free Mopsa command (-help, -list=…, a profiled
+     * run) on a dedicated, throwaway Worker, so it neither supersedes nor
+     * waits for the batch analyses and sessions of the shared worker.
+     * `files` maps each path of `readFiles` the run wrote to its content.
      */
-    query: function (options) {
+    query: function (options, readFiles) {
       return new Promise(function (resolve) {
         var id = _nextId++;
         var worker = new Worker(WORKER_URL);
@@ -202,13 +204,15 @@
           var msg = event.data;
           if (!msg || msg.type !== "result" || msg.id !== id) return;
           worker.terminate();
-          resolve(msg.output);
+          resolve({ output: msg.output, files: msg.files || {} });
         };
         worker.onerror = function (e) {
           worker.terminate();
-          resolve(
-            "[Worker error] " + ((e && e.message) || "the query worker crashed"),
-          );
+          resolve({
+            output:
+              "[Worker error] " + ((e && e.message) || "the query worker crashed"),
+            files: {},
+          });
         };
         _shareFilesPromise.then(function (shareFiles) {
           worker.postMessage({
@@ -220,6 +224,7 @@
             codeFile: _codeFile,
             extraFiles: _extraFiles,
             shareFiles: shareFiles,
+            readFiles: readFiles || [],
           });
         });
       });

@@ -5,6 +5,8 @@ import { useAppStore } from "../store";
 import { DEFAULT_OPTION_VALUES } from "../options-schema";
 import { snapshotRun, useRunCompare } from "../run-compare";
 import { getWorkspaceForFile } from "../tree";
+import { PROGRESS_FLAGS, useProgress } from "../progress";
+import { getBackend } from "../backend";
 
 function currentSnapshot() {
   const s = useAppStore.getState();
@@ -28,7 +30,10 @@ export function useAnalysis() {
     mutationFn: () => {
       const args = computeAnalysisArgs();
       if (!args) return Promise.resolve({ raw: "", parsed: null, durationMs: 0 });
-      return analyzeJson(args);
+      const progress = useProgress.getState();
+      progress.start();
+      if (getBackend() !== "wasm") return analyzeJson(args);
+      return analyzeJson([...PROGRESS_FLAGS, ...args], progress.update);
     },
     // null ⇒ this run was superseded by a newer one; keep the current result.
     onSuccess: (r) => {

@@ -8,6 +8,8 @@ import { WarningsBox } from "./WarningsBox";
 import { InteractiveTerminal } from "./InteractiveTerminal";
 import { EngineModePicker } from "./EngineModePicker";
 import { StatesPanel } from "./StatesPanel";
+import { ProfilePanel } from "./ProfilePanel";
+import { AnalyzingView } from "./AnalyzingView";
 import { CompareBox, PinBaselineButton } from "./CompareBox";
 import { AssumptionsBox } from "./AssumptionsBox";
 import { PanicDetails } from "./PanicDetails";
@@ -188,52 +190,11 @@ function ScanResults({ isAnalyzing }: { isAnalyzing: boolean }) {
 
       {analysisSuccess === true && !analysisError && <StatesPanel />}
 
+      {analysisSuccess === true && !analysisError && <ProfilePanel />}
+
       {!analysisError && <WarningsBox warnings={warnings} />}
 
       <RawOutput raw={rawOutput} />
-    </div>
-  );
-}
-
-function AnalyzingView() {
-  return (
-    <div
-      style={{
-        flex: 1,
-        minHeight: 0,
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 16,
-        padding: 24,
-        boxSizing: "border-box",
-        textAlign: "center",
-      }}
-    >
-      <div
-        style={{
-          width: 36,
-          height: 36,
-          borderRadius: "50%",
-          border: "3px solid var(--border)",
-          borderTopColor: "#f5b544",
-          animation: "mopsa-spin 0.8s linear infinite",
-        }}
-      />
-      <div style={{ fontSize: 15, fontWeight: 600, color: "#f5b544" }}>
-        Analysis in progress…
-      </div>
-      <div
-        style={{
-          fontSize: 12,
-          color: "var(--text-muted)",
-          maxWidth: 260,
-          lineHeight: 1.5,
-        }}
-      >
-        Results will appear here once it finishes.
-      </div>
     </div>
   );
 }
