@@ -125,6 +125,25 @@ body {
 .mopsa-panic-line {
   background: rgba(248, 113, 113, 0.1);
 }
+/* envdb overlays: reached / unreachable lines, inline abstract values */
+.mopsa-cov-reached {
+  border-left: 3px solid rgba(74, 222, 128, 0.45);
+  margin-left: 3px;
+}
+.mopsa-cov-dead {
+  background: rgba(136, 145, 168, 0.12);
+}
+.mopsa-cov-dead-gutter {
+  border-left: 3px solid rgba(136, 145, 168, 0.6);
+  margin-left: 3px;
+}
+.mopsa-safe-glyph {
+  background: radial-gradient(circle at center, rgba(74, 222, 128, 0.75) 0 3px, transparent 3px);
+}
+.mopsa-inline-value {
+  color: var(--text-muted) !important;
+  font-style: italic;
+}
 .mopsa-callsite-span {
   text-decoration: underline dotted rgba(245, 181, 68, 0.55);
 }

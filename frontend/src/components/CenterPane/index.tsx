@@ -4,6 +4,7 @@ import { findById } from "@/lib/tree";
 import { inFile } from "@/lib/index";
 import { IssueCard } from "@/components/ui/IssueCard";
 import { CodeEditor } from "./CodeEditor";
+import { OverlayToggles } from "./OverlayToggles";
 import { revealInEditor } from "@/lib/editor-nav";
 import type { CheckItem } from "@/lib/types";
 import { ConfigEditor } from "./ConfigEditor";
@@ -68,6 +69,8 @@ export function CenterPane({ resolvedTheme, hideTabBar }: CenterPaneProps) {
             active={activeTab === "config"}
             onClick={() => setActiveTab("config")}
           />
+          <div style={{ flex: 1 }} />
+          {activeTab === "source" && <OverlayToggles />}
         </div>
       )}
 

@@ -2,12 +2,49 @@ import { create } from "zustand";
 import { useAppStore } from "./store";
 import { getAllFilePaths, getWorkspaceForFile } from "./tree";
 
+export type InlineValuesMode = "off" | "cursor" | "all";
+
+const VIEW_KEY = "mopsa-editor-view";
+
+type View = {
+  showCoverage: boolean;
+  inlineValues: InlineValuesMode;
+  showSafe: boolean;
+};
+
+const DEFAULT_VIEW: View = {
+  showCoverage: true,
+  inlineValues: "cursor",
+  showSafe: false,
+};
+
+function loadView(): View {
+  try {
+    return {
+      ...DEFAULT_VIEW,
+      ...JSON.parse(localStorage.getItem(VIEW_KEY) ?? "{}"),
+    };
+  } catch {
+    return DEFAULT_VIEW;
+  }
+}
+
 /**
  * Editor navigation state shared between the code editor and the panels
  * that point into the code (States panel, call stacks): the line under the
- * cursor, and one-shot requests to reveal a line. Runtime only.
+ * cursor, one-shot requests to reveal a line, and the settings of the
+ * editor's envdb overlays (persisted).
  */
 interface EditorNav {
+  /** Gutter marks of the lines the analysis reached / found unreachable. */
+  showCoverage: boolean;
+  setShowCoverage: (on: boolean) => void;
+  /** Abstract values shown at the end of code lines. */
+  inlineValues: InlineValuesMode;
+  setInlineValues: (mode: InlineValuesMode) => void;
+  /** Gutter marks of the checks proved safe. */
+  showSafe: boolean;
+  setShowSafe: (on: boolean) => void;
   /** Cursor line in the active file (1-based), null before any editor. */
   cursorLine: number | null;
   setCursorLine: (line: number | null) => void;
@@ -16,7 +53,32 @@ interface EditorNav {
   requestReveal: (line: number) => void;
 }
 
-export const useEditorNav = create<EditorNav>((set) => ({
+function saveView(s: View) {
+  try {
+    const { showCoverage, inlineValues, showSafe } = s;
+    localStorage.setItem(
+      VIEW_KEY,
+      JSON.stringify({ showCoverage, inlineValues, showSafe }),
+    );
+  } catch {
+    /* no localStorage */
+  }
+}
+
+export const useEditorNav = create<EditorNav>((set, get) => ({
+  ...loadView(),
+  setShowCoverage: (on) => {
+    set({ showCoverage: on });
+    saveView(get());
+  },
+  setInlineValues: (mode) => {
+    set({ inlineValues: mode });
+    saveView(get());
+  },
+  setShowSafe: (on) => {
+    set({ showSafe: on });
+    saveView(get());
+  },
   cursorLine: null,
   setCursorLine: (line) => set({ cursorLine: line }),
   revealRequest: null,

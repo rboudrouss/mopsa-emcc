@@ -6,6 +6,7 @@ import type * as MonacoNS from "monaco-editor";
 import { useEffect, useRef, useState } from "react";
 import { useMonacoDecorations } from "@/lib/hooks/use-monaco-decorations";
 import { useMopsaHover } from "@/lib/hooks/use-mopsa-hover";
+import { useEnvdbOverlays } from "@/lib/hooks/use-envdb-overlays";
 import { getCodeFilePath } from "@/lib/mopsa-client";
 import { findById } from "@/lib/tree";
 import { useAppStore } from "@/lib/store";
@@ -93,6 +94,7 @@ export function CodeEditor({ resolvedTheme }: CodeEditorProps) {
   const editorChecks = engine === "interactive" ? [] : checks;
 
   const assumptions = useAppStore((s) => s.assumptions);
+  const showSafe = useEditorNav((s) => s.showSafe);
   const panic = useAppStore((s) => s.panic);
   useMonacoDecorations(
     editorRef,
@@ -101,8 +103,10 @@ export function CodeEditor({ resolvedTheme }: CodeEditorProps) {
     mountKey,
     engine === "interactive" ? [] : assumptions,
     engine === "interactive" ? null : panic,
+    showSafe && engine !== "interactive",
   );
   useMopsaHover(monacoRef, mountKey);
+  useEnvdbOverlays(editorRef, codeFilePath, engine !== "interactive", mountKey);
 
   // Reveal requests from the panels (States, call stacks). Applied once the
   // editor shows the requested line: after a file switch the new content
@@ -165,6 +169,7 @@ export function CodeEditor({ resolvedTheme }: CodeEditorProps) {
         bracketPairColorization: { enabled: true },
         tabSize: 2,
         wordWrap: "off",
+        glyphMargin: showSafe && engine !== "interactive",
       }}
     />
   );

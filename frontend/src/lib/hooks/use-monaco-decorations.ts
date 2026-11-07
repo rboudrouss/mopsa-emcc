@@ -19,6 +19,7 @@ export function useMonacoDecorations(
   mountKey: number,
   assumptions: Assumption[] = [],
   panic: PanicInfo | null = null,
+  showSafe = false,
 ) {
   const collectionRef =
     useRef<Monaco.editor.IEditorDecorationsCollection | null>(null);
@@ -95,6 +96,31 @@ export function useMonacoDecorations(
       }
     }
 
+    // Checks proved safe: one discreet gutter mark per line, the details
+    // in its hover (a small program has dozens of them).
+    if (showSafe) {
+      const safeByLine = new Map<number, Map<string, number>>();
+      for (const c of checks) {
+        if (c.kind !== "safe" || !c.range?.start) continue;
+        if (!inFile(c.range.start.file, codeFilePath)) continue;
+        const titles = safeByLine.get(c.range.start.line) ?? new Map();
+        titles.set(c.title, (titles.get(c.title) ?? 0) + 1);
+        safeByLine.set(c.range.start.line, titles);
+      }
+      for (const [line, titles] of safeByLine) {
+        const list = [...titles]
+          .map(([t, n]) => `- ✓ ${t}${n > 1 ? ` (×${n})` : ""}`)
+          .join("\n");
+        decorations.push({
+          range: { startLineNumber: line, startColumn: 1, endLineNumber: line, endColumn: 1 },
+          options: {
+            glyphMarginClassName: "mopsa-safe-glyph",
+            glyphMarginHoverMessage: { value: `**Proved safe**\n\n${list}` },
+          },
+        });
+      }
+    }
+
     // Local soundness assumptions: dotted blue, the results hold only if
     // they are acceptable.
     for (const a of assumptions) {
@@ -134,5 +160,5 @@ export function useMonacoDecorations(
 
     collectionRef.current?.clear();
     collectionRef.current = editor.createDecorationsCollection(decorations);
-  }, [checks, assumptions, panic, codeFilePath, editorRef, mountKey]);
+  }, [checks, assumptions, panic, showSafe, codeFilePath, editorRef, mountKey]);
 }
