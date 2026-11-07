@@ -6,11 +6,8 @@ import {
   SearchIcon,
   XIcon,
 } from "lucide-react";
-import {
-  DEFAULT_OPTION_VALUES,
-  OPTIONS_SCHEMA,
-  type OptionSpec,
-} from "@/lib/options-schema";
+import { DEFAULT_OPTION_VALUES, type OptionSpec } from "@/lib/options-schema";
+import { buildOptionsView, useHelpOptions } from "@/lib/options-help";
 import { isFlagLockedByBackend } from "@/lib/backend";
 import { clearState } from "@/lib/persistence";
 import { cancelPendingSave, useAppStore } from "@/lib/store";
@@ -51,13 +48,17 @@ function matchRank(spec: OptionSpec, tokens: string[]): number | null {
 export function OptionsPanel() {
   const [query, setQuery] = useState("");
   const tokens = useMemo(() => searchTokens(query), [query]);
+  const help = useHelpOptions();
+  const optionValues = useAppStore((s) => s.optionValues);
+  const groups = useMemo(
+    () => buildOptionsView(help, optionValues),
+    [help, optionValues],
+  );
 
   const results = useMemo(() => {
     if (tokens.length === 0) return null;
-    return OPTIONS_SCHEMA.flatMap((g) =>
-      g.options
-        .filter((opt) => !opt.hidden)
-        .map((opt) => ({
+    return groups.flatMap((g) =>
+      g.options.map((opt) => ({
           spec: opt,
           group: g.group,
           rank: matchRank(opt, tokens),
@@ -68,7 +69,7 @@ export function OptionsPanel() {
           r.rank !== null,
       )
       .sort((a, b) => a.rank - b.rank);
-  }, [tokens]);
+  }, [tokens, groups]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column" }}>
@@ -179,17 +180,13 @@ export function OptionsPanel() {
             </button>
           </div>
 
-          {OPTIONS_SCHEMA.map((group) => {
-            const visible = group.options.filter((opt) => !opt.hidden);
-            if (visible.length === 0) return null;
-            return (
-              <OptionsGroup
-                key={group.group}
-                group={group.group}
-                options={visible}
-              />
-            );
-          })}
+          {groups.map((group) => (
+            <OptionsGroup
+              key={group.group}
+              group={group.group}
+              options={group.options}
+            />
+          ))}
         </>
       ) : results.length === 0 ? (
         <div
@@ -225,7 +222,9 @@ function OptionsGroup({
   const modifiedCount = useAppStore(
     (s) =>
       options.filter(
-        (opt) => s.optionValues[opt.flag] !== DEFAULT_OPTION_VALUES[opt.flag],
+        (opt) =>
+          (s.optionValues[opt.flag] ?? DEFAULT_OPTION_VALUES[opt.flag]) !==
+          DEFAULT_OPTION_VALUES[opt.flag],
       ).length,
   );
 
@@ -291,7 +290,9 @@ function OptionsGroup({
 }
 
 function OptionRow({ spec, group }: { spec: OptionSpec; group?: string }) {
-  const value = useAppStore((s) => s.optionValues[spec.flag]);
+  const value = useAppStore(
+    (s) => s.optionValues[spec.flag] ?? DEFAULT_OPTION_VALUES[spec.flag],
+  );
   const setOptionValue = useAppStore((s) => s.setOptionValue);
   const resetOption = useAppStore((s) => s.resetOption);
 

@@ -169,6 +169,41 @@
     },
 
     /**
+     * query(options) → Promise<string>
+     *
+     * Runs a short, side-effect-free Mopsa command (-help, -list=…) on a
+     * dedicated, throwaway Worker, so it neither supersedes nor waits for
+     * the batch analyses and sessions of the shared worker.
+     */
+    query: function (options) {
+      return new Promise(function (resolve) {
+        var id = _nextId++;
+        var worker = new Worker(_workerUrl);
+        worker.onmessage = function (event) {
+          var msg = event.data;
+          if (!msg || msg.type !== "result" || msg.id !== id) return;
+          worker.terminate();
+          resolve(msg.output);
+        };
+        worker.onerror = function (e) {
+          worker.terminate();
+          resolve(
+            "[Worker error] " + ((e && e.message) || "the query worker crashed"),
+          );
+        };
+        worker.postMessage({
+          type: "analyze",
+          id: id,
+          options: options || [],
+          code: _code,
+          config: _config,
+          codeFile: _codeFile,
+          extraFiles: _extraFiles,
+        });
+      });
+    },
+
+    /**
      * startSession(engine, options) → SessionHandle
      *
      * Begin a long-lived interactive ('interactive') or debugger ('dap')

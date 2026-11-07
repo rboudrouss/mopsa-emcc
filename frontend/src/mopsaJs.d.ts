@@ -55,6 +55,12 @@ declare global {
       options: string[],
     ) => MopsaSessionHandle;
 
+    /**
+     * Run a short, side-effect-free command (-help, -list=…) on a throwaway
+     * worker: never supersedes nor waits for analyses or sessions.
+     */
+    query: (options: string[]) => Promise<string>;
+
     writeFile: (filename: string, content: string) => void;
     setCode: (code: string) => void;
     setConfig: (config: string) => void;

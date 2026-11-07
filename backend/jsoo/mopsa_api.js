@@ -188,6 +188,44 @@
     },
 
     /**
+     * query(options) → Promise<string>
+     *
+     * Runs a short, side-effect-free Mopsa command (-help, -list=…) on a
+     * dedicated, throwaway Worker, so it neither supersedes nor waits for
+     * the batch analyses and sessions of the shared worker.
+     */
+    query: function (options) {
+      return new Promise(function (resolve) {
+        var id = _nextId++;
+        var worker = new Worker(WORKER_URL);
+        worker.onmessage = function (event) {
+          var msg = event.data;
+          if (!msg || msg.type !== "result" || msg.id !== id) return;
+          worker.terminate();
+          resolve(msg.output);
+        };
+        worker.onerror = function (e) {
+          worker.terminate();
+          resolve(
+            "[Worker error] " + ((e && e.message) || "the query worker crashed"),
+          );
+        };
+        _shareFilesPromise.then(function (shareFiles) {
+          worker.postMessage({
+            type: "analyze",
+            id: id,
+            options: options || [],
+            code: _code,
+            config: _config,
+            codeFile: _codeFile,
+            extraFiles: _extraFiles,
+            shareFiles: shareFiles,
+          });
+        });
+      });
+    },
+
+    /**
      * startSession(engine, options) → SessionHandle
      * Same contract as the WASM backend (needs cross-origin isolation).
      */
