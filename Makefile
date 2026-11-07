@@ -124,9 +124,11 @@ CLANG_RESOURCE_DIR = $$(sed -n 's|.*(echo "\(/[^"]*\)").*|\1|p' $(MOPSA_KEPT_SRC
 CLANG_HEADERS = $$($(OPAM_EXEC) $(OCAML_EMCC) env --sysroot)/lib/clang/9.0.1/include
 MOPSA_SHARE := $(SWITCH_PREFIX)/share/mopsa
 
-# Same flags as the frontend expects: FS/ENV for the worker, pre.js/post.js
+# Same flags as the frontend expects: FS/ENV for the worker, pre.js/post.js;
+# sys_time.c makes Sys.time move in the browser
 WASM_EMCC_FLAGS := -sEXPORTED_RUNTIME_METHODS=FS,ENV \
-	--pre-js backend/wasm/pre.js --post-js backend/wasm/post.js
+	--pre-js backend/wasm/pre.js --post-js backend/wasm/post.js \
+	backend/wasm/sys_time.c
 
 # Standalone browser build (HTML harness)
 wasm: $(MOPSA_META) $(OCAML_EMCC_DEP) $(C_OF_OCAML_DEP) | $(DIST_DIR)
