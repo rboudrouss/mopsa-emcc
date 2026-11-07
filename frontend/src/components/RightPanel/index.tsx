@@ -6,8 +6,67 @@ import { OutputTerminal } from "./OutputTerminal";
 import { StatTiles } from "./StatTiles";
 import { WarningsBox } from "./WarningsBox";
 import { InteractiveTerminal } from "./InteractiveTerminal";
+import { EngineModePicker } from "./EngineModePicker";
 
 export function RightPanel({ isAnalyzing }: { isAnalyzing: boolean }) {
+  const engine = useAppStore(
+    (s) => (s.optionValues["-engine"] as string) ?? "automatic",
+  );
+
+  return (
+    <div
+      style={{
+        height: "100%",
+        background: "var(--bg-surface)",
+        borderLeft: "1px solid var(--border)",
+        display: "flex",
+        flexDirection: "column",
+        boxSizing: "border-box",
+      }}
+    >
+      {/* Analysis mode: reshapes this panel (batch results / REPL) */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          padding: "8px 16px",
+          borderBottom: "1px solid var(--border)",
+          flexShrink: 0,
+        }}
+      >
+        <EngineModePicker stretch />
+      </div>
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        {engine === "interactive" ? (
+          <div
+            style={{
+              flex: 1,
+              minHeight: 0,
+              display: "flex",
+              flexDirection: "column",
+              padding: 16,
+              boxSizing: "border-box",
+            }}
+          >
+            <BackendNoticeBanner />
+            <InteractiveTerminal />
+          </div>
+        ) : (
+          <ScanResults isAnalyzing={isAnalyzing} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ScanResults({ isAnalyzing }: { isAnalyzing: boolean }) {
   const checks = useAppStore((s) => s.checks);
   const warnings = useAppStore((s) => s.warnings);
   const rawOutput = useAppStore((s) => s.rawOutput);
@@ -15,35 +74,12 @@ export function RightPanel({ isAnalyzing }: { isAnalyzing: boolean }) {
   const analysisTime = useAppStore((s) => s.analysisTime);
   const analysisError = useAppStore((s) => s.analysisError);
   const analysisSuccess = useAppStore((s) => s.analysisSuccess);
-  const engine = useAppStore(
-    (s) => (s.optionValues["-engine"] as string) ?? "automatic",
-  );
   const format = useAppStore(
     (s) => (s.optionValues["-format"] as string) ?? "json",
   );
 
-  // The live engine replaces the results view with its own surface.
-  if (engine === "interactive") {
-    return (
-      <div
-        style={{
-          height: "100%",
-          background: "var(--bg-surface)",
-          borderLeft: "1px solid var(--border)",
-          display: "flex",
-          flexDirection: "column",
-          padding: 16,
-          boxSizing: "border-box",
-        }}
-      >
-        <BackendNoticeBanner />
-        <InteractiveTerminal />
-      </div>
-    );
-  }
-
   // While analysing, hide the (now stale) summary behind a clear in-progress
-  // view — a C+Python run can take ~20s. (Batch engine only; live ones above.)
+  // view — a C+Python run can take ~20s.
   if (isAnalyzing) return <AnalyzingView />;
 
   // Text output is unparseable, so skip the results panel and show the raw
@@ -52,9 +88,8 @@ export function RightPanel({ isAnalyzing }: { isAnalyzing: boolean }) {
     return (
       <div
         style={{
-          height: "100%",
-          background: "var(--bg-surface)",
-          borderLeft: "1px solid var(--border)",
+          flex: 1,
+          minHeight: 0,
           display: "flex",
           flexDirection: "column",
           padding: 16,
@@ -69,9 +104,8 @@ export function RightPanel({ isAnalyzing }: { isAnalyzing: boolean }) {
   return (
     <div
       style={{
-        height: "100%",
-        background: "var(--bg-surface)",
-        borderLeft: "1px solid var(--border)",
+        flex: 1,
+        minHeight: 0,
         overflowY: "auto",
         display: "flex",
         flexDirection: "column",
@@ -153,9 +187,8 @@ function AnalyzingView() {
   return (
     <div
       style={{
-        height: "100%",
-        background: "var(--bg-surface)",
-        borderLeft: "1px solid var(--border)",
+        flex: 1,
+        minHeight: 0,
         display: "flex",
         flexDirection: "column",
         alignItems: "center",

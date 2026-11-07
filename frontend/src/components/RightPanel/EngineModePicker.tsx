@@ -7,10 +7,10 @@ import { useAppStore } from "@/lib/store";
 
 type Engine = "automatic" | "interactive";
 
-// `-engine` is UI-only: it routes the whole right-hand interface between the
-// batch results panel and the interactive REPL. It's stored
-// like any other option (optionValues["-engine"]) but surfaced here as a
-// first-class mode switcher instead of a buried select in the options list.
+// `-engine` is UI-only: it routes the right-hand panel between the batch
+// results and the interactive REPL. It's stored like any other option
+// (optionValues["-engine"]) but surfaced as a first-class mode switcher at
+// the top of that panel instead of a buried select in the options list.
 const MODES: {
   value: Engine;
   label: string;
@@ -31,7 +31,12 @@ const MODES: {
   },
 ];
 
-export function EngineModePicker({ compact = false }: { compact?: boolean }) {
+export function EngineModePicker({
+  stretch = false,
+}: {
+  /** Fill the container width, segments sharing it equally. */
+  stretch?: boolean;
+}) {
   const engine = useAppStore(
     (s) => (s.optionValues["-engine"] as Engine) ?? "automatic",
   );
@@ -52,6 +57,7 @@ export function EngineModePicker({ compact = false }: { compact?: boolean }) {
         border: "1px solid var(--border)",
         borderRadius: 7,
         flexShrink: 0,
+        flex: stretch ? 1 : undefined,
       }}
     >
       {MODES.map(({ value, label, Icon, title }) => {
@@ -68,6 +74,8 @@ export function EngineModePicker({ compact = false }: { compact?: boolean }) {
             style={{
               display: "flex",
               alignItems: "center",
+              justifyContent: "center",
+              flex: stretch ? 1 : undefined,
               gap: 5,
               padding: "4px 10px",
               background: active ? "var(--bg-elevated)" : "transparent",
@@ -86,7 +94,7 @@ export function EngineModePicker({ compact = false }: { compact?: boolean }) {
               size={13}
               color={active ? "var(--color-accent)" : "currentColor"}
             />
-            {(!compact || active) && label}
+            {label}
           </button>
         );
       })}

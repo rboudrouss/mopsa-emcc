@@ -2,7 +2,6 @@ import { MoonIcon, PlayIcon, SunIcon, ZapIcon, ZapOffIcon } from "lucide-react";
 import { PulseDot } from "@/components/ui/PulseDot";
 import { useAppStore } from "@/lib/store";
 import { EntryPointPicker } from "@/components/TopBar/EntryPointPicker";
-import { EngineModePicker } from "@/components/TopBar/EngineModePicker";
 import { Languages } from "lucide-react";
 import { getActiveAnalysisMode } from "@/lib/tree";
 
@@ -74,19 +73,6 @@ export function TopBar({
           MOPSA
         </span>
       </div>
-
-      {/* Divider between brand and the analysis-mode switcher */}
-      <div
-        style={{
-          width: 1,
-          height: 20,
-          background: "var(--border)",
-          flexShrink: 0,
-        }}
-      />
-
-      {/* Analysis mode — reshapes the right-hand panel (batch / REPL / DAP) */}
-      <EngineModePicker />
 
       {isMultilang && (
         <div

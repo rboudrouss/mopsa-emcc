@@ -6,7 +6,6 @@ import {
   ZapOffIcon,
 } from "lucide-react";
 import { PulseDot } from "@/components/ui/PulseDot";
-import { EngineModePicker } from "@/components/TopBar/EngineModePicker";
 import { EntryPointPicker } from "@/components/TopBar/EntryPointPicker";
 import { useAppStore } from "@/lib/store";
 import { findById, getActiveAnalysisMode } from "@/lib/tree";
@@ -18,7 +17,7 @@ interface MobileTopBarProps {
 }
 
 /**
- * Mobile header: a thin brand bar (logo + engine picker + auto-run + theme)
+ * Mobile header: a thin brand bar (logo + auto-run + theme)
  * followed by a status strip (language, active file, entry point, run stats).
  * The Run button lives in the bottom dock.
  */
@@ -54,7 +53,6 @@ export function MobileTopBar({
           style={{ objectFit: "contain", flexShrink: 0 }}
         />
 
-        <EngineModePicker compact />
 
         <div style={{ flex: 1 }} />
 
