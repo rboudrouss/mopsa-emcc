@@ -323,13 +323,24 @@ class EnvEngine {
     return r.kind === "analyzing" ? r : { kind: "unavailable" };
   }
 
-  /** States at (file, line), one per call stack. Waits for the analysis. */
+  /**
+   * States at (file, line), one per call stack. Waits for the analysis.
+   *   - "pre": every state reaching the line;
+   *   - "entry": the states entering it in program order, not the ones a
+   *     loop brings back to its head (a for's increment);
+   *   - "post": after its statements (none for a statement spanning other
+   *     lines, like a loop or a conditional).
+   */
   getEnvironments(
     file: string,
     line: number,
     scope: EnvScope,
+    when: "pre" | "entry" | "post" = "pre",
   ): Promise<EnvQueryResult<EnvironmentsBody>> {
-    return this.query("environments", { file, line, scope });
+    return this.query(
+      "environments",
+      when === "pre" ? { file, line, scope } : { file, line, scope, when },
+    );
   }
 
   /** Lines of `file` recorded in the envdb. Waits for the analysis. */

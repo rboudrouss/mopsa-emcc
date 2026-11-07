@@ -1,6 +1,10 @@
 import type * as Monaco from "monaco-editor";
 import { useEffect, useRef } from "react";
-import { envEngine } from "../envdb/env-engine";
+import {
+  envEngine,
+  type EnvQueryResult,
+  type EnvironmentsBody,
+} from "../envdb/env-engine";
 import { useEnvEngine } from "./use-env-engine";
 import { useEditorNav } from "../editor-nav";
 import { useAppStore } from "../store";
@@ -10,8 +14,9 @@ import { useAppStore } from "../store";
  * analysis (see env-engine.ts):
  *   - coverage: a gutter bar on the lines the analysis reached, and a grey
  *     background on the lines it found unreachable (every state is ⊥);
- *   - inline values: the abstract values of the variables of a line,
- *     after its code (cursor line only, or every reached line).
+ *   - inline values: after the code of a line, the abstract values of its
+ *     variables once it has run, and of the next line's variables before
+ *     that one runs (cursor line only, or every line).
  */
 
 const MAX_INLINE = 70;
@@ -38,11 +43,18 @@ function valueText(v: unknown, python: boolean): string | null {
   return /^@([A-Za-z_][\w.]*)/.exec(s)?.[1] ?? s;
 }
 
-/** "a = [0,10], b = [0,10]" (C) or "total = [0,0], values: list" (Python)
- *  from a line-scope print object. A variable printed by several domains
- *  (Python: its type in the environment, its value in the numeric domain)
- *  is shown once, by value when there is one. */
-export function inlineText(env: unknown, python = false): string {
+/** One variable as shown inline: "a = [0,10]" or, a Python variable with
+ *  only a type, "values: list". */
+interface InlinePart {
+  name: string;
+  value: string;
+  isType: boolean;
+}
+
+/** The variables of a line-scope print object. A variable printed by
+ *  several domains (Python: its type in the environment, its value in the
+ *  numeric domain) is shown once, by value when there is one. */
+export function inlineParts(env: unknown, python = false): InlinePart[] {
   const vars = new Map<string, { types: Set<string>; values: string[] }>();
   const entry = (name: string) => {
     let e = vars.get(name);
@@ -71,15 +83,59 @@ export function inlineText(env: unknown, python = false): string {
         );
     else leaf(key, v);
   };
-  if (env === null || env === undefined) return "";
+  if (env === null || env === undefined) return [];
   visit("", env, 0);
-  const parts = [...vars].map(([name, { types, values }]) =>
+  return [...vars].map(([name, { types, values }]) =>
     values.length > 0
-      ? `${name} = ${[...new Set(values)].join(" ∧ ")}`
-      : `${name}: ${[...types].join(" | ")}`,
+      ? { name, value: [...new Set(values)].join(" ∧ "), isType: false }
+      : { name, value: [...types].join(" | "), isType: true },
   );
+}
+
+/**
+ * The text shown at the end of a line: the state after it, then the state
+ * before the next line, each variable once. A variable whose value differs
+ * between the two (entering a branch or a loop) shows both, "i = 0 → [0,9]".
+ */
+export function mergedInlineText(after: InlinePart[], before: InlinePart[]): string {
+  const next = new Map(before.map((p) => [p.name, p]));
+  const show = (p: InlinePart) => p.name + (p.isType ? ": " : " = ") + p.value;
+  const parts = after.map((p) => {
+    const q = next.get(p.name);
+    next.delete(p.name);
+    if (!q || q.value === p.value) return show(p);
+    // A type next to a value is no news (Python: the value is more precise).
+    if (q.isType && !p.isType) return show(p);
+    if (p.isType && !q.isType) return show(q);
+    return `${show(p)} → ${q.value}`;
+  });
+  for (const q of next.values()) parts.push(show(q));
   const text = parts.join(", ");
   return text.length > MAX_INLINE ? text.slice(0, MAX_INLINE - 1) + "…" : text;
+}
+
+/** Whether the variable shows in the source line: not a temporary or the
+ *  cleanup at a block's "}" (base name of "s.f", "p->x", "*p", "self.x"). */
+function inSource(name: string, source: string): boolean {
+  const base = /[A-Za-z_$][\w$]*/.exec(name)?.[0];
+  return !base || new RegExp(`(^|[^\\w$])${base.replace(/\$/g, "\\$")}($|[^\\w$])`).test(source);
+}
+
+/** Per call stack: the variables of the source line, bottom states left out. */
+function partsByContext(
+  res: EnvQueryResult<EnvironmentsBody> | undefined,
+  python: boolean,
+  source: string,
+): Map<string, InlinePart[]> {
+  const out = new Map<string, InlinePart[]>();
+  if (!res || res.kind !== "ok") return out;
+  for (const c of res.body.contexts)
+    if (!c.bottom)
+      out.set(
+        JSON.stringify(c.callstack),
+        inlineParts(c.env, python).filter((p) => inSource(p.name, source)),
+      );
+  return out;
 }
 
 export function useEnvdbOverlays(
@@ -166,28 +222,35 @@ export function useEnvdbOverlays(
     }
     let cancelled = false;
     void (async () => {
+      // Line L shows the state after L and the state before L + 1.
       let lines: number[];
       if (inlineValues === "cursor") lines = cursorKey ? [cursorKey] : [];
       else {
         const res = await envEngine.getLines(codeFilePath);
         if (res.kind !== "ok") return;
-        lines = res.body.files[codeFilePath]?.reached ?? [];
+        const reached = res.body.files[codeFilePath]?.reached ?? [];
+        lines = [...new Set(reached.flatMap((l) => [l - 1, l]))].filter((l) => l >= 1);
       }
       const model = editor.getModel();
       if (cancelled || !model) return;
       lines = lines.filter((l) => l <= model.getLineCount());
-      const results = await Promise.all(
-        lines.map((l) => envEngine.getEnvironments(codeFilePath, l, "line")),
-      );
+      const [after, before] = await Promise.all([
+        Promise.all(lines.map((l) => envEngine.getEnvironments(codeFilePath, l, "line", "post"))),
+        Promise.all(lines.map((l) => envEngine.getEnvironments(codeFilePath, l + 1, "line", "entry"))),
+      ]);
       if (cancelled) return;
       const decos: Monaco.editor.IModelDeltaDecoration[] = [];
-      results.forEach((res, i) => {
-        if (res.kind !== "ok") return;
+      lines.forEach((line, i) => {
+        const a = partsByContext(after[i], python, model.getLineContent(line));
+        const b = partsByContext(
+          before[i],
+          python,
+          line < model.getLineCount() ? model.getLineContent(line + 1) : "",
+        );
         const texts = [
           ...new Set(
-            res.body.contexts
-              .filter((c) => !c.bottom)
-              .map((c) => inlineText(c.env, python))
+            [...new Set([...a.keys(), ...b.keys()])]
+              .map((cs) => mergedInlineText(a.get(cs) ?? [], b.get(cs) ?? []))
               .filter(Boolean),
           ),
         ];
@@ -197,7 +260,6 @@ export function useEnvdbOverlays(
           (texts.length > 1
             ? `  (+${texts.length - 1} other context${texts.length > 2 ? "s" : ""})`
             : "");
-        const line = lines[i];
         const end = model.getLineMaxColumn(line);
         decos.push({
           range: { startLineNumber: line, startColumn: end, endLineNumber: line, endColumn: end },
