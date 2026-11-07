@@ -68,6 +68,26 @@ Step targets are also available if you only want to (re)run a single stage.
 - `make jsoo-worker`: build only the jsoo worker → `build/mopsa_worker_jsoo.js`
 - `make frontend-build`: `pnpm install` + `vite build` only
 
+### Hosting
+
+`frontend/dist` is a static site, which needs two response headers, `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp` (the interactive and DAP engines use `SharedArrayBuffer`), as `frontend/public/_headers` sets them on Cloudflare Pages.
+
+Cloudflare Pages serves no file over 25 MiB, and `ocamlrun.wasm` is bigger: it is served, with `ocamlrun.data`, from an R2 bucket.
+
+1. Create the bucket, and connect it to a custom domain (the `r2.dev` URL is rate-limited, for development only).
+2. Give it a CORS policy allowing the site's origin (Settings > CORS Policy):
+   ```json
+   [{ "AllowedOrigins": ["https://mopsa.example.org"], "AllowedMethods": ["GET"] }]
+   ```
+3. Upload the two files with wrangler (`npx wrangler login` first, or `CLOUDFLARE_API_TOKEN`), then build the frontend with their URL:
+   ```sh
+   make wasm-r2-upload R2_BUCKET=<bucket>
+   make frontend-build MOPSA_ASSETS_URL=https://wasm.example.org   # or final-web
+   ```
+   and deploy `frontend/dist`, which no longer contains them.
+
+The files go in a directory named after the hash of the build (`<bucket>/<hash>/ocamlrun.wasm`), as they must match the `ocamlrun.js` served with the page: an upload replaces nothing a deployed page uses, and they are cached for good. The directories of old builds stay in the bucket until deleted. The PWA caches them on first use instead of precaching them.
+
 ## Cleaning
 
 ```sh
