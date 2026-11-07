@@ -15,6 +15,8 @@ import { FoldHeader, useFold } from "./Fold";
 
 export function RightPanel({ isAnalyzing }: { isAnalyzing: boolean }) {
   const rawOutput = useAppStore((s) => s.rawOutput);
+  const warnings = useAppStore((s) => s.warnings);
+  const analysisError = useAppStore((s) => s.analysisError);
   const format = useAppStore(
     (s) => (s.optionValues["-format"] as string) ?? "json",
   );
@@ -54,6 +56,10 @@ export function RightPanel({ isAnalyzing }: { isAnalyzing: boolean }) {
           the re-runs of the batch analysis. */}
       <InteractiveFold />
 
+      {!isAnalyzing && format !== "text" && !analysisError && (
+        <WarningsBox warnings={warnings} />
+      )}
+
       {!isAnalyzing && format !== "text" && <RawOutput raw={rawOutput} />}
     </div>
   );
@@ -62,7 +68,6 @@ export function RightPanel({ isAnalyzing }: { isAnalyzing: boolean }) {
 function Results() {
   const checks = useAppStore((s) => s.checks);
   const panic = useAppStore((s) => s.panic);
-  const warnings = useAppStore((s) => s.warnings);
   const rawOutput = useAppStore((s) => s.rawOutput);
   const selectivity = useAppStore((s) => s.selectivity);
   const analysisTime = useAppStore((s) => s.analysisTime);
@@ -150,8 +155,6 @@ function Results() {
       {ok && <StatesPanel />}
 
       {ok && profiler && <ProfilePanel />}
-
-      {!analysisError && <WarningsBox warnings={warnings} />}
     </>
   );
 }
