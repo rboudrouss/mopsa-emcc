@@ -2,9 +2,9 @@
 
 A WebAssembly build of [Mopsa](https://gitlab.com/mopsa/mopsa-analyzer), a modular open-source static analyzer for C and Python, runnable directly in the browser or in Node.js.
 
-This repository builds the analyzer with [ocaml-emcc](https://github.com/rboudrouss/ocaml-emcc), which compiles OCaml's runtime, Clang/LLVM, GMP, MPFR, Apron and Mopsa's C stubs to `wasm32-unknown-emscripten`, producing a self-contained `ocamlrun.wasm` shipped with a React frontend.
+This repository builds the analyzer with [ocaml-emcc](https://github.com/rboudrouss/ocaml-emcc), which compiles OCaml's runtime, Clang/LLVM, GMP, MPFR, Apron and Mopsa (its bytecode compiled to C) to `wasm32-unknown-emscripten`, producing a self-contained `ocamlrun.wasm` shipped with a React frontend.
 
-Mopsa's bytecode runs on ocaml-emcc's interpreter (`interpreted: yes` in `ocaml-emcc.conf`). ocaml-emcc's default mode, which compiles the bytecode to C with c_of_ocaml, recurses on the browser's own stack (about 1 MB in a worker): OCaml 4.14's `List.map` overflows it as soon as a C file includes `<stdlib.h>`.
+Mopsa's bytecode is compiled to C by [c_of_ocaml](https://github.com/rboudrouss/C_of_ocaml), ocaml-emcc's default mode, with `cps-stack: yes` in `ocaml-emcc.conf`: the compiled code recurses on the browser's own stack (about 500 KB in a worker), which OCaml 4.14's `List.map` overflows as soon as a C file includes `<stdlib.h>`, so deep recursions go on in continuation-passing style on the heap, in every browser.
 
 The frontend actually ships two backends: the full WASM build, and a lighter pure-JavaScript build of the analyzer compiled with `js_of_ocaml` (see [The js_of_ocaml backend](#the-js_of_ocaml-backend)).
 
@@ -30,6 +30,7 @@ The opam switch and the opam packages below are created / installed by the Makef
    - `make mopsa-install` (run by the WASM targets the first time) pins and installs `mopsa` there, natively, with `OPAMKEEPBUILDDIR=true`: ocaml-emcc rebuilds its C stubs from the build directory opam keeps. Its C parser needs a **host clang and LLVM** (`clang libclang-dev libclang-cpp-dev llvm-dev` on Debian/Ubuntu), of any version Mopsa supports.
    - For the jsoo backend, the same switch also needs `js_of_ocaml` (≥ 6.0), `js_of_ocaml-ppx`, `zarith_stubs_js` and VPL, a pure-OCaml relational domain, pinned to `https://github.com/rmonat/VPL.git` (`make jsoo-deps`)
 - **[ocaml-emcc](https://github.com/rboudrouss/ocaml-emcc)**: pinned in the switch (`make ocaml-emcc-install`) unless one is in `PATH` or given with `make OCAML_EMCC=/path/to/ocaml-emcc ...`. Its clang recipe needs `cmake` (+ `ninja` preferably)
+- **[c_of_ocaml](https://github.com/rboudrouss/C_of_ocaml)**, which ocaml-emcc runs to compile the bytecode to C: pinned in the switch by `make ocaml-emcc-install` too, unless one is in `PATH` or given with `OCAML_EMCC_C_OF_OCAML=/path/to/c_of_ocaml.exe`
 - **Emscripten SDK**, with `emcc` in `PATH` (`source emsdk_env.sh`)
 - **Docker**: to extract the 32-bit Linux / CPython headers preloaded in the web build (a small i386 Debian image, built by `make docker-image`)
 - **Node.js & npm**: for the React frontend
@@ -45,7 +46,7 @@ make final-web
 
 This builds **both backends** (WASM + jsoo) and the React frontend. The first WASM build also builds ocaml-emcc's wasm runtime and C libraries in the switch (`$OPAM_SWITCH_PREFIX/emcc-sysroot`): its clang 9 recipe takes about 15 min on 4 cores.
 
-`make mopsa-update` rebuilds `mopsa` from the latest commit of the pinned branch.
+`make mopsa-update` rebuilds `mopsa` from the latest commit of the pinned branch, `make ocaml-emcc-update` ocaml-emcc and c_of_ocaml from theirs.
 
 To build the frontend with a single backend:
 
@@ -84,9 +85,9 @@ All other code is owned by its respective authors and is not covered by this lic
 
 ## How it works
 
-`ocamlrun`, OCaml's bytecode interpreter, is cross-compiled to WebAssembly through emscripten by [ocaml-emcc](https://github.com/rboudrouss/ocaml-emcc), from the sources of the switch's compiler. The C stubs of every library the bytecode links (Mopsa's own, its Clang-based C parser, zarith, mlgmpidl, apron) are rebuilt with emcc and linked statically into a single `ocamlrun.wasm` (about 16 MB). The bytecode of `backend/wasm/mopsa_worker` is preloaded into emscripten's virtual filesystem (`ocamlrun.data`), together with Clang's resource headers, the Linux 32-bit headers, and the Mopsa stubs directory.
+[ocaml-emcc](https://github.com/rboudrouss/ocaml-emcc) compiles the bytecode of `backend/wasm/mopsa_worker` to C with [c_of_ocaml](https://github.com/rboudrouss/C_of_ocaml), and builds OCaml's runtime with emscripten from the sources of the switch's compiler. The C stubs of every library the bytecode links (Mopsa's own, its Clang-based C parser, zarith, mlgmpidl, apron) are rebuilt with emcc and linked statically with them into a single `ocamlrun.wasm` (about 36 MB, a third of it the CPS versions of `cps-stack`; the file keeps the name of the interpreter it replaced). Clang's resource headers, the Linux 32-bit headers and the Mopsa stubs directory are preloaded into emscripten's virtual filesystem (`ocamlrun.data`).
 
-The bytecode is the switch's (64-bit) one, run with 31-bit integers on wasm32: `ocaml-emcc` checks that every literal fits, and the fork of Mopsa avoids the computations that would overflow (C integers are zarith values).
+The bytecode is the switch's (64-bit) one, compiled with 31-bit integers on wasm32: `ocaml-emcc` checks that every literal fits, and the fork of Mopsa avoids the computations that would overflow (C integers are zarith values).
 
 ## The js_of_ocaml backend
 
