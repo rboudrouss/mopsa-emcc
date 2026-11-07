@@ -112,6 +112,7 @@ function Results() {
             open={summaryOpen}
             onToggle={toggleSummary}
             actions={<PinBaselineButton />}
+            alwaysShowActions
           />
           {summaryOpen && (
             <>
