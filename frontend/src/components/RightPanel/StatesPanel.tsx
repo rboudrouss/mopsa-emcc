@@ -349,6 +349,8 @@ function leafText(v: unknown): string {
 }
 
 function EnvTree({ value, openDepth }: { value: unknown; openDepth: number }) {
+  // An empty print object: no variable to show (bottom is a context flag).
+  if (value === null || value === undefined) value = {};
   if (isLeaf(value))
     return (
       <span style={{ fontFamily: MONO, fontSize: 12 }}>{leafText(value)}</span>
