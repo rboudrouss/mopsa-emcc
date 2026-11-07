@@ -3,6 +3,7 @@ import { useEffect, useRef } from "react";
 import { envEngine } from "../envdb/env-engine";
 import { useEnvEngine } from "./use-env-engine";
 import { useEditorNav } from "../editor-nav";
+import { useAppStore } from "../store";
 
 /**
  * Editor overlays fed by the environment database of the background
@@ -11,29 +12,73 @@ import { useEditorNav } from "../editor-nav";
  *     background on the lines it found unreachable (every state is ⊥);
  *   - inline values: the abstract values of the variables of a line,
  *     after its code (cursor line only, or every reached line).
- * Only in Scan mode; the interactive REPL has its own way to print states.
  */
 
-const MAX_INLINE = 90;
+const MAX_INLINE = 70;
 const VAR_LIKE = /^[A-Za-z_$][\w$]*(\[[^\]]*\]|\.[\w$]+|->[\w$]+)*$/;
+const DECORATION = /:[^\s:]+:\d+\.\d+(-\d+(\.\d+)?)?$/;
+// Python heap addresses of callables, classes and modules: noise inline.
+const PY_HIDDEN =
+  /^@(function|builtin_function_or_method|method|classmethod|staticmethod|module|type)\b/;
 
-/** "x ∈ [0,10], p ∈ {&a}" from a line-scope print object. */
-export function inlineText(env: unknown): string {
-  const parts: string[] = [];
-  const visit = (key: string, v: unknown) => {
-    if (v === null || v === undefined) parts.push(`${key} = ⊥`);
-    else if (Array.isArray(v))
-      parts.push(`${key} ∈ {${v.map((x) => (typeof x === "object" ? JSON.stringify(x) : String(x))).join(", ")}}`);
-    else if (typeof v === "object")
-      for (const [k, sub] of Object.entries(v as Record<string, unknown>))
-        // Domain groups ("float-itv ∪ int-itv") aren't part of the names.
-        visit(VAR_LIKE.test(key) ? `${key}.${k}` : k, sub);
-    else parts.push(`${key} = ${String(v)}`);
+/**
+ * One value as shown inline. Python variables point to heap addresses
+ * ("@Inst{int}:w", "@list"): shown as their type, and hidden (null) for
+ * functions, classes and modules.
+ */
+function valueText(v: unknown, python: boolean): string | null {
+  if (v === null || v === undefined) return "⊥";
+  const s = (typeof v === "object" ? JSON.stringify(v) : String(v))
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!python || !s.startsWith("@")) return s;
+  if (PY_HIDDEN.test(s)) return null;
+  const inst = /^@Inst\{([^}]*)\}/.exec(s);
+  if (inst) return inst[1];
+  return /^@([A-Za-z_][\w.]*)/.exec(s)?.[1] ?? s;
+}
+
+/** "a = [0,10], b = [0,10]" (C) or "total = [0,0], values: list" (Python)
+ *  from a line-scope print object. A variable printed by several domains
+ *  (Python: its type in the environment, its value in the numeric domain)
+ *  is shown once, by value when there is one. */
+export function inlineText(env: unknown, python = false): string {
+  const vars = new Map<string, { types: Set<string>; values: string[] }>();
+  const entry = (name: string) => {
+    let e = vars.get(name);
+    if (!e) vars.set(name, (e = { types: new Set(), values: [] }));
+    return e;
   };
-  if (env && typeof env === "object" && !Array.isArray(env))
-    for (const [k, v] of Object.entries(env as Record<string, unknown>))
-      visit(k.replace(/:[^\s:]+:\d+\.\d+(-\d+(\.\d+)?)?$/, ""), v);
-  const text = [...new Set(parts)].join(", ");
+  const leaf = (key: string, v: unknown) => {
+    if (!key || key.startsWith("@")) return; // heap addresses' internals
+    const list = Array.isArray(v) ? v : [v];
+    const texts = list.map((x) => valueText(x, python));
+    if (texts.some((x) => x === null)) return; // a callable, class, module
+    const isType = python && list.every((x) => String(x).startsWith("@"));
+    const text = [...new Set(texts as string[])].join(isType ? " | " : ", ");
+    if (isType) entry(key).types.add(text);
+    else entry(key).values.push(Array.isArray(v) ? `{${text}}` : text);
+  };
+  const visit = (key: string, v: unknown, depth: number) => {
+    if (v && typeof v === "object" && !Array.isArray(v))
+      for (const [k, sub] of Object.entries(v as Record<string, unknown>))
+        // The top-level keys are domain groups ("float-itv ∪ int-itv",
+        // "environment"): they aren't part of the names.
+        visit(
+          depth > 1 && VAR_LIKE.test(key) ? `${key}.${k}` : k.replace(DECORATION, ""),
+          sub,
+          depth + 1,
+        );
+    else leaf(key, v);
+  };
+  if (env === null || env === undefined) return "";
+  visit("", env, 0);
+  const parts = [...vars].map(([name, { types, values }]) =>
+    values.length > 0
+      ? `${name} = ${[...new Set(values)].join(" ∧ ")}`
+      : `${name}: ${[...types].join(" | ")}`,
+  );
+  const text = parts.join(", ");
   return text.length > MAX_INLINE ? text.slice(0, MAX_INLINE - 1) + "…" : text;
 }
 
@@ -99,7 +144,20 @@ export function useEnvdbOverlays(
     };
   }, [editorRef, codeFilePath, enabled, ready, generation, showCoverage, mountKey]);
 
-  // Inline values.
+  // Values are stale as soon as the code changes (lines move, text changes):
+  // drop them at once, the next analysis brings fresh ones.
+  const code = useAppStore((s) => s.code);
+  const lastCode = useRef(code);
+  useEffect(() => {
+    if (code === lastCode.current) return;
+    lastCode.current = code;
+    valuesRef.current?.clear();
+  }, [code]);
+
+  // Inline values. The cursor only matters in "cursor" mode: in "all" mode,
+  // moving it must not refetch and redraw every line.
+  const cursorKey = inlineValues === "cursor" ? cursorLine : null;
+  const python = codeFilePath.endsWith(".py");
   useEffect(() => {
     const editor = editorRef.current;
     if (!editor || !enabled || !ready || inlineValues === "off") {
@@ -109,25 +167,37 @@ export function useEnvdbOverlays(
     let cancelled = false;
     void (async () => {
       let lines: number[];
-      if (inlineValues === "cursor") lines = cursorLine ? [cursorLine] : [];
+      if (inlineValues === "cursor") lines = cursorKey ? [cursorKey] : [];
       else {
         const res = await envEngine.getLines(codeFilePath);
         if (res.kind !== "ok") return;
         lines = res.body.files[codeFilePath]?.reached ?? [];
       }
       const model = editor.getModel();
-      if (!model) return;
+      if (cancelled || !model) return;
+      lines = lines.filter((l) => l <= model.getLineCount());
+      const results = await Promise.all(
+        lines.map((l) => envEngine.getEnvironments(codeFilePath, l, "line")),
+      );
+      if (cancelled) return;
       const decos: Monaco.editor.IModelDeltaDecoration[] = [];
-      for (const line of lines) {
-        if (line > model.getLineCount()) continue;
-        const res = await envEngine.getEnvironments(codeFilePath, line, "line");
-        if (cancelled) return;
-        if (res.kind !== "ok") continue;
-        const ctx = res.body.contexts.filter((c) => !c.bottom);
-        if (ctx.length === 0) continue;
-        let text = inlineText(ctx[0].env);
-        if (!text) continue;
-        if (ctx.length > 1) text += `  (+${ctx.length - 1} context${ctx.length > 2 ? "s" : ""})`;
+      results.forEach((res, i) => {
+        if (res.kind !== "ok") return;
+        const texts = [
+          ...new Set(
+            res.body.contexts
+              .filter((c) => !c.bottom)
+              .map((c) => inlineText(c.env, python))
+              .filter(Boolean),
+          ),
+        ];
+        if (texts.length === 0) return;
+        const text =
+          texts[0] +
+          (texts.length > 1
+            ? `  (+${texts.length - 1} other context${texts.length > 2 ? "s" : ""})`
+            : "");
+        const line = lines[i];
         const end = model.getLineMaxColumn(line);
         decos.push({
           range: { startLineNumber: line, startColumn: end, endLineNumber: line, endColumn: end },
@@ -136,13 +206,12 @@ export function useEnvdbOverlays(
             after: { content: "  " + text, inlineClassName: "mopsa-inline-value" },
           },
         });
-      }
-      if (cancelled) return;
+      });
       valuesRef.current?.clear();
       valuesRef.current = editor.createDecorationsCollection(decos);
     })();
     return () => {
       cancelled = true;
     };
-  }, [editorRef, codeFilePath, enabled, ready, generation, inlineValues, cursorLine, mountKey]);
+  }, [editorRef, codeFilePath, python, enabled, ready, generation, inlineValues, cursorKey, mountKey]);
 }

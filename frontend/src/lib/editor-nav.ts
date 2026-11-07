@@ -14,7 +14,7 @@ type View = {
 
 const DEFAULT_VIEW: View = {
   showCoverage: true,
-  inlineValues: "cursor",
+  inlineValues: "all",
   showSafe: false,
 };
 

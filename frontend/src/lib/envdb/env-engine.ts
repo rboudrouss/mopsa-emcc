@@ -1,8 +1,7 @@
 import { DapClient } from "../dap/DapClient";
-import { computeAnalysisArgs, computeRunSignature } from "../analysis-args";
-import { getActiveAnalysisMode, getAllFilePaths } from "../tree";
+import { computeAnalysisArgs, computeInputSignature } from "../analysis-args";
+import { getActiveAnalysisMode } from "../tree";
 import { unsupportedReason } from "../backend";
-import { readFile } from "../mopsa-client";
 import { useAppStore } from "../store";
 
 /**
@@ -142,20 +141,8 @@ class EnvEngine {
     }
   }
 
-  /**
-   * Everything that determines the analysis result: argv + config (as in
-   * computeRunSignature) plus the CONTENT of every workspace file (the batch
-   * signature can skip contents because auto-run re-runs on every edit
-   * anyway; here the session outlives edits, so contents must be part of it).
-   */
   private currentSignature(): string {
-    const s = useAppStore.getState();
-    const files = getAllFilePaths(s.fileTree)
-      .map(({ path }) => "/" + path)
-      .sort()
-      .map((p) => p + "\u0001" + readFile(p))
-      .join("\u0002");
-    return computeRunSignature() + "\u0000" + files;
+    return computeInputSignature();
   }
 
   private unsupported(): string | null {
