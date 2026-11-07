@@ -4,7 +4,7 @@
  * Web Worker that executes the Mopsa WASM analysis in a background thread
  * so the main UI thread stays responsive during analysis.
  *
- * The WASM binary (15 MB) and data file (12.6 MB) are fetched ONCE when the
+ * The WASM binary (36 MB) and data file (16 MB) are fetched ONCE when the
  * worker starts. Each run re-instantiates the cached WebAssembly.Module
  * (fast, no network) because the OCaml runtime cannot be re-entered.
  *
@@ -62,8 +62,7 @@ var _dataBufferPromise = fetch("./ocamlrun.data")
 // ── Shared helpers ──────────────────────────────────────────────────────────
 
 function buildArgs(options, isHelp) {
-  // The bytecode is argv[0] (ocaml-emcc), clang's headers are at the C
-  // parser's resource directory
+  // Clang's headers are at the C parser's resource directory
   return (isHelp ? [] : ["-config", "/config.json"])
     .concat(["-share-dir", "/share/mopsa", "-I", "/usr/include"])
     .concat(options || []);

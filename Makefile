@@ -1,7 +1,8 @@
 # Dependencies:
 # - OCaml 4.14.2 opam switch ($(SWITCH)), where mopsa is pinned to the 32-bit fork
 #   (`make mopsa-install`; the C parser needs a host clang + llvm-dev)
-# - ocaml-emcc (https://github.com/rboudrouss/ocaml-emcc), with cmake for its clang recipe
+# - ocaml-emcc (https://github.com/rboudrouss/ocaml-emcc), with cmake for its clang recipe,
+#   and c_of_ocaml (https://github.com/rboudrouss/C_of_ocaml), which compiles the bytecode to C
 # - Emscripten SDK (emcc in PATH)
 # - js_of_ocaml, js_of_ocaml-ppx, zarith_stubs_js, vpl-core in the switch (jsoo worker)
 #   The switch and these opam packages are created / installed when missing
@@ -34,6 +35,7 @@ SWITCH_PREFIX := $(shell opam var --switch=$(SWITCH) prefix 2>/dev/null)
 SWITCH_CONFIG := $(SWITCH_PREFIX)/.opam-switch/switch-config
 OCAML_EMCC ?= ocaml-emcc
 OCAML_EMCC_REPO ?= https://github.com/rboudrouss/ocaml-emcc.git
+C_OF_OCAML_REPO ?= https://github.com/rboudrouss/C_of_ocaml.git
 # Extra options of `ocaml-emcc build` (e.g. `-O -Oz`, `--stack-size 16MB`)
 OCAML_EMCC_FLAGS ?=
 
@@ -46,7 +48,7 @@ MOPSA_KEPT_SRC = $(SWITCH_PREFIX)/.opam-switch/build/mopsa.$$(opam var --switch=
 
 # Phony targets
 .PHONY: all wasm wasm-node wasm-web wasm-web-artifacts final-web frontend-build \
-        deps switch mopsa-install mopsa-update ocaml-emcc-install jsoo-deps \
+        deps switch mopsa-install mopsa-update ocaml-emcc-install ocaml-emcc-update jsoo-deps \
         docker-image extract-32-headers \
         jsoo-analyzer jsoo-worker jsoo-web \
         clean clean-project clean-docker clean-jsoo
@@ -90,15 +92,30 @@ ifeq ($(OCAML_EMCC)$(shell command -v ocaml-emcc),ocaml-emcc)
 OCAML_EMCC_DEP := $(SWITCH_PREFIX)/bin/ocaml-emcc
 endif
 
-ocaml-emcc-install: $(OCAML_EMCC_DEP)
+# c_of_ocaml, which ocaml-emcc runs to compile the bytecode to C: pinned in the
+# switch unless one is in PATH or given by OCAML_EMCC_C_OF_OCAML
+ifeq ($(OCAML_EMCC_C_OF_OCAML)$(shell command -v c_of_ocaml),)
+C_OF_OCAML_DEP := $(SWITCH_PREFIX)/bin/c_of_ocaml
+endif
+
+ocaml-emcc-install: $(OCAML_EMCC_DEP) $(C_OF_OCAML_DEP)
 
 $(SWITCH_PREFIX)/bin/ocaml-emcc: | $(SWITCH_CONFIG)
 	opam pin add --switch=$(SWITCH) -y ocaml-emcc "git+$(OCAML_EMCC_REPO)"
 
+$(SWITCH_PREFIX)/bin/c_of_ocaml: | $(SWITCH_CONFIG)
+	opam pin add --switch=$(SWITCH) -y c_of_ocaml "git+$(C_OF_OCAML_REPO)"
+
+# Rebuild the pinned ocaml-emcc and c_of_ocaml from their latest commits
+ocaml-emcc-update:
+	opam update --switch=$(SWITCH) ocaml-emcc c_of_ocaml
+	opam upgrade --switch=$(SWITCH) -y ocaml-emcc c_of_ocaml
+
 # ── WASM backend (ocaml-emcc) ────────────────────────────────────────────────
-# ocaml-emcc builds the wasm ocamlrun, the C libraries (gmp, mpfr, apron, clang 9:
-# ocaml-emcc.conf and emcc-recipes/) and the C stubs of every library linked in
-# backend/wasm/mopsa_worker.bc, then links them with the bytecode.
+# ocaml-emcc builds the wasm OCaml runtime, the C libraries (gmp, mpfr, apron,
+# clang 9: ocaml-emcc.conf and emcc-recipes/) and the C stubs of every library
+# linked in backend/wasm/mopsa_worker.bc, compiles the bytecode to C with
+# c_of_ocaml, then links them all.
 OCAML_EMCC_BUILD = $(OPAM_EXEC) $(OCAML_EMCC) build $(1) --exe backend/wasm/mopsa_worker $(OCAML_EMCC_FLAGS)
 
 # Clang's resource headers, found by the C parser at the resource directory of
@@ -112,8 +129,8 @@ WASM_EMCC_FLAGS := -sEXPORTED_RUNTIME_METHODS=FS,ENV \
 	--pre-js backend/wasm/pre.js --post-js backend/wasm/post.js
 
 # Standalone browser build (HTML harness)
-wasm: $(MOPSA_META) $(OCAML_EMCC_DEP) | $(DIST_DIR)
-	$(call OCAML_EMCC_BUILD,$(DIST_DIR)/ocamlrun.html) --preload -- \
+wasm: $(MOPSA_META) $(OCAML_EMCC_DEP) $(C_OF_OCAML_DEP) | $(DIST_DIR)
+	$(call OCAML_EMCC_BUILD,$(DIST_DIR)/ocamlrun.html) -- \
 		-sENVIRONMENT=web $(WASM_EMCC_FLAGS) \
 		--preload-file $(MOPSA_SHARE)@/share/mopsa \
 		--preload-file $(CLANG_HEADERS)@$(CLANG_RESOURCE_DIR)/include
@@ -122,7 +139,7 @@ wasm: $(MOPSA_META) $(OCAML_EMCC_DEP) | $(DIST_DIR)
 #   node dist/node/mopsa.js -share-dir=$(MOPSA_SHARE) -target-triple=x86_64-pc-linux-gnu \
 #     -I <sysroot>/lib/clang/9.0.1/include -I /usr/include/x86_64-linux-gnu -I /usr/include ...
 # (the C parser's resource directory is the host clang's, whose headers are newer)
-wasm-node: $(MOPSA_META) $(OCAML_EMCC_DEP)
+wasm-node: $(MOPSA_META) $(OCAML_EMCC_DEP) $(C_OF_OCAML_DEP)
 	mkdir -p $(DIST_DIR)/node
 	$(call OCAML_EMCC_BUILD,$(DIST_DIR)/node/mopsa.js) --node-fs
 
@@ -132,10 +149,10 @@ wasm-node: $(MOPSA_META) $(OCAML_EMCC_DEP)
 # can create a fresh WASM instance per analysis.  This avoids Asyncify which
 # is incompatible with OCaml's setjmp/longjmp-based exception mechanism.
 #
-# ocamlrun.data holds the bytecode, Mopsa's share directory (C/Python stubs)
+# ocamlrun.data holds Mopsa's share directory (C/Python stubs)
 # at /share/mopsa, clang's resource headers and the 32-bit Linux headers.
-wasm-web-artifacts: $(MOPSA_META) $(OCAML_EMCC_DEP) $(BUILD_DIR)/.linux32-headers-stamp | $(DIST_DIR)
-	$(call OCAML_EMCC_BUILD,$(DIST_DIR)/ocamlrun.js) --preload -- \
+wasm-web-artifacts: $(MOPSA_META) $(OCAML_EMCC_DEP) $(C_OF_OCAML_DEP) $(BUILD_DIR)/.linux32-headers-stamp | $(DIST_DIR)
+	$(call OCAML_EMCC_BUILD,$(DIST_DIR)/ocamlrun.js) -- \
 		-sENVIRONMENT=web -sMODULARIZE=1 -sEXPORT_NAME=createMopsaModule \
 		$(WASM_EMCC_FLAGS) \
 		--preload-file $(MOPSA_SHARE)@/share/mopsa \
