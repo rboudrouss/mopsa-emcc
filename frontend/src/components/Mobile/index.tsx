@@ -99,13 +99,7 @@ export function MobileLayout({
           }}
         />
         <SegmentTab
-          label={
-            engine === "interactive"
-              ? "REPL"
-              : engine === "dap"
-                ? "Debug"
-                : "Results"
-          }
+          label={engine === "interactive" ? "REPL" : "Results"}
           active={currentTab === "results"}
           badge={
             engine === "automatic" && warnCount > 0 ? warnCount : undefined
@@ -126,7 +120,7 @@ export function MobileLayout({
       </div>
 
       {/* Content: both panes stay mounted so Monaco state and live terminal
-          sessions (REPL / DAP) survive tab switches. */}
+          sessions (REPL) survive tab switches. */}
       <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
         <div
           style={{
@@ -173,7 +167,7 @@ interface SegmentTabProps {
   dirty?: boolean;
   // Amber pulsing dot: analysis in progress.
   pulse?: boolean;
-  // Amber tint: a live engine (REPL / DAP) owns this tab's surface.
+  // Amber tint: the live engine (REPL) owns this tab's surface.
   accent?: boolean;
   onClick: () => void;
 }

@@ -6,7 +6,6 @@ import { OutputTerminal } from "./OutputTerminal";
 import { StatTiles } from "./StatTiles";
 import { WarningsBox } from "./WarningsBox";
 import { InteractiveTerminal } from "./InteractiveTerminal";
-import { DebugPanel } from "@/components/Debug/DebugPanel";
 
 export function RightPanel({ isAnalyzing }: { isAnalyzing: boolean }) {
   const checks = useAppStore((s) => s.checks);
@@ -23,8 +22,8 @@ export function RightPanel({ isAnalyzing }: { isAnalyzing: boolean }) {
     (s) => (s.optionValues["-format"] as string) ?? "json",
   );
 
-  // Live engines replace the results view with their own surface.
-  if (engine === "interactive" || engine === "dap") {
+  // The live engine replaces the results view with its own surface.
+  if (engine === "interactive") {
     return (
       <div
         style={{
@@ -38,7 +37,7 @@ export function RightPanel({ isAnalyzing }: { isAnalyzing: boolean }) {
         }}
       >
         <BackendNoticeBanner />
-        {engine === "interactive" ? <InteractiveTerminal /> : <DebugPanel />}
+        <InteractiveTerminal />
       </div>
     );
   }

@@ -24,8 +24,8 @@ export function checkBackendSupport(): string | null {
 /**
  * Single entry point for the Run button. Dispatches on the selected engine:
  *   - automatic  → batch analysis (request/response)
- *   - interactive / dap → (re)start a live session; the terminal/debug
- *     component in the right panel watches `sessionNonce` and launches it.
+ *   - interactive → (re)start a live session; the terminal in the right
+ *     panel watches `sessionNonce` and launches it.
  *
  * Runs unsupported by the selected backend are intercepted here (and in the
  * session components, which can also be started by auto-run).

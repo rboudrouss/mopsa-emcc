@@ -5,12 +5,10 @@ import MonacoEditor, {
 import type * as MonacoNS from "monaco-editor";
 import { useRef, useState } from "react";
 import { useMonacoDecorations } from "@/lib/hooks/use-monaco-decorations";
-import { useDebugBreakpoints } from "@/lib/hooks/use-debug-breakpoints";
 import { useMopsaHover } from "@/lib/hooks/use-mopsa-hover";
 import { getCodeFilePath } from "@/lib/mopsa-client";
 import { findById } from "@/lib/tree";
 import { useAppStore } from "@/lib/store";
-import { useDebugStore } from "@/lib/store-debug";
 import { useIsMobile } from "@/lib/hooks/use-media-query";
 
 function getMonacoLanguage(ext: string): string {
@@ -84,22 +82,16 @@ export function CodeEditor({ resolvedTheme }: CodeEditorProps) {
   const engine = useAppStore(
     (s) => (s.optionValues["-engine"] as string) ?? "automatic",
   );
-  const dapMode = engine === "dap";
-  const debugAlarms = useDebugStore((s) => s.alarms);
 
   const activeName = activeFile ? findById(fileTree, activeFile)?.name : null;
   const ext = activeName?.split(".").pop() ?? "";
   const monacoLang = getMonacoLanguage(ext);
 
-  // Which alarms to mark up in the gutter/inline: the DAP engine's live alarms
-  // in dap mode, the batch checks in automatic, nothing for the interactive
-  // REPL. This also means switching engines drops the previous engine's
-  // (now-stale) decorations immediately.
-  const editorChecks =
-    engine === "dap" ? debugAlarms : engine === "interactive" ? [] : checks;
+  // Alarms are marked up from the batch checks only, nothing for the
+  // interactive REPL: switching engines drops the (now-stale) decorations.
+  const editorChecks = engine === "interactive" ? [] : checks;
 
   useMonacoDecorations(editorRef, editorChecks, codeFilePath, mountKey);
-  useDebugBreakpoints(editorRef, monacoRef, codeFilePath, dapMode, mountKey);
   useMopsaHover(monacoRef, mountKey);
 
   const handleBeforeMount: BeforeMount = (monaco) => {
@@ -137,7 +129,6 @@ export function CodeEditor({ resolvedTheme }: CodeEditorProps) {
         bracketPairColorization: { enabled: true },
         tabSize: 2,
         wordWrap: "off",
-        glyphMargin: dapMode,
       }}
     />
   );

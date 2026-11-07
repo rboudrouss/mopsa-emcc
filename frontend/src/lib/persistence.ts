@@ -187,7 +187,14 @@ export function loadAndRestoreState(): RestoredState | null {
       configXL: saved.configXL,
       customConfigs: saved.customConfigs,
       // Merge with current defaults so new options added after save still appear
-      optionValues: { ...DEFAULT_OPTION_VALUES, ...saved.optionValues },
+      optionValues: {
+        ...DEFAULT_OPTION_VALUES,
+        ...saved.optionValues,
+        // The DAP debugger mode was removed: fall back to the batch engine.
+        ...(saved.optionValues["-engine"] === "dap"
+          ? { "-engine": "automatic" }
+          : {}),
+      },
       pyEntryPoint: saved.pyEntryPoint,
       autoRun: saved.autoRun,
       activePanel: saved.activePanel,

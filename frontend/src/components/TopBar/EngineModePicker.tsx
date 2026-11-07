@@ -1,15 +1,14 @@
 import {
-  BugIcon,
   ScanSearchIcon,
   TerminalIcon,
   type LucideIcon,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 
-type Engine = "automatic" | "interactive" | "dap";
+type Engine = "automatic" | "interactive";
 
 // `-engine` is UI-only: it routes the whole right-hand interface between the
-// batch results panel, the interactive REPL, and the DAP debugger. It's stored
+// batch results panel and the interactive REPL. It's stored
 // like any other option (optionValues["-engine"]) but surfaced here as a
 // first-class mode switcher instead of a buried select in the options list.
 const MODES: {
@@ -29,12 +28,6 @@ const MODES: {
     label: "Interactive",
     Icon: TerminalIcon,
     title: "Drive a Mopsa REPL session",
-  },
-  {
-    value: "dap",
-    label: "Debug",
-    Icon: BugIcon,
-    title: "Step through the analysis with breakpoints (DAP)",
   },
 ];
 

@@ -29,12 +29,7 @@ export function MobileTopBar({
 }: MobileTopBarProps) {
   const autoRun = useAppStore((s) => s.autoRun);
   const toggleAutoRun = useAppStore((s) => s.toggleAutoRun);
-  const engine = useAppStore(
-    (s) => (s.optionValues["-engine"] as string) ?? "automatic",
-  );
 
-  const lockedOff = engine === "dap";
-  const autoRunActive = autoRun && !lockedOff;
 
   return (
     <>
@@ -64,33 +59,25 @@ export function MobileTopBar({
         <div style={{ flex: 1 }} />
 
         <button
-          onClick={lockedOff ? undefined : toggleAutoRun}
-          disabled={lockedOff}
-          title={
-            lockedOff
-              ? `Auto-run is unavailable in ${engine} mode`
-              : autoRun
-                ? "Disable auto-run"
-                : "Enable auto-run"
-          }
+          onClick={toggleAutoRun}
+          title={autoRun ? "Disable auto-run" : "Enable auto-run"}
           style={{
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             width: 32,
             height: 32,
-            background: autoRunActive
+            background: autoRun
               ? "color-mix(in srgb, #f5b544 15%, transparent)"
               : "none",
-            border: `1px solid ${autoRunActive ? "#f5b544" : "var(--border)"}`,
+            border: `1px solid ${autoRun ? "#f5b544" : "var(--border)"}`,
             borderRadius: 6,
-            cursor: lockedOff ? "not-allowed" : "pointer",
-            color: autoRunActive ? "#f5b544" : "var(--text-muted)",
-            opacity: lockedOff ? 0.4 : 1,
+            cursor: "pointer",
+            color: autoRun ? "#f5b544" : "var(--text-muted)",
             flexShrink: 0,
           }}
         >
-          {autoRunActive ? <ZapIcon size={14} /> : <ZapOffIcon size={14} />}
+          {autoRun ? <ZapIcon size={14} /> : <ZapOffIcon size={14} />}
         </button>
 
         <button

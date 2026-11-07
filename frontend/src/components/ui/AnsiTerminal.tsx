@@ -12,7 +12,6 @@ import "@xterm/xterm/css/xterm.css";
  * Shared xterm.js wrapper used for every ANSI surface in the app:
  *   - RawOutput          (read-only, batch analysis text)
  *   - InteractiveTerminal (read-write REPL — `-engine=interactive`)
- *   - DapConsole         (read-only DAP `output` events)
  *
  * Mopsa emits 256-color SGR sequences (\027[1;38;5;Nm); xterm renders the
  * full palette natively, which is why we render through it instead of the

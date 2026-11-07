@@ -385,7 +385,7 @@ export const OPTIONS_SCHEMA: { group: string; options: OptionSpec[] }[] = [
         hidden: true,
         label: "Engine",
         hint: "Selects analysis mode",
-        choices: ["automatic", "interactive", "dap"],
+        choices: ["automatic", "interactive"],
       },
       {
         flag: "-no-warning",

@@ -24,9 +24,6 @@ export function TopBar({
   const analysisTime = useAppStore((s) => s.analysisTime);
   const autoRun = useAppStore((s) => s.autoRun);
   const toggleAutoRun = useAppStore((s) => s.toggleAutoRun);
-  const engine = useAppStore(
-    (s) => (s.optionValues["-engine"] as string) ?? "automatic",
-  );
   const fileTree = useAppStore((s) => s.fileTree);
   const activeFile = useAppStore((s) => s.activeFile);
   const lang = useAppStore((s) => s.lang);
@@ -39,10 +36,7 @@ export function TopBar({
 
   // Auto-run governs the automatic (re)runs: re-running the batch analysis in
   // automatic mode, and auto-(re)starting the REPL in interactive mode (once on
-  // entry, then on every file switch). DAP runs one stepping session, so the
-  // toggle stays locked off there.
-  const lockedOff = engine === "dap";
-  const autoRunActive = autoRun && !lockedOff;
+  // entry, then on every file switch).
 
   const safe = checks.filter((c) => c.kind === "safe").length;
   const total = checks.length;
@@ -153,36 +147,28 @@ export function TopBar({
 
       <EntryPointPicker />
 
-      {/* Auto-run toggle (locked off for DAP only) */}
+      {/* Auto-run toggle */}
       <button
-        onClick={lockedOff ? undefined : toggleAutoRun}
-        disabled={lockedOff}
-        title={
-          lockedOff
-            ? `Auto-run is unavailable in ${engine} mode`
-            : autoRun
-              ? "Disable auto-run"
-              : "Enable auto-run"
-        }
+        onClick={toggleAutoRun}
+        title={autoRun ? "Disable auto-run" : "Enable auto-run"}
         style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           width: 32,
           height: 32,
-          background: autoRunActive
+          background: autoRun
             ? "color-mix(in srgb, #f5b544 15%, transparent)"
             : "none",
-          border: `1px solid ${autoRunActive ? "#f5b544" : "var(--border)"}`,
+          border: `1px solid ${autoRun ? "#f5b544" : "var(--border)"}`,
           borderRadius: 6,
-          cursor: lockedOff ? "not-allowed" : "pointer",
-          color: autoRunActive ? "#f5b544" : "var(--text-muted)",
-          opacity: lockedOff ? 0.4 : 1,
+          cursor: "pointer",
+          color: autoRun ? "#f5b544" : "var(--text-muted)",
           flexShrink: 0,
           transition: "all 150ms",
         }}
       >
-        {autoRunActive ? <ZapIcon size={14} /> : <ZapOffIcon size={14} />}
+        {autoRun ? <ZapIcon size={14} /> : <ZapOffIcon size={14} />}
       </button>
 
       {/* Run button */}

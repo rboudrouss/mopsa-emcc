@@ -12,7 +12,6 @@ import {
 } from "./mopsa-client";
 import { DEFAULT_OPTION_VALUES } from "./options-schema";
 import { getBackendSetting, isFlagLockedByBackend, setBackendSetting, type BackendSetting } from "./backend";
-import { useDebugStore } from "./store-debug";
 import { loadAndRestoreState, saveState } from "./persistence";
 import { getLanguageFromFileExtension } from "./index";
 import {
@@ -219,7 +218,7 @@ interface AppStore {
 
   // ── Interactive / DAP session (runtime only, not persisted) ──────────────
   // Bumped each time the user asks to (re)start a session for the current
-  // engine; the terminal/debug component watches it to launch the run.
+  // engine; the terminal component watches it to launch the run.
   sessionNonce: number;
 
   // ── Actions ──────────────────────────────────────────────────────────────
@@ -334,8 +333,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   // ── Code / config ──────────────────────────────────────────────────────
   setCode: (code) => {
     mopsaJs.setCode(code.endsWith("\n") ? code : code + "\n");
-    // A code edit invalidates the current results / alarms (batch + DAP).
-    useDebugStore.getState().clearAlarms();
+    // A code edit invalidates the current results / alarms.
     set({ code, ...CLEARED_ANALYSIS });
   },
 
@@ -351,8 +349,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
     } = state;
     // If the content hasn't meaningfully changed, ignore (handles Monaco's programmatic echo).
     if (dirty && text.trim() === currentText.trim()) return;
-    // A real config edit invalidates current DAP alarms (batch is cleared below).
-    if (dirty) useDebugStore.getState().clearAlarms();
     const isXL =
       getActiveAnalysisMode({
         fileTree: state.fileTree,
@@ -393,7 +389,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const text = customConfigs[key];
     if (!text) return;
     mopsaJs.setConfig(text);
-    useDebugStore.getState().clearAlarms();
     const saved: SavedConfig = { preset: "custom", text, dirty: true };
     const isXL =
       getActiveAnalysisMode({
@@ -424,7 +419,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const state = get();
     const { lang, configByLang } = state;
     mopsaJs.setConfig(text);
-    useDebugStore.getState().clearAlarms();
     const saved: SavedConfig = { preset: name, text, dirty: false };
     const isXL =
       getActiveAnalysisMode({
@@ -549,7 +543,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
       return;
     }
     if (isFlagLockedByBackend(flag)) return;
-    useDebugStore.getState().clearAlarms();
     set((s) => ({
       optionValues: { ...s.optionValues, [flag]: value },
       ...CLEARED_ANALYSIS,
@@ -563,7 +556,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
       return;
     }
     if (isFlagLockedByBackend(flag)) return;
-    useDebugStore.getState().clearAlarms();
     set((s) => ({
       optionValues: { ...s.optionValues, [flag]: DEFAULT_OPTION_VALUES[flag] },
       ...CLEARED_ANALYSIS,
