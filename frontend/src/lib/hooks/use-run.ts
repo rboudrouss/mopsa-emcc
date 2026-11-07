@@ -21,27 +21,14 @@ export function checkBackendSupport(): string | null {
   return reason;
 }
 
-/**
- * Single entry point for the Run button. Dispatches on the selected engine:
- *   - automatic  → batch analysis (request/response)
- *   - interactive → (re)start a live session; the terminal in the right
- *     panel watches `sessionNonce` and launches it.
- *
- * Runs unsupported by the selected backend are intercepted here (and in the
- * session components, which can also be started by auto-run).
- */
+/** Single entry point for the Run button: the batch analysis, unless the
+ *  selected backend can't run it. */
 export function useRun() {
   const { run: runBatch, isAnalyzing } = useAnalysis();
-  const requestSessionStart = useAppStore((s) => s.requestSessionStart);
 
   const run = () => {
     if (checkBackendSupport()) return;
-
-    const engine =
-      (useAppStore.getState().optionValues["-engine"] as string) ??
-      "automatic";
-    if (engine === "automatic") runBatch();
-    else requestSessionStart();
+    runBatch();
   };
 
   return { run, isAnalyzing };

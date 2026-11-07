@@ -368,24 +368,19 @@ export const OPTIONS_SCHEMA: { group: string; options: OptionSpec[] }[] = [
     group: "Debugging",
     options: [
       {
+        // UI-only: the flame graph panel of the results, a debug tool.
+        flag: "__profiler",
+        type: "bool",
+        default: false,
+        label: "Profiler panel",
+        hint: "Show a flame graph of where the analysis spends its time, in the results",
+      },
+      {
         flag: "-debug",
         type: "text",
         default: "",
         label: "Debug channels",
         hint: "Active debug channels (syntax: c1,c2,...,cn; _ as wildcard)",
-      },
-      {
-        flag: "-engine",
-        type: "select",
-        default: "automatic",
-        mopsaDefault: "automatic",
-        // Promoted to a first-class mode switcher in the TopBar
-        // (EngineModePicker) — it reshapes the whole interface, so it doesn't
-        // belong in the generic options list.
-        hidden: true,
-        label: "Engine",
-        hint: "Selects analysis mode",
-        choices: ["automatic", "interactive"],
       },
       {
         flag: "-no-warning",

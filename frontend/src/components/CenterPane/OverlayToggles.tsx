@@ -1,5 +1,4 @@
 import { useEditorNav, type InlineValuesMode } from "@/lib/editor-nav";
-import { useAppStore } from "@/lib/store";
 
 const NEXT: Record<InlineValuesMode, InlineValuesMode> = {
   off: "cursor",
@@ -21,10 +20,6 @@ export function OverlayToggles() {
   const showSafe = useEditorNav((s) => s.showSafe);
   const setShowSafe = useEditorNav((s) => s.setShowSafe);
   const setInlineValues = useEditorNav((s) => s.setInlineValues);
-  const engine = useAppStore(
-    (s) => (s.optionValues["-engine"] as string) ?? "automatic",
-  );
-  if (engine === "interactive") return null;
 
   return (
     <div style={{ display: "flex", gap: 4, padding: "0 8px" }}>

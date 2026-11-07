@@ -81,32 +81,26 @@ export function CodeEditor({ resolvedTheme }: CodeEditorProps) {
   const monacoRef = useRef<typeof MonacoNS | null>(null);
   const [mountKey, setMountKey] = useState(0);
   const codeFilePath = getCodeFilePath();
-  const engine = useAppStore(
-    (s) => (s.optionValues["-engine"] as string) ?? "automatic",
-  );
 
   const activeName = activeFile ? findById(fileTree, activeFile)?.name : null;
   const ext = activeName?.split(".").pop() ?? "";
   const monacoLang = getMonacoLanguage(ext);
 
-  // Alarms are marked up from the batch checks only, nothing for the
-  // interactive REPL: switching engines drops the (now-stale) decorations.
-  const editorChecks = engine === "interactive" ? [] : checks;
 
   const assumptions = useAppStore((s) => s.assumptions);
   const showSafe = useEditorNav((s) => s.showSafe);
   const panic = useAppStore((s) => s.panic);
   useMonacoDecorations(
     editorRef,
-    editorChecks,
+    checks,
     codeFilePath,
     mountKey,
-    engine === "interactive" ? [] : assumptions,
-    engine === "interactive" ? null : panic,
-    showSafe && engine !== "interactive",
+    assumptions,
+    panic,
+    showSafe,
   );
   useMopsaHover(monacoRef, mountKey);
-  useEnvdbOverlays(editorRef, codeFilePath, engine !== "interactive", mountKey);
+  useEnvdbOverlays(editorRef, codeFilePath, true, mountKey);
 
   // Reveal requests from the panels (States, call stacks). Applied once the
   // editor shows the requested line: after a file switch the new content
@@ -169,7 +163,7 @@ export function CodeEditor({ resolvedTheme }: CodeEditorProps) {
         bracketPairColorization: { enabled: true },
         tabSize: 2,
         wordWrap: "off",
-        glyphMargin: showSafe && engine !== "interactive",
+        glyphMargin: showSafe,
       }}
     />
   );

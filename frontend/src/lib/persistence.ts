@@ -187,14 +187,13 @@ export function loadAndRestoreState(): RestoredState | null {
       configXL: saved.configXL,
       customConfigs: saved.customConfigs,
       // Merge with current defaults so new options added after save still appear
-      optionValues: {
-        ...DEFAULT_OPTION_VALUES,
-        ...saved.optionValues,
-        // The DAP debugger mode was removed: fall back to the batch engine.
-        ...(saved.optionValues["-engine"] === "dap"
-          ? { "-engine": "automatic" }
-          : {}),
-      },
+      // "-engine" is dropped: the engine choice was removed (the batch
+      // analysis always runs; the REPL lives in the results).
+      optionValues: Object.fromEntries(
+        Object.entries({ ...DEFAULT_OPTION_VALUES, ...saved.optionValues }).filter(
+          ([flag]) => flag !== "-engine",
+        ),
+      ),
       pyEntryPoint: saved.pyEntryPoint,
       autoRun: saved.autoRun,
       activePanel: saved.activePanel,

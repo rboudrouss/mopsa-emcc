@@ -31,10 +31,6 @@ export default function App() {
   const applyPreset = useAppStore((s) => s.applyPreset);
   const setPresets = useAppStore((s) => s.setPresets);
   const autoRun = useAppStore((s) => s.autoRun);
-  const engine = useAppStore(
-    (s) => (s.optionValues["-engine"] as string) ?? "automatic",
-  );
-  const requestSessionStart = useAppStore((s) => s.requestSessionStart);
 
   // Initialise config from presets once they load
   useEffect(() => {
@@ -63,12 +59,11 @@ export default function App() {
   const prevRunSig = useRef<string | null>(null);
   const prevActiveFile = useRef<string | null>(activeFile);
 
-  // Auto-run on code/config/option changes (batch engine only). A bare file
+  // Auto-run on code/config/option changes. A bare file
   // switch re-runs only if the run signature changed; switching within a
   // C/C+Py workspace, or Python with a fixed entry point, leaves it identical.
   useEffect(() => {
-    const engine = (optionValues["-engine"] as string) ?? "automatic";
-    if (!autoRun || engine !== "automatic") {
+    if (!autoRun) {
       // Keep the baseline fresh so re-enabling doesn't misfire on a past switch.
       prevActiveFile.current = activeFile;
       prevRunSig.current = computeRunSignature();
@@ -85,30 +80,6 @@ export default function App() {
     if (shouldRun) debouncedRun();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoRun, code, configText, JSON.stringify(optionValues), activeFile]);
-
-  const prevEngine = useRef(engine);
-  const prevSessionFile = useRef(activeFile);
-  const prevSessionSig = useRef<string | null>(null);
-
-  // Interactive engine: when auto-run is on, auto-(re)start the live REPL —
-  // once on switching into interactive mode, then again on a file switch (the
-  // terminal kills the previous session before launching the new one). A bare
-  // file switch only restarts when the run signature actually changes (a
-  // different workspace); hopping between files in the same workspace leaves
-  // the analysis identical, so the running session is left alone.
-  // Disabling auto-run, or using DAP, leaves session control on the Run button.
-  useEffect(() => {
-    const wasInteractive = prevEngine.current === "interactive";
-    const fileSwitched = activeFile !== prevSessionFile.current;
-    const sig = computeRunSignature();
-    const sigChanged = sig !== prevSessionSig.current;
-    prevEngine.current = engine;
-    prevSessionFile.current = activeFile;
-    prevSessionSig.current = sig;
-
-    if (!autoRun || engine !== "interactive") return;
-    if (!wasInteractive || (fileSwitched && sigChanged)) requestSessionStart();
-  }, [autoRun, engine, activeFile, requestSessionStart]);
 
   if (isMobile) {
     return (

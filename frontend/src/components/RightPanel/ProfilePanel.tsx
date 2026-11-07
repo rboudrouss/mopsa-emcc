@@ -26,7 +26,7 @@ function node(name: string): FlameNode {
   return { name, self: 0, total: 0, children: new Map() };
 }
 
-export function parseFolded(text: string): FlameNode {
+function parseFolded(text: string): FlameNode {
   const root = node("all");
   for (const line of text.split("\n")) {
     const m = /^(.*) (\d+)$/.exec(line.trim());

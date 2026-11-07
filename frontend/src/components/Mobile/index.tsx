@@ -35,9 +35,6 @@ export function MobileLayout({
   const configDirty = useAppStore((s) => s.configDirty);
   const checks = useAppStore((s) => s.checks);
   const activeFile = useAppStore((s) => s.activeFile);
-  const engine = useAppStore(
-    (s) => (s.optionValues["-engine"] as string) ?? "automatic",
-  );
 
   // "Results" is a mobile-only third tab layered over the store's
   // source/config pair; the desktop layout shows results side-by-side.
@@ -99,13 +96,10 @@ export function MobileLayout({
           }}
         />
         <SegmentTab
-          label={engine === "interactive" ? "REPL" : "Results"}
+          label="Results"
           active={currentTab === "results"}
-          badge={
-            engine === "automatic" && warnCount > 0 ? warnCount : undefined
-          }
+          badge={warnCount > 0 ? warnCount : undefined}
           pulse={isAnalyzing}
-          accent={engine !== "automatic"}
           onClick={() => setShowResults(true)}
         />
         <SegmentTab
@@ -167,8 +161,6 @@ interface SegmentTabProps {
   dirty?: boolean;
   // Amber pulsing dot: analysis in progress.
   pulse?: boolean;
-  // Amber tint: the live engine (REPL) owns this tab's surface.
-  accent?: boolean;
   onClick: () => void;
 }
 
@@ -178,7 +170,6 @@ function SegmentTab({
   badge,
   dirty,
   pulse,
-  accent,
   onClick,
 }: SegmentTabProps) {
   return (
@@ -191,21 +182,9 @@ function SegmentTab({
         justifyContent: "center",
         gap: 5,
         height: 32,
-        background: active
-          ? "var(--bg-elevated)"
-          : accent
-            ? "color-mix(in srgb, #f5b544 8%, transparent)"
-            : "transparent",
-        color: accent
-          ? "#f5b544"
-          : active
-            ? "var(--text-primary)"
-            : "var(--text-muted)",
-        border: `1px solid ${
-          accent
-            ? "color-mix(in srgb, #f5b544 45%, transparent)"
-            : "transparent"
-        }`,
+        background: active ? "var(--bg-elevated)" : "transparent",
+        color: active ? "var(--text-primary)" : "var(--text-muted)",
+        border: "1px solid transparent",
         borderRadius: 6,
         cursor: "pointer",
         fontSize: 12,
