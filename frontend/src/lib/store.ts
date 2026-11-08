@@ -62,7 +62,7 @@ function buildInitialTree(): FileTreeNode[] {
       isWorkspace: true,
       children: [
         { id: genId(), name: "main.c" },
-        { id: genId(), name: "utils.c" },
+        { id: genId(), name: "stack.c" },
       ],
     },
     {
@@ -268,7 +268,7 @@ interface AppStore {
 setCodeFilePath("/c-single/example.c");
 mopsaJs.setCode(DEFAULT_CODE.c);
 mopsaJs.writeFile("/c-multifile/main.c", MULTIFILE_C["main.c"]);
-mopsaJs.writeFile("/c-multifile/utils.c", MULTIFILE_C["utils.c"]);
+mopsaJs.writeFile("/c-multifile/stack.c", MULTIFILE_C["stack.c"]);
 mopsaJs.writeFile("/python/example.py", DEFAULT_CODE.python);
 mopsaJs.writeFile("/c-python/main.py", MULTILANG_CPYTHON["main.py"]);
 mopsaJs.writeFile("/c-python/mymod.c", MULTILANG_CPYTHON["mymod.c"]);
