@@ -30,7 +30,7 @@ The opam switch and the opam packages below are created / installed by the Makef
    - `make mopsa-install` (run by the WASM targets the first time) pins and installs `mopsa` there, natively, with `OPAMKEEPBUILDDIR=true`: ocaml-emcc rebuilds its C stubs from the build directory opam keeps. Its C parser needs a **host clang and LLVM** (`clang libclang-dev libclang-cpp-dev llvm-dev` on Debian/Ubuntu), of any version Mopsa supports.
    - For the jsoo backend, the same switch also needs `js_of_ocaml` (≥ 6.0), `js_of_ocaml-ppx`, `zarith_stubs_js` and VPL, a pure-OCaml relational domain, pinned to `https://github.com/rmonat/VPL.git` (`make jsoo-deps`)
 - **[ocaml-emcc](https://github.com/rboudrouss/ocaml-emcc)**: pinned in the switch (`make ocaml-emcc-install`) unless one is in `PATH` or given with `make OCAML_EMCC=/path/to/ocaml-emcc ...`. Its clang recipe needs `cmake` (+ `ninja` preferably)
-- **[c_of_ocaml](https://github.com/rboudrouss/C_of_ocaml)**, which ocaml-emcc runs to compile the bytecode to C: pinned in the switch by `make ocaml-emcc-install` too, unless one is in `PATH` or given with `OCAML_EMCC_C_OF_OCAML=/path/to/c_of_ocaml.exe`
+- **[c_of_ocaml](https://github.com/rboudrouss/C_of_ocaml)**, which ocaml-emcc runs to compile the bytecode to C: `make ocaml-emcc-install` builds it with dune from a clone in `build/` and copies it to the switch's `bin` (it has no opam package), unless one is in `PATH` or given with `OCAML_EMCC_C_OF_OCAML=/path/to/c_of_ocaml.exe`
 - **Emscripten SDK**, with `emcc` in `PATH` (`source emsdk_env.sh`)
 - **Docker**: to extract the 32-bit Linux / CPython headers preloaded in the web build (a small i386 Debian image, built by `make docker-image`)
 - **Node.js & npm**: for the React frontend

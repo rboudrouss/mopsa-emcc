@@ -92,8 +92,8 @@ ifeq ($(OCAML_EMCC)$(shell command -v ocaml-emcc),ocaml-emcc)
 OCAML_EMCC_DEP := $(SWITCH_PREFIX)/bin/ocaml-emcc
 endif
 
-# c_of_ocaml, which ocaml-emcc runs to compile the bytecode to C: pinned in the
-# switch unless one is in PATH or given by OCAML_EMCC_C_OF_OCAML
+# c_of_ocaml, which ocaml-emcc runs to compile the bytecode to C: built into
+# the switch unless one is in PATH or given by OCAML_EMCC_C_OF_OCAML
 ifeq ($(OCAML_EMCC_C_OF_OCAML)$(shell command -v c_of_ocaml),)
 C_OF_OCAML_DEP := $(SWITCH_PREFIX)/bin/c_of_ocaml
 endif
@@ -103,13 +103,34 @@ ocaml-emcc-install: $(OCAML_EMCC_DEP) $(C_OF_OCAML_DEP)
 $(SWITCH_PREFIX)/bin/ocaml-emcc: | $(SWITCH_CONFIG)
 	opam pin add --switch=$(SWITCH) -y ocaml-emcc "git+$(OCAML_EMCC_REPO)"
 
-$(SWITCH_PREFIX)/bin/c_of_ocaml: | $(SWITCH_CONFIG)
-	opam pin add --switch=$(SWITCH) -y c_of_ocaml "git+$(C_OF_OCAML_REPO)"
+# c_of_ocaml has no opam package: built with dune from a clone, against the
+# dependencies of its js_of_ocaml-compiler.opam installed in the switch, then
+# copied to the switch's bin, where ocaml-emcc finds it
+C_OF_OCAML_SRC := $(BUILD_DIR)/C_of_ocaml
 
-# Rebuild the pinned ocaml-emcc and c_of_ocaml from their latest commits
+$(SWITCH_PREFIX)/bin/c_of_ocaml: | $(SWITCH_CONFIG)
+	rm -rf $(C_OF_OCAML_SRC)
+	git clone --depth 1 $(C_OF_OCAML_REPO) $(C_OF_OCAML_SRC)
+	cd $(C_OF_OCAML_SRC)
+	# opam ignores the pin-depends of an opam file installed with --deps-only
+	sed -n 's/^ *\["\([^"]*\)" "\([^"]*\)"\].*/\1 \2/p' js_of_ocaml-compiler.opam | sort -u |
+	while read -r pkg url; do
+		opam pin add --switch=$(SWITCH) -y --no-action "$$pkg" "$$url"
+	done
+	opam install --switch=$(SWITCH) -y --deps-only ./js_of_ocaml-compiler.opam
+	$(OPAM_EXEC) dune build --root . --profile release compiler/bin-c_of_ocaml/c_of_ocaml.exe
+	install -m 755 _build/default/compiler/bin-c_of_ocaml/c_of_ocaml.exe $@
+
+# Rebuild ocaml-emcc and c_of_ocaml from their latest commits (and drop the
+# c_of_ocaml opam pin of older switches)
 ocaml-emcc-update:
-	opam update --switch=$(SWITCH) ocaml-emcc c_of_ocaml
-	opam upgrade --switch=$(SWITCH) -y ocaml-emcc c_of_ocaml
+	opam update --switch=$(SWITCH) ocaml-emcc
+	opam upgrade --switch=$(SWITCH) -y ocaml-emcc
+	if opam pin list --switch=$(SWITCH) --short | grep -qx c_of_ocaml; then
+		opam pin remove --switch=$(SWITCH) -y c_of_ocaml
+	fi
+	rm -f $(SWITCH_PREFIX)/bin/c_of_ocaml
+	$(MAKE) $(SWITCH_PREFIX)/bin/c_of_ocaml
 
 # ── WASM backend (ocaml-emcc) ────────────────────────────────────────────────
 # ocaml-emcc builds the wasm OCaml runtime, the C libraries (gmp, mpfr, apron,
