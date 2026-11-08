@@ -17,8 +17,9 @@ import { useAppStore } from "../store";
  *   - inline values: after the code of a line, the abstract values of its
  *     variables once it has run, and of the next line's variables before
  *     that one runs when its statement changes them (cursor line only, or
- *     every line); or, on every line, only the state before it or only the
- *     state after it.
+ *     every line); or, on every line, only the state before it, only the
+ *     state after it, or the relations between variables it brings (with a
+ *     relational domain).
  */
 
 const MAX_INLINE = 70;
@@ -176,6 +177,88 @@ function lineText(cs: string, cur: LineStates, next: LineStates | undefined): st
   return mergedInlineText(own, ahead);
 }
 
+// ── Relations ────────────────────────────────────────────────────────────
+
+const DECORATIONS = new RegExp(DECORATION.source.slice(0, -1), "g");
+const IDENT = /[A-Za-z_$][\w$.]*(\[[^\]]*\])*/g;
+
+/**
+ * The constraints of the relational domain in a whole-state print object:
+ * under "numeric-relations", or "numeric-relations(<pack>)" with packing,
+ * a set of strings ("j + i = n + 1"), or {domain, relations} with
+ * -show-relational-domain.
+ */
+export function relationsOf(env: unknown): Set<string> {
+  const out = new Set<string>();
+  const visit = (key: string, v: unknown) => {
+    if (key.startsWith("numeric-relations")) {
+      const rel =
+        v && typeof v === "object" && !Array.isArray(v) && "relations" in v
+          ? (v as { relations: unknown }).relations
+          : v;
+      if (Array.isArray(rel))
+        for (const c of rel) if (typeof c === "string") out.add(c.replace(DECORATIONS, ""));
+      return;
+    }
+    if (v && typeof v === "object")
+      for (const [k, sub] of Object.entries(v as Record<string, unknown>)) visit(k, sub);
+  };
+  visit("", env);
+  return out;
+}
+
+/** A relation between program variables: two variables at least (one is
+ *  only a bound, the intervals show it), none internal to Mopsa (heap
+ *  addresses, return values "ret(f)"). */
+function isRelation(c: string): boolean {
+  if (/[@(]/.test(c)) return false;
+  return new Set(c.match(IDENT)).size >= 2;
+}
+
+/** Relations per call stack, null when bottom. */
+function relationsByContext(
+  res: EnvQueryResult<EnvironmentsBody> | undefined,
+): Map<string, Set<string> | null> {
+  const out = new Map<string, Set<string> | null>();
+  if (!res || res.kind !== "ok") return out;
+  for (const c of res.body.contexts)
+    out.set(JSON.stringify(c.callstack), c.bottom ? null : relationsOf(c.env));
+  return out;
+}
+
+/**
+ * Per line, the relations that appear once it has run: in the state after
+ * it and not in the state entering it. A statement spanning the next lines
+ * (a loop, a conditional) has no state after: the state entering its body,
+ * on the next line, stands for it.
+ */
+async function newRelations(file: string, lines: number[]): Promise<Map<number, string[]>> {
+  const states = (when: "entry" | "post", ls: number[]) =>
+    Promise.all(ls.map((l) => envEngine.getEnvironments(file, l, "state", when)));
+  const [posts, entries] = await Promise.all([states("post", lines), states("entry", lines)]);
+  const spanning = lines.filter((_, i) => posts[i].kind === "ok" && contextsOf(posts[i]) === 0);
+  const bodies = await states("entry", spanning.map((l) => l + 1));
+  const bodyOf = new Map(spanning.map((l, i) => [l, bodies[i]]));
+  const out = new Map<number, string[]>();
+  lines.forEach((line, i) => {
+    const before = relationsByContext(entries[i]);
+    const after = relationsByContext(bodyOf.get(line) ?? posts[i]);
+    const found = new Set<string>();
+    for (const [cs, rels] of after) {
+      const prev = before.get(cs);
+      if (!rels || prev === undefined) continue;
+      for (const c of rels) if (isRelation(c) && !prev?.has(c)) found.add(c);
+    }
+    const text = [...found].join(", ");
+    if (text) out.set(line, [text.length > MAX_INLINE ? text.slice(0, MAX_INLINE - 1) + "…" : text]);
+  });
+  return out;
+}
+
+function contextsOf(res: EnvQueryResult<EnvironmentsBody>): number {
+  return res.kind === "ok" ? res.body.contexts.length : 0;
+}
+
 export function useEnvdbOverlays(
   editorRef: React.RefObject<Monaco.editor.IStandaloneCodeEditor | null>,
   codeFilePath: string,
@@ -259,9 +342,35 @@ export function useEnvdbOverlays(
       return;
     }
     let cancelled = false;
+    // One text per call stack: the first one, and how many others differ.
+    const decorate = (perLine: [number, string[]][]) => {
+      const model = editor.getModel();
+      if (!model) return;
+      const decos: Monaco.editor.IModelDeltaDecoration[] = [];
+      for (const [line, perContext] of perLine) {
+        const texts = [...new Set(perContext.filter(Boolean))];
+        if (texts.length === 0) continue;
+        const text =
+          texts[0] +
+          (texts.length > 1
+            ? `  (+${texts.length - 1} other context${texts.length > 2 ? "s" : ""})`
+            : "");
+        const end = model.getLineMaxColumn(line);
+        decos.push({
+          range: { startLineNumber: line, startColumn: end, endLineNumber: line, endColumn: end },
+          options: {
+            showIfCollapsed: true,
+            after: { content: "  " + text, inlineClassName: "mopsa-inline-value" },
+          },
+        });
+      }
+      valuesRef.current?.clear();
+      valuesRef.current = editor.createDecorationsCollection(decos);
+    };
     void (async () => {
       // "all": line L shows the state after L and what L + 1 changes
-      // (see lineText); "before" / "after": line L shows its own state only.
+      // (see lineText); "before" / "after": line L shows its own state only;
+      // "relations": the relations L brings (see newRelations).
       const mode = inlineValues;
       let lines: number[];
       if (mode === "cursor") lines = cursorKey ? [cursorKey] : [];
@@ -277,6 +386,12 @@ export function useEnvdbOverlays(
       const model = editor.getModel();
       if (cancelled || !model) return;
       lines = lines.filter((l) => l <= model.getLineCount());
+      if (mode === "relations") {
+        const rels = await newRelations(codeFilePath, lines);
+        if (cancelled) return;
+        decorate([...rels]);
+        return;
+      }
       const merged = mode === "all" || mode === "cursor";
       const queried = merged
         ? [...new Set(lines.flatMap((l) => [l, l + 1]))].filter((l) => l <= model.getLineCount())
@@ -297,33 +412,19 @@ export function useEnvdbOverlays(
           entry: partsByContext(seconds[i], python, source),
         });
       });
-      const decos: Monaco.editor.IModelDeltaDecoration[] = [];
-      lines.forEach((line) => {
+      const perLine: [number, string[]][] = lines.map((line) => {
         const cur = states.get(line)!;
         const next = states.get(line + 1);
-        const perContext = merged
-          ? [...new Set([...cur.post.keys(), ...cur.entry.keys(), ...(next?.entry.keys() ?? [])])].map(
-              (cs) => lineText(cs, cur, next),
-            )
-          : [...cur.post.values()].map((parts) => mergedInlineText(parts ?? [], []));
-        const texts = [...new Set(perContext.filter(Boolean))];
-        if (texts.length === 0) return;
-        const text =
-          texts[0] +
-          (texts.length > 1
-            ? `  (+${texts.length - 1} other context${texts.length > 2 ? "s" : ""})`
-            : "");
-        const end = model.getLineMaxColumn(line);
-        decos.push({
-          range: { startLineNumber: line, startColumn: end, endLineNumber: line, endColumn: end },
-          options: {
-            showIfCollapsed: true,
-            after: { content: "  " + text, inlineClassName: "mopsa-inline-value" },
-          },
-        });
+        return [
+          line,
+          merged
+            ? [...new Set([...cur.post.keys(), ...cur.entry.keys(), ...(next?.entry.keys() ?? [])])].map(
+                (cs) => lineText(cs, cur, next),
+              )
+            : [...cur.post.values()].map((parts) => mergedInlineText(parts ?? [], [])),
+        ];
       });
-      valuesRef.current?.clear();
-      valuesRef.current = editor.createDecorationsCollection(decos);
+      decorate(perLine);
     })();
     return () => {
       cancelled = true;

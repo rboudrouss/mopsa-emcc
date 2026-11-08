@@ -1,4 +1,5 @@
 import { useEditorNav, type InlineValuesMode } from "@/lib/editor-nav";
+import { useAppStore } from "@/lib/store";
 
 const VALUES: { mode: InlineValuesMode; label: string }[] = [
   { mode: "off", label: "Values: off" },
@@ -6,6 +7,7 @@ const VALUES: { mode: InlineValuesMode; label: string }[] = [
   { mode: "all", label: "Values: all lines" },
   { mode: "before", label: "Values: only before" },
   { mode: "after", label: "Values: only after" },
+  { mode: "relations", label: "Values: relations" },
 ];
 
 /** Tab-bar switches of the editor overlays fed by the analysis states. */
@@ -16,6 +18,8 @@ export function OverlayToggles() {
   const showSafe = useEditorNav((s) => s.showSafe);
   const setShowSafe = useEditorNav((s) => s.setShowSafe);
   const setInlineValues = useEditorNav((s) => s.setInlineValues);
+  // Relations need a relational numeric domain in the config.
+  const relational = useAppStore((s) => s.configText.includes("numeric.relational"));
 
   return (
     <div style={{ display: "flex", gap: 4, padding: "0 8px" }}>
@@ -39,13 +43,14 @@ export function OverlayToggles() {
         title={
           "Abstract values at the end of the lines: on the cursor line or every line, " +
           "the state after each line and what the next one changes; or only the " +
-          "state before, or only the state after, each line"
+          "state before, or only the state after, each line; or the relations " +
+          "between variables each line brings (with a relational config)"
         }
         style={{ ...toggleStyle(inlineValues !== "off"), padding: "2px 4px", fontFamily: "inherit" }}
       >
         {VALUES.map(({ mode, label }) => (
-          <option key={mode} value={mode}>
-            {label}
+          <option key={mode} value={mode} disabled={mode === "relations" && !relational}>
+            {mode === "relations" && !relational ? label + " (needs a relational config)" : label}
           </option>
         ))}
       </select>
