@@ -1,25 +1,33 @@
-import { useEditorNav, type InlineValuesMode } from "@/lib/editor-nav";
+import { useEditorNav, type InlineKind, type InlineValuesMode } from "@/lib/editor-nav";
 import { useAppStore } from "@/lib/store";
 
-const VALUES: { mode: InlineValuesMode; label: string }[] = [
-  { mode: "off", label: "Values: off" },
-  { mode: "cursor", label: "Values: cursor line" },
-  { mode: "all", label: "Values: all lines" },
-  { mode: "before", label: "Values: only before" },
-  { mode: "after", label: "Values: only after" },
-  { mode: "relations", label: "Values: relations" },
+const WHERE: { value: InlineValuesMode; label: string }[] = [
+  { value: "off", label: "Inline: off" },
+  { value: "cursor", label: "Inline: cursor line" },
+  { value: "all", label: "Inline: all lines" },
+  { value: "before", label: "Inline: before each line" },
+  { value: "after", label: "Inline: after each line" },
+];
+
+const KIND: { value: InlineKind; label: string }[] = [
+  { value: "values", label: "Show: values" },
+  { value: "relations", label: "Show: relations" },
+  { value: "both", label: "Show: values + relations" },
 ];
 
 /** Tab-bar switches of the editor overlays fed by the analysis states. */
 export function OverlayToggles() {
   const showCoverage = useEditorNav((s) => s.showCoverage);
   const setShowCoverage = useEditorNav((s) => s.setShowCoverage);
-  const inlineValues = useEditorNav((s) => s.inlineValues);
   const showSafe = useEditorNav((s) => s.showSafe);
   const setShowSafe = useEditorNav((s) => s.setShowSafe);
+  const inlineValues = useEditorNav((s) => s.inlineValues);
   const setInlineValues = useEditorNav((s) => s.setInlineValues);
+  const inlineKind = useEditorNav((s) => s.inlineKind);
+  const setInlineKind = useEditorNav((s) => s.setInlineKind);
   // Relations need a relational numeric domain in the config.
   const relational = useAppStore((s) => s.configText.includes("numeric.relational"));
+  const on = inlineValues !== "off";
 
   return (
     <div style={{ display: "flex", gap: 4, padding: "0 8px" }}>
@@ -37,24 +45,65 @@ export function OverlayToggles() {
       >
         Safe checks
       </Toggle>
-      <select
+      <Select
+        on={on}
         value={inlineValues}
-        onChange={(e) => setInlineValues(e.target.value as InlineValuesMode)}
+        options={WHERE}
+        onChange={setInlineValues}
         title={
-          "Abstract values at the end of the lines: on the cursor line or every line, " +
-          "the state after each line and what the next one changes; or only the " +
-          "state before, or only the state after, each line; or the relations " +
-          "between variables each line brings (with a relational config)"
+          "Abstract states at the end of the lines. Cursor line, all lines: the state " +
+          "after each line and what the next one changes. Before / after each line: " +
+          "the state at that point only."
         }
-        style={{ ...toggleStyle(inlineValues !== "off"), padding: "2px 4px", fontFamily: "inherit" }}
-      >
-        {VALUES.map(({ mode, label }) => (
-          <option key={mode} value={mode} disabled={mode === "relations" && !relational}>
-            {mode === "relations" && !relational ? label + " (needs a relational config)" : label}
-          </option>
-        ))}
-      </select>
+      />
+      {on && (
+        <Select
+          on
+          value={inlineKind}
+          options={KIND}
+          onChange={setInlineKind}
+          disabled={(k) => k !== "values" && !relational}
+          title={
+            relational
+              ? "The values of the variables, the relations between them (new ones on " +
+                "the cursor line or all lines), or both"
+              : "The values of the variables (relations need a relational config)"
+          }
+        />
+      )}
     </div>
+  );
+}
+
+function Select<T extends string>({
+  on,
+  value,
+  options,
+  onChange,
+  disabled = () => false,
+  title,
+}: {
+  on: boolean;
+  value: T;
+  options: { value: T; label: string }[];
+  onChange: (v: T) => void;
+  disabled?: (v: T) => boolean;
+  title: string;
+}) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value as T)}
+      title={title}
+      style={{ ...toggleStyle(on), padding: "2px 4px", fontFamily: "inherit" }}
+    >
+      {options.map((o) => (
+        <option key={o.value} value={o.value} disabled={disabled(o.value)}>
+          {o.label}
+          {disabled(o.value) ? " (needs a relational config)" : ""}
+        </option>
+      ))}
+    </select>
   );
 }
 

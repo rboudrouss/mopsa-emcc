@@ -6,7 +6,7 @@ import {
   type EnvironmentsBody,
 } from "../envdb/env-engine";
 import { useEnvEngine } from "./use-env-engine";
-import { useEditorNav } from "../editor-nav";
+import { useEditorNav, type InlineValuesMode } from "../editor-nav";
 import { useAppStore } from "../store";
 
 /**
@@ -15,11 +15,9 @@ import { useAppStore } from "../store";
  *   - coverage: a gutter bar on the lines the analysis reached, and a grey
  *     background on the lines it found unreachable (every state is ⊥);
  *   - inline values: after the code of a line, the abstract values of its
- *     variables once it has run, and of the next line's variables before
- *     that one runs when its statement changes them (cursor line only, or
- *     every line); or, on every line, only the state before it, only the
- *     state after it, or the relations between variables it brings (with a
- *     relational domain).
+ *     variables and/or the relations between them (with a relational
+ *     domain): what the line brings (cursor line only, or every line), or
+ *     on every line the state before it or after it.
  */
 
 const MAX_INLINE = 70;
@@ -226,20 +224,111 @@ function relationsByContext(
   return out;
 }
 
+type Where = Exclude<InlineValuesMode, "off">;
+
+const truncate = (text: string) =>
+  text.length > MAX_INLINE ? text.slice(0, MAX_INLINE - 1) + "…" : text;
+
+/** One text for several call stacks: the first one, and how many others
+ *  differ. */
+function contextsText(perContext: string[]): string {
+  const texts = [...new Set(perContext.filter(Boolean))];
+  if (texts.length === 0) return "";
+  return (
+    texts[0] +
+    (texts.length > 1 ? `  (+${texts.length - 1} other context${texts.length > 2 ? "s" : ""})` : "")
+  );
+}
+
 /**
- * Per line, the relations that appear once it has run: in the state after
- * it and not in the state entering it. A statement spanning the next lines
- * (a loop, a conditional) has no state after: the state entering its body,
- * on the next line, stands for it.
+ * Values per line:
+ *   - "cursor" / "all": line L shows the state after L and what L + 1
+ *     changes (see lineText);
+ *   - "before" / "after": line L shows its own state before or after it.
  */
-async function newRelations(file: string, lines: number[]): Promise<Map<number, string[]>> {
-  const states = (when: "entry" | "post", ls: number[]) =>
+async function valueTexts(
+  file: string,
+  model: Monaco.editor.ITextModel,
+  where: Where,
+  lines: number[],
+  python: boolean,
+): Promise<Map<number, string>> {
+  const merged = where === "all" || where === "cursor";
+  if (where === "all") lines = [...new Set(lines.flatMap((l) => [l - 1, l]))].filter((l) => l >= 1);
+  const queried = merged
+    ? [...new Set(lines.flatMap((l) => [l, l + 1]))].filter((l) => l <= model.getLineCount())
+    : lines;
+  const fetch = (when: "pre" | "entry" | "post") =>
+    Promise.all(queried.map((l) => envEngine.getEnvironments(file, l, "line", when)));
+  const [firsts, seconds] = merged
+    ? await Promise.all([fetch("post"), fetch("entry")])
+    : [await fetch(where === "before" ? "pre" : "post"), []];
+  // Merged: the states after and entering each line. Otherwise the one
+  // state shown, in `post`.
+  const states = new Map<number, LineStates>();
+  queried.forEach((l, i) => {
+    const source = model.getLineContent(l);
+    states.set(l, {
+      post: partsByContext(firsts[i], python, source),
+      entry: partsByContext(seconds[i], python, source),
+    });
+  });
+  const out = new Map<number, string>();
+  for (const line of lines) {
+    const cur = states.get(line);
+    if (!cur) continue;
+    const next = states.get(line + 1);
+    out.set(
+      line,
+      contextsText(
+        merged
+          ? [...new Set([...cur.post.keys(), ...cur.entry.keys(), ...(next?.entry.keys() ?? [])])].map(
+              (cs) => lineText(cs, cur, next),
+            )
+          : [...cur.post.values()].map((parts) => mergedInlineText(parts ?? [], [])),
+      ),
+    );
+  }
+  return out;
+}
+
+/**
+ * Relations per line, across call stacks:
+ *   - "cursor" / "all": the ones that appear once the line has run, in the
+ *     state after it and not in the state entering it. A statement spanning
+ *     the next lines (a loop, a conditional) has no state after: the state
+ *     entering its body, on the next line, stands for it;
+ *   - "before" / "after": the ones holding before or after the line, on
+ *     its variables.
+ */
+async function relationTexts(
+  file: string,
+  model: Monaco.editor.ITextModel,
+  where: Where,
+  lines: number[],
+): Promise<Map<number, string>> {
+  const states = (when: "pre" | "entry" | "post", ls: number[]) =>
     Promise.all(ls.map((l) => envEngine.getEnvironments(file, l, "state", when)));
+  const out = new Map<number, string>();
+  const put = (line: number, found: Set<string>) => {
+    if (found.size > 0) out.set(line, truncate([...found].join(", ")));
+  };
+  if (where === "before" || where === "after") {
+    const res = await states(where === "before" ? "pre" : "post", lines);
+    lines.forEach((line, i) => {
+      const source = model.getLineContent(line);
+      const found = new Set<string>();
+      for (const rels of relationsByContext(res[i]).values())
+        for (const c of rels ?? [])
+          if (isRelation(c) && (c.match(IDENT) ?? []).some((v) => inSource(v, source))) found.add(c);
+      put(line, found);
+    });
+    return out;
+  }
   const [posts, entries] = await Promise.all([states("post", lines), states("entry", lines)]);
   const spanning = lines.filter((_, i) => posts[i].kind === "ok" && contextsOf(posts[i]) === 0);
   const bodies = await states("entry", spanning.map((l) => l + 1));
   const bodyOf = new Map(spanning.map((l, i) => [l, bodies[i]]));
-  const out = new Map<number, string[]>();
   lines.forEach((line, i) => {
     const before = relationsByContext(entries[i]);
     const after = relationsByContext(bodyOf.get(line) ?? posts[i]);
@@ -249,8 +338,7 @@ async function newRelations(file: string, lines: number[]): Promise<Map<number, 
       if (!rels || prev === undefined) continue;
       for (const c of rels) if (isRelation(c) && !prev?.has(c)) found.add(c);
     }
-    const text = [...found].join(", ");
-    if (text) out.set(line, [text.length > MAX_INLINE ? text.slice(0, MAX_INLINE - 1) + "…" : text]);
+    put(line, found);
   });
   return out;
 }
@@ -268,6 +356,7 @@ export function useEnvdbOverlays(
   const { phase, generation } = useEnvEngine();
   const showCoverage = useEditorNav((s) => s.showCoverage);
   const inlineValues = useEditorNav((s) => s.inlineValues);
+  const inlineKind = useEditorNav((s) => s.inlineKind);
   const cursorLine = useEditorNav((s) => s.cursorLine);
   const coverageRef = useRef<Monaco.editor.IEditorDecorationsCollection | null>(null);
   const valuesRef = useRef<Monaco.editor.IEditorDecorationsCollection | null>(null);
@@ -335,26 +424,39 @@ export function useEnvdbOverlays(
   // moving it must not refetch and redraw every line.
   const cursorKey = inlineValues === "cursor" ? cursorLine : null;
   const python = codeFilePath.endsWith(".py");
+  // Relations need a relational domain in the config.
+  const relational = useAppStore((s) => s.configText.includes("numeric.relational"));
+  const showValues = inlineKind !== "relations";
+  const showRelations = inlineKind !== "values" && relational;
   useEffect(() => {
     const editor = editorRef.current;
     if (!editor || !enabled || !ready || inlineValues === "off") {
       valuesRef.current?.clear();
       return;
     }
+    const where = inlineValues;
     let cancelled = false;
-    // One text per call stack: the first one, and how many others differ.
-    const decorate = (perLine: [number, string[]][]) => {
+    void (async () => {
+      let lines: number[];
+      if (where === "cursor") lines = cursorKey ? [cursorKey] : [];
+      else {
+        const res = await envEngine.getLines(codeFilePath);
+        if (res.kind !== "ok") return;
+        lines = res.body.files[codeFilePath]?.reached ?? [];
+      }
       const model = editor.getModel();
-      if (!model) return;
+      if (cancelled || !model) return;
+      lines = lines.filter((l) => l <= model.getLineCount());
+      const none = Promise.resolve(new Map<number, string>());
+      const [values, relations] = await Promise.all([
+        showValues ? valueTexts(codeFilePath, model, where, lines, python) : none,
+        showRelations ? relationTexts(codeFilePath, model, where, lines) : none,
+      ]);
+      if (cancelled) return;
       const decos: Monaco.editor.IModelDeltaDecoration[] = [];
-      for (const [line, perContext] of perLine) {
-        const texts = [...new Set(perContext.filter(Boolean))];
-        if (texts.length === 0) continue;
-        const text =
-          texts[0] +
-          (texts.length > 1
-            ? `  (+${texts.length - 1} other context${texts.length > 2 ? "s" : ""})`
-            : "");
+      for (const line of new Set([...values.keys(), ...relations.keys()])) {
+        const text = [values.get(line), relations.get(line)].filter(Boolean).join("  ·  ");
+        if (!text) continue;
         const end = model.getLineMaxColumn(line);
         decos.push({
           range: { startLineNumber: line, startColumn: end, endLineNumber: line, endColumn: end },
@@ -366,68 +468,21 @@ export function useEnvdbOverlays(
       }
       valuesRef.current?.clear();
       valuesRef.current = editor.createDecorationsCollection(decos);
-    };
-    void (async () => {
-      // "all": line L shows the state after L and what L + 1 changes
-      // (see lineText); "before" / "after": line L shows its own state only;
-      // "relations": the relations L brings (see newRelations).
-      const mode = inlineValues;
-      let lines: number[];
-      if (mode === "cursor") lines = cursorKey ? [cursorKey] : [];
-      else {
-        const res = await envEngine.getLines(codeFilePath);
-        if (res.kind !== "ok") return;
-        const reached = res.body.files[codeFilePath]?.reached ?? [];
-        lines =
-          mode === "all"
-            ? [...new Set(reached.flatMap((l) => [l - 1, l]))].filter((l) => l >= 1)
-            : reached;
-      }
-      const model = editor.getModel();
-      if (cancelled || !model) return;
-      lines = lines.filter((l) => l <= model.getLineCount());
-      if (mode === "relations") {
-        const rels = await newRelations(codeFilePath, lines);
-        if (cancelled) return;
-        decorate([...rels]);
-        return;
-      }
-      const merged = mode === "all" || mode === "cursor";
-      const queried = merged
-        ? [...new Set(lines.flatMap((l) => [l, l + 1]))].filter((l) => l <= model.getLineCount())
-        : lines;
-      const fetch = (when: "pre" | "entry" | "post") =>
-        Promise.all(queried.map((l) => envEngine.getEnvironments(codeFilePath, l, "line", when)));
-      const [firsts, seconds] = merged
-        ? await Promise.all([fetch("post"), fetch("entry")])
-        : [await fetch(mode === "before" ? "pre" : "post"), []];
-      if (cancelled) return;
-      // Merged modes: the states after and entering each line. The others:
-      // the one state shown, in `post`.
-      const states = new Map<number, LineStates>();
-      queried.forEach((l, i) => {
-        const source = model.getLineContent(l);
-        states.set(l, {
-          post: partsByContext(firsts[i], python, source),
-          entry: partsByContext(seconds[i], python, source),
-        });
-      });
-      const perLine: [number, string[]][] = lines.map((line) => {
-        const cur = states.get(line)!;
-        const next = states.get(line + 1);
-        return [
-          line,
-          merged
-            ? [...new Set([...cur.post.keys(), ...cur.entry.keys(), ...(next?.entry.keys() ?? [])])].map(
-                (cs) => lineText(cs, cur, next),
-              )
-            : [...cur.post.values()].map((parts) => mergedInlineText(parts ?? [], [])),
-        ];
-      });
-      decorate(perLine);
     })();
     return () => {
       cancelled = true;
     };
-  }, [editorRef, codeFilePath, python, enabled, ready, generation, inlineValues, cursorKey, mountKey]);
+  }, [
+    editorRef,
+    codeFilePath,
+    python,
+    enabled,
+    ready,
+    generation,
+    inlineValues,
+    showValues,
+    showRelations,
+    cursorKey,
+    mountKey,
+  ]);
 }

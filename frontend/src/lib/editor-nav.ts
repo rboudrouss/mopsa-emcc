@@ -2,28 +2,37 @@ import { create } from "zustand";
 import { useAppStore } from "./store";
 import { getAllFilePaths, getWorkspaceForFile } from "./tree";
 
-export type InlineValuesMode = "off" | "cursor" | "all" | "before" | "after" | "relations";
+/** Where the inline values show. */
+export type InlineValuesMode = "off" | "cursor" | "all" | "before" | "after";
+/** What they show: the variables' values, the relations between them, both. */
+export type InlineKind = "values" | "relations" | "both";
 
 const VIEW_KEY = "mopsa-editor-view";
 
 type View = {
   showCoverage: boolean;
   inlineValues: InlineValuesMode;
+  inlineKind: InlineKind;
   showSafe: boolean;
 };
 
 const DEFAULT_VIEW: View = {
   showCoverage: true,
   inlineValues: "all",
+  inlineKind: "values",
   showSafe: false,
 };
 
 function loadView(): View {
   try {
-    return {
+    const view: View = {
       ...DEFAULT_VIEW,
       ...JSON.parse(localStorage.getItem(VIEW_KEY) ?? "{}"),
     };
+    // Earlier, relations were a mode of their own.
+    if ((view.inlineValues as string) === "relations")
+      return { ...view, inlineValues: "all", inlineKind: "relations" };
+    return view;
   } catch {
     return DEFAULT_VIEW;
   }
@@ -42,6 +51,9 @@ interface EditorNav {
   /** Abstract values shown at the end of code lines. */
   inlineValues: InlineValuesMode;
   setInlineValues: (mode: InlineValuesMode) => void;
+  /** What the inline values show. */
+  inlineKind: InlineKind;
+  setInlineKind: (kind: InlineKind) => void;
   /** Gutter marks of the checks proved safe. */
   showSafe: boolean;
   setShowSafe: (on: boolean) => void;
@@ -55,10 +67,10 @@ interface EditorNav {
 
 function saveView(s: View) {
   try {
-    const { showCoverage, inlineValues, showSafe } = s;
+    const { showCoverage, inlineValues, inlineKind, showSafe } = s;
     localStorage.setItem(
       VIEW_KEY,
-      JSON.stringify({ showCoverage, inlineValues, showSafe }),
+      JSON.stringify({ showCoverage, inlineValues, inlineKind, showSafe }),
     );
   } catch {
     /* no localStorage */
@@ -73,6 +85,10 @@ export const useEditorNav = create<EditorNav>((set, get) => ({
   },
   setInlineValues: (mode) => {
     set({ inlineValues: mode });
+    saveView(get());
+  },
+  setInlineKind: (kind) => {
+    set({ inlineKind: kind });
     saveView(get());
   },
   setShowSafe: (on) => {
