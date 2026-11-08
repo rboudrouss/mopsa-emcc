@@ -62,12 +62,12 @@ export function OverlayToggles() {
           value={inlineKind}
           options={KIND}
           onChange={setInlineKind}
-          disabled={(k) => k !== "values" && !relational}
           title={
             relational
               ? "The values of the variables, the relations between them (new ones on " +
                 "the cursor line or all lines), or both"
-              : "The values of the variables (relations need a relational config)"
+              : "The values of the variables, the relations between them, or both " +
+                "(relations need a relational config, see Domains)"
           }
         />
       )}
@@ -80,14 +80,12 @@ function Select<T extends string>({
   value,
   options,
   onChange,
-  disabled = () => false,
   title,
 }: {
   on: boolean;
   value: T;
   options: { value: T; label: string }[];
   onChange: (v: T) => void;
-  disabled?: (v: T) => boolean;
   title: string;
 }) {
   return (
@@ -98,9 +96,8 @@ function Select<T extends string>({
       style={{ ...toggleStyle(on), padding: "2px 4px", fontFamily: "inherit" }}
     >
       {options.map((o) => (
-        <option key={o.value} value={o.value} disabled={disabled(o.value)}>
+        <option key={o.value} value={o.value}>
           {o.label}
-          {disabled(o.value) ? " (needs a relational config)" : ""}
         </option>
       ))}
     </select>
