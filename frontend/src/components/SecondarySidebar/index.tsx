@@ -1,4 +1,5 @@
 import { useAppStore } from "@/lib/store";
+import { AboutPanel } from "./AboutPanel";
 import { DomainsPanel } from "./DomainsPanel";
 import { FilesPanel } from "./FilesPanel";
 import { OptionsPanel } from "./OptionsPanel";
@@ -22,6 +23,7 @@ export function SecondarySidebar() {
       {activePanel === "files" && <FilesPanel />}
       {activePanel === "domains" && <DomainsPanel />}
       {activePanel === "options" && <OptionsPanel />}
+      {activePanel === "about" && <AboutPanel />}
     </div>
   );
 }

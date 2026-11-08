@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { CenterPane } from "@/components/CenterPane";
 import { RightPanel } from "@/components/RightPanel";
+import { AboutPanel } from "@/components/SecondarySidebar/AboutPanel";
 import { DomainsPanel } from "@/components/SecondarySidebar/DomainsPanel";
 import { FilesPanel } from "@/components/SecondarySidebar/FilesPanel";
 import { OptionsPanel } from "@/components/SecondarySidebar/OptionsPanel";
@@ -9,7 +10,7 @@ import { BottomDock } from "./BottomDock";
 import { BottomSheet } from "./BottomSheet";
 import { MobileTopBar } from "./MobileTopBar";
 
-export type MobileSheet = "files" | "domains" | "options" | null;
+export type MobileSheet = "files" | "domains" | "options" | "about" | null;
 
 interface MobileLayoutProps {
   isAnalyzing: boolean;
@@ -148,6 +149,7 @@ export function MobileLayout({
           {sheet === "files" && <FilesPanel />}
           {sheet === "domains" && <DomainsPanel />}
           {sheet === "options" && <OptionsPanel />}
+          {sheet === "about" && <AboutPanel />}
         </BottomSheet>
       )}
     </div>

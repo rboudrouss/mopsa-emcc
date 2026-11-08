@@ -1,4 +1,4 @@
-import { FolderIcon, NetworkIcon, SlidersHorizontalIcon } from "lucide-react";
+import { FolderIcon, InfoIcon, NetworkIcon, SlidersHorizontalIcon } from "lucide-react";
 import { DEFAULT_OPTION_VALUES } from "@/lib/options-schema";
 import { useAppStore } from "@/lib/store";
 import type { ActivePanel } from "@/lib/types";
@@ -52,6 +52,13 @@ export function ActivityBar() {
         badgeColor="#60a5fa"
         onClick={() => togglePanel("options")}
         title="Options"
+      />
+      <ActivityIcon
+        icon={<InfoIcon size={20} />}
+        panel="about"
+        active={activePanel === "about"}
+        onClick={() => togglePanel("about")}
+        title="About"
       />
     </div>
   );

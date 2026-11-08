@@ -5,7 +5,7 @@ export type WorkspaceMode =
   | "universal"
   | "multilanguage"
   | "unknown";
-export type ActivePanel = "files" | "domains" | "options" | null;
+export type ActivePanel = "files" | "domains" | "options" | "about" | null;
 export type ActiveTab = "source" | "config";
 export type SavedConfig = { preset: string; text: string; dirty: boolean };
 

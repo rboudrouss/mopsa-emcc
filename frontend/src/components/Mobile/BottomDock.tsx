@@ -1,5 +1,6 @@
 import {
   FolderIcon,
+  InfoIcon,
   NetworkIcon,
   PlayIcon,
   SlidersHorizontalIcon,
@@ -68,6 +69,12 @@ export function BottomDock({
         badge={optionCount > 0 ? optionCount : undefined}
         badgeColor="#60a5fa"
         onClick={() => onSheetToggle("options")}
+      />
+      <DockButton
+        label="About"
+        icon={<InfoIcon size={16} />}
+        active={sheet === "about"}
+        onClick={() => onSheetToggle("about")}
       />
 
       <button
