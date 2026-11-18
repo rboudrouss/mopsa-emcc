@@ -10,7 +10,6 @@ const LINKS = {
   manual: "https://mopsa.gitlab.io/mopsa-analyzer/user-manual/",
   upstream: "https://gitlab.com/mopsa/mopsa-analyzer",
   interface: "https://github.com/rboudrouss/mopsa-emcc",
-  patches: "https://github.com/rboudrouss/mopsa-emcc/tree/main/emcc-recipes/mopsa/patches",
   ocamlEmcc: "https://github.com/rboudrouss/ocaml-emcc",
   tryMopsa: "https://try-mopsa.rmonat.fr/",
   mopsaWeb: "https://gitlab.com/rmonat/mopsa-web",
@@ -179,20 +178,6 @@ export function AboutPanel() {
         </P>
       </Section>
 
-      {BUILD && BUILD.patches.length > 0 && (
-        <Section title={`Patches (${BUILD.patches.length})`}>
-          <Ul>
-            {BUILD.patches.map((p) => (
-              <li key={p.file}>
-                <A href={`${LINKS.patches}/${p.file}`}>
-                  {p.title.replace(/^\w+(\([^)]*\))?: */, "")}
-                </A>
-              </li>
-            ))}
-          </Ul>
-        </Section>
-      )}
-
       <Section title="Source code" initiallyOpen>
         <P>
           This interface, its build and the patches are in{" "}
@@ -301,26 +286,6 @@ function P({ children }: { children: React.ReactNode }) {
     <p style={{ margin: 0, fontSize: 12, lineHeight: 1.55, color: "var(--text-secondary)" }}>
       {children}
     </p>
-  );
-}
-
-function Ul({ children }: { children: React.ReactNode }) {
-  return (
-    <ul
-      style={{
-        margin: 0,
-        paddingLeft: 18,
-        listStyle: "disc",
-        fontSize: 12,
-        lineHeight: 1.55,
-        color: "var(--text-secondary)",
-        display: "flex",
-        flexDirection: "column",
-        gap: 3,
-      }}
-    >
-      {children}
-    </ul>
   );
 }
 
