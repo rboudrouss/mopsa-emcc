@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  # Mopsa is built from upstream's latest commit, on which the patches may no
+  # longer apply
+  schedule:
+    - cron: '0 4 * * 1'
 
 env:
   EMSDK_VERSION: 6.0.11
@@ -57,11 +61,18 @@ jobs:
       - name: ocaml-emcc's commit
         id: ocaml-emcc
         run: echo "sha=$(git ls-remote https://github.com/rboudrouss/ocaml-emcc.git HEAD | cut -f1)" >> "$GITHUB_OUTPUT"
+      # The sysroot holds mopsa's patched libraries, rebuilt by make for
+      # another commit (mopsa-sysroot-sync) and saved again under a new key
+      - name: Mopsa's commit
+        id: mopsa
+        run: echo "sha=$(git -C ~/.opam/4.14.2/.opam-switch/sources/mopsa rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@v6
         with:
           path: ~/.opam/4.14.2/emcc-sysroot
-          key: emcc-sysroot-${{ runner.os }}-${{ env.EMSDK_VERSION }}-${{ steps.ocaml-emcc.outputs.sha }}-${{ hashFiles('ocaml-emcc.conf', 'emcc-recipes/**') }}
-          restore-keys: emcc-sysroot-${{ runner.os }}-${{ env.EMSDK_VERSION }}-
+          key: emcc-sysroot-${{ runner.os }}-${{ env.EMSDK_VERSION }}-${{ steps.ocaml-emcc.outputs.sha }}-${{ hashFiles('ocaml-emcc.conf', 'emcc-recipes/**') }}-${{ steps.mopsa.outputs.sha }}
+          restore-keys: |
+            emcc-sysroot-${{ runner.os }}-${{ env.EMSDK_VERSION }}-${{ steps.ocaml-emcc.outputs.sha }}-${{ hashFiles('ocaml-emcc.conf', 'emcc-recipes/**') }}-
+            emcc-sysroot-${{ runner.os }}-${{ env.EMSDK_VERSION }}-
       - name: make final-web
         run: |
           source "$EMSDK/emsdk_env.sh"
