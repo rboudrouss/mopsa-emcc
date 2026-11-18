@@ -9,9 +9,8 @@ const LINKS = {
   mopsa: "https://mopsa.lip6.fr/",
   manual: "https://mopsa.gitlab.io/mopsa-analyzer/user-manual/",
   upstream: "https://gitlab.com/mopsa/mopsa-analyzer",
-  fork: "https://gitlab.com/rboudrouss/mopsa-analyzer-32-bit",
-  forkCommits: "https://gitlab.com/rboudrouss/mopsa-analyzer-32-bit/-/commits/main",
   interface: "https://github.com/rboudrouss/mopsa-emcc",
+  patches: "https://github.com/rboudrouss/mopsa-emcc/tree/main/emcc-recipes/mopsa/patches",
   ocamlEmcc: "https://github.com/rboudrouss/ocaml-emcc",
   tryMopsa: "https://try-mopsa.rmonat.fr/",
   vstte19: "https://rmonat.fr/publication/vstte19/",
@@ -95,6 +94,32 @@ for (i, 1, x) {
   print();
 }`;
 
+const BUILD = __MOPSA_BUILD__;
+
+/** The upstream commit the backends were built from, and its date */
+function BuildCommit() {
+  if (!BUILD?.commit)
+    return (
+      <>
+        , from the {BUILD?.branch ?? "main"} branch of upstream Mopsa with
+        the patches of mopsa-emcc.
+      </>
+    );
+  const date = BUILD.date
+    ? new Date(BUILD.date).toLocaleDateString("en", { dateStyle: "medium" })
+    : null;
+  return (
+    <>
+      , upstream commit{" "}
+      <A href={`${BUILD.repository}/-/commit/${BUILD.commit}`}>
+        <span style={{ fontFamily: MONO }}>{BUILD.commit.slice(0, 9)}</span>
+      </A>{" "}
+      of the {BUILD.branch} branch{date && <> ({date})</>}, with{" "}
+      {BUILD.patches.length} patches of mopsa-emcc.
+    </>
+  );
+}
+
 export function AboutPanel() {
   const { data: version } = useQuery({
     queryKey: ["mopsa-version", getBackend()],
@@ -133,61 +158,50 @@ export function AboutPanel() {
 
       <Section title="This version" initiallyOpen>
         <P>
-          The analysis runs in the browser, on two backends (Options panel):
+          The analysis runs in the browser. The WebAssembly backend is Mopsa
+          with its C libraries (Clang, GMP, MPFR, Apron) compiled to wasm32 by{" "}
+          <A href={LINKS.ocamlEmcc}>ocaml-emcc</A>, and analyses every
+          language. The JavaScript backend, lighter, is Mopsa compiled by
+          js_of_ocaml and analyses Python and Universal. The Options panel
+          switches between the two.
         </P>
-        <Ul>
-          <li>
-            WebAssembly: Mopsa and its C libraries (Clang, GMP, MPFR, Apron)
-            compiled to wasm32 with <A href={LINKS.ocamlEmcc}>ocaml-emcc</A>.
-            Every language.
-          </li>
-          <li>
-            JavaScript: Mopsa compiled with js_of_ocaml. Lighter, Python and
-            Universal only.
-          </li>
-        </Ul>
         <Row label="Mopsa">
-          <span style={{ fontFamily: MONO }}>{version ?? "…"}</span>, from the
-          main branch of <A href={LINKS.fork}>a fork</A> of{" "}
-          <A href={LINKS.upstream}>upstream Mopsa</A> as of April 2026.
+          <span style={{ fontFamily: MONO }}>{version ?? "…"}</span>
+          <BuildCommit />
         </Row>
-        <P>The fork adds to upstream Mopsa:</P>
-        <Ul>
-          <li>
-            fixes for 32-bit targets: OCaml integers have 31 bits on wasm32,
-            and WebAssembly has no directed float rounding;
-          </li>
-          <li>
-            requests of the debug adapter used by this interface: the states
-            before and after each line, per call stack, and the lines reached;
-          </li>
-          <li>the progress of the analysis as JSON lines, for the progress bar.</li>
-        </Ul>
         <P>
-          <A href={LINKS.forkCommits}>Its commits</A> list the changes.
+          The patches fix the 32-bit targets, where OCaml integers have 31
+          bits and floats only round to nearest, and add the debug adapter
+          requests and the JSON progress this interface reads.
         </P>
       </Section>
 
+      {BUILD && BUILD.patches.length > 0 && (
+        <Section title={`Patches (${BUILD.patches.length})`}>
+          <Ul>
+            {BUILD.patches.map((p) => (
+              <li key={p.file}>
+                <A href={`${LINKS.patches}/${p.file}`}>
+                  {p.title.replace(/^\w+(\([^)]*\))?: */, "")}
+                </A>
+              </li>
+            ))}
+          </Ul>
+        </Section>
+      )}
+
       <Section title="Source code" initiallyOpen>
-        <Ul>
-          <li>
-            This interface and its build: <A href={LINKS.interface}>mopsa-emcc</A>{" "}
-            (MIT)
-          </li>
-          <li>
-            The Mopsa fork: <A href={LINKS.fork}>mopsa-analyzer-32-bit</A>
-          </li>
-          <li>
-            Upstream Mopsa: <A href={LINKS.upstream}>mopsa-analyzer</A>
-          </li>
-          <li>
-            The OCaml to WebAssembly compiler: <A href={LINKS.ocamlEmcc}>ocaml-emcc</A>
-          </li>
-          <li>
-            <A href={LINKS.tryMopsa}>Try-Mopsa</A>, another in-browser Mopsa
-            (Universal and Python), by Aymane Ismail and Raphaël Monat
-          </li>
-        </Ul>
+        <P>
+          This interface, its build and the patches are in{" "}
+          <A href={LINKS.interface}>mopsa-emcc</A> (MIT), Mopsa in{" "}
+          <A href={LINKS.upstream}>mopsa-analyzer</A>.{" "}
+          <A href={LINKS.ocamlEmcc}>ocaml-emcc</A> compiles OCaml programs and
+          their C libraries to WebAssembly.
+        </P>
+        <P>
+          <A href={LINKS.tryMopsa}>Try-Mopsa</A>, by Aymane Ismail and Raphaël
+          Monat, is another in-browser Mopsa for Universal and Python.
+        </P>
       </Section>
 
       <Section title="Universal grammar">

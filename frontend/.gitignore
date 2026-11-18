@@ -36,3 +36,6 @@ dev-dist
 public/ocamlrun*
 public/mopsa_api.js
 public/mopsa_worker.js
+
+# Mopsa commit and patches of the backends, written by the Makefile
+/mopsa-build.json

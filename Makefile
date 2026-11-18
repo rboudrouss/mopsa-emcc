@@ -91,6 +91,26 @@ mopsa-update: | $(SWITCH_CONFIG)
 	opam update --switch=$(SWITCH) mopsa
 	OPAMKEEPBUILDDIR=true opam upgrade --switch=$(SWITCH) -y mopsa
 
+# The Mopsa commit and the patches of the build, shown in the About panel
+# (read by frontend/vite.config.ts). The commit is that of the sources opam
+# fetched for the pin.
+MOPSA_BUILD_INFO := $(FRONTEND_DIR)/mopsa-build.json
+
+$(MOPSA_BUILD_INFO): $(MOPSA_META) $(MOPSA_PATCHES)
+	esc() { sed 's/[\\"]/\\&/g'; }
+	{
+		printf '{\n  "repository": "%s",\n  "branch": "%s",\n' "$(MOPSA_REPO:.git=)" "$(MOPSA_BRANCH)"
+		git -C $(SWITCH_PREFIX)/.opam-switch/sources/mopsa log -1 --format='  "commit": "%H",%n  "date": "%cI",' ||
+			printf '  "commit": null,\n  "date": null,\n'
+		printf '  "patches": ['
+		sep=
+		for p in $(MOPSA_PATCHES); do
+			printf '%s\n    { "file": "%s", "title": "%s" }' "$$sep" "$${p##*/}" "$$(head -n 1 $$p | esc)"
+			sep=,
+		done
+		printf '\n  ]\n}\n'
+	} > $@
+
 # ── ocaml-emcc ───────────────────────────────────────────────────────────────
 # Pinned in the switch when OCAML_EMCC is left to `ocaml-emcc` and none is in PATH
 ifeq ($(OCAML_EMCC)$(shell command -v ocaml-emcc),ocaml-emcc)
@@ -179,7 +199,7 @@ wasm-node: $(MOPSA_META) $(OCAML_EMCC_DEP) $(C_OF_OCAML_DEP)
 #
 # ocamlrun.data holds Mopsa's share directory (C/Python stubs)
 # at /share/mopsa, clang's resource headers and the 32-bit Linux headers.
-wasm-web-artifacts: $(MOPSA_META) $(OCAML_EMCC_DEP) $(C_OF_OCAML_DEP) $(BUILD_DIR)/.linux32-headers-stamp | $(DIST_DIR)
+wasm-web-artifacts: $(MOPSA_META) $(OCAML_EMCC_DEP) $(C_OF_OCAML_DEP) $(BUILD_DIR)/.linux32-headers-stamp $(MOPSA_BUILD_INFO) | $(DIST_DIR)
 	$(call OCAML_EMCC_BUILD,$(DIST_DIR)/ocamlrun.js) -- \
 		-sENVIRONMENT=web -sMODULARIZE=1 -sEXPORT_NAME=createMopsaModule \
 		$(WASM_EMCC_FLAGS) \
@@ -353,13 +373,13 @@ jsoo-worker: jsoo-analyzer $(JSOO_DEPS_META) | $(BUILD_DIR)
 	cp -f _build/default/backend/jsoo/mopsa_worker.bc.js $(BUILD_DIR)/mopsa_worker_jsoo.js
 
 # Assemble the jsoo worker + api + share.json into frontend/public/.
-jsoo-web: jsoo-worker $(MOPSA_META)
+jsoo-web: jsoo-worker $(MOPSA_META) $(MOPSA_BUILD_INFO)
 	cp -f $(BUILD_DIR)/mopsa_worker_jsoo.js $(FRONTEND_DIR)/public/mopsa_worker_jsoo.js
 	cp -f backend/jsoo/mopsa_api.js $(FRONTEND_DIR)/public/mopsa_api_jsoo.js
 	cd $(FRONTEND_DIR) && ./generateShareJson.sh $(MOPSA_SHARE)/
 
 clean-jsoo:
-	rm -f $(BUILD_DIR)/mopsa_worker_jsoo.js \
+	rm -f $(BUILD_DIR)/mopsa_worker_jsoo.js $(MOPSA_BUILD_INFO) \
 	      $(FRONTEND_DIR)/public/mopsa_worker_jsoo.js \
 	      $(FRONTEND_DIR)/public/mopsa_api_jsoo.js
 

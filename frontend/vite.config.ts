@@ -1,3 +1,4 @@
+import fs from "fs";
 import path from "path";
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
@@ -14,6 +15,16 @@ const crossOriginIsolation = {
   "Cross-Origin-Embedder-Policy": "require-corp",
 };
 
+// The Mopsa commit and patches of the backends, written by the Makefile
+// (null before the first build of the backends)
+function mopsaBuild() {
+  try {
+    return fs.readFileSync(path.resolve(__dirname, "mopsa-build.json"), "utf8");
+  } catch {
+    return "null";
+  }
+}
+
 export default defineConfig(({ mode }) => {
   // Base URL of ocamlrun.wasm and ocamlrun.data when they are served apart
   // (see index.html and the Makefile)
@@ -23,6 +34,7 @@ export default defineConfig(({ mode }) => {
     "VITE_MOPSA_ASSETS_URL",
   ).VITE_MOPSA_ASSETS_URL?.replace(/\/+$/, "");
   return {
+    define: { __MOPSA_BUILD__: mopsaBuild() },
     server: { headers: crossOriginIsolation },
     preview: { headers: crossOriginIsolation },
     build: {
