@@ -46,7 +46,7 @@ make final-web
 
 This builds **both backends** (WASM + jsoo) and the React frontend. The first WASM build also builds ocaml-emcc's wasm runtime and C libraries in the switch (`$OPAM_SWITCH_PREFIX/emcc-sysroot`): its clang 9 recipe takes about 15 min on 4 cores.
 
-`make mopsa-update` rebuilds `mopsa` from the latest commit of the pinned branch (and moves a switch still pinned to the former 32-bit fork to upstream), `make ocaml-emcc-update` ocaml-emcc and c_of_ocaml from theirs.
+`make mopsa-update` rebuilds `mopsa` from the latest commit of the pinned branch (and moves a switch still pinned to the former 32-bit fork to upstream), `make ocaml-emcc-update` ocaml-emcc and c_of_ocaml from theirs. The wasm builds have ocaml-emcc rebuild mopsa in the sysroot when its commit changes.
 
 To build the frontend with a single backend:
 
