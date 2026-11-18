@@ -13,6 +13,7 @@ const LINKS = {
   patches: "https://github.com/rboudrouss/mopsa-emcc/tree/main/emcc-recipes/mopsa/patches",
   ocamlEmcc: "https://github.com/rboudrouss/ocaml-emcc",
   tryMopsa: "https://try-mopsa.rmonat.fr/",
+  mopsaWeb: "https://gitlab.com/rmonat/mopsa-web",
   vstte19: "https://rmonat.fr/publication/vstte19/",
 };
 
@@ -162,8 +163,10 @@ export function AboutPanel() {
           with its C libraries (Clang, GMP, MPFR, Apron) compiled to wasm32 by{" "}
           <A href={LINKS.ocamlEmcc}>ocaml-emcc</A>, and analyses every
           language. The JavaScript backend, lighter, is Mopsa compiled by
-          js_of_ocaml and analyses Python and Universal. The Options panel
-          switches between the two.
+          js_of_ocaml and analyses Python and Universal. It owes much to the
+          js_of_ocaml version of Mopsa that Raphaël Monat wrote for{" "}
+          <A href={LINKS.mopsaWeb}>Try-Mopsa</A>. The Options panel switches
+          between the two.
         </P>
         <Row label="Mopsa">
           <span style={{ fontFamily: MONO }}>{version ?? "…"}</span>

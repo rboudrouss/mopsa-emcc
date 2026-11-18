@@ -111,7 +111,7 @@ The bytecode is the switch's (64-bit) one, compiled with 31-bit integers on wasm
 
 ## The js_of_ocaml backend
 
-`backend/jsoo/` compiles the whole analyzer to plain JavaScript with [js_of_ocaml](https://ocsigen.org/js_of_ocaml/) (same approach as the official [try-mopsa](https://gitlab.com/rmonat/mopsa-web) page), exposing the same `mopsaJs` API and worker protocol as the WASM backend. It is used automatically when the browser cannot run WebAssembly, or on demand via Options > Browser Compat.
+`backend/jsoo/` compiles the whole analyzer to plain JavaScript with [js_of_ocaml](https://ocsigen.org/js_of_ocaml/) (the approach of the official [try-mopsa](https://gitlab.com/rmonat/mopsa-web) page, whose js_of_ocaml version of Mopsa by Raphaël Monat much of this backend comes from), exposing the same `mopsaJs` API and worker protocol as the WASM backend. It is used automatically when the browser cannot run WebAssembly, or on demand via Options > Browser Compat.
 
 It is feature-reduced compared to WASM:
 
@@ -124,6 +124,8 @@ The analyzer is configured with `--disable-c` in a copy of the sources opam kept
 The frontend’s `share.json` is regenerated from Mopsa's share directory installed in the switch by `make jsoo-web` and served to the worker at runtime, so the two backends share the same stubs / config presets.
 
 ## Acknowledgements
+
+The js_of_ocaml backend reuses much of the js_of_ocaml version of Mopsa that [Raphaël Monat](https://rmonat.fr/) wrote for [try-mopsa](https://gitlab.com/rmonat/mopsa-web).
 
 The OCaml-to-WASM port was first built on [Vincent Chan](https://github.com/okcdz)'s work on `ocaml-wasm` (August 2021), which provided the original `configure` tweaks and the libs (`unix_lib.c`, `socketaddr.c`, `unixsupport.c`, ...) needed to run OCaml's runtime under emscripten.
 
