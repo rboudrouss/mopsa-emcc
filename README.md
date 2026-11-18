@@ -99,7 +99,7 @@ The libraries ocaml-emcc built stay in the switch (`$OPAM_SWITCH_PREFIX/emcc-sys
 
 ## Licence
 
-This project is licensed under the [MIT License](LICENSE). The license covers only the code I authored: files at the root of the project, and those in `docker/`, `backend/` and `frontend/` (with the exception of `frontend/public/sync-message.js`).
+This project is licensed under the [MIT License](LICENSE). The license covers only the code I authored: files at the root of the project, and those in `docker/`, `backend/` and `frontend/` (with the exception of `frontend/public/sync-message.js` and `backend/jsoo/vpl_domain.ml`).
 
 All other code is owned by its respective authors and is not covered by this license. Please refer to the corresponding upstream projects (Mopsa, OCaml, LLVM/Clang, GMP, MPFR, Apron, etc.) for their own licensing terms.
 
