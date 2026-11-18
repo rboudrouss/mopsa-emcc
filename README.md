@@ -15,12 +15,12 @@ The frontend actually ships two backends: the full WASM build, and a lighter pur
 | `backend/wasm/`  | OCaml entry point (`mopsa_worker.ml`), JS API and Web Worker glue                                 |
 | `backend/jsoo/`  | js_of_ocaml backend: worker entry point, runtime primitive stubs, JS API glue                     |
 | `frontend/`      | React app consuming the WASM module                                                               |
-| `ocaml-emcc.conf`, `emcc-recipes/` | ocaml-emcc configuration: wasm32 target, clang 9 and apron recipes              |
+| `ocaml-emcc.conf`, `emcc-recipes/` | ocaml-emcc configuration: wasm32 target, clang 9, apron and mopsa recipes, the patches of Mopsa |
 | `build/`         | Temporary build artefacts: copy of Mopsa's sources for the jsoo backend, 32-bit headers (`_build/` is reserved for dune output) |
 | `dist/`          | Final `.wasm`, `.js`, `.html` and `.data` outputs                                                 |
 | `docker/`        | i386 Debian image, source of the Linux / CPython headers of the WASM web build                    |
 
-Mopsa itself is not vendored: it is installed in the opam switch, pinned to the `main` branch of the [32-bit fork](https://gitlab.com/rboudrouss/mopsa-analyzer-32-bit) until its fixes for 31-bit integers are merged upstream (`MOPSA_REPO` / `MOPSA_BRANCH` in the Makefile).
+Mopsa itself is not vendored. It is installed in the opam switch from the latest commit of [upstream](https://gitlab.com/mopsa/mopsa-analyzer)'s `main` branch (`MOPSA_REPO` / `MOPSA_BRANCH` in the Makefile), and changed by the patches of `emcc-recipes/mopsa/patches/`. They fix 31-bit integers and floating-point rounding on wasm32, and add the debug adapter requests and JSON progress the frontend reads. ocaml-emcc applies them to the wasm build (`PATCH_OCAML=1` in the recipe), `make jsoo-web` to its copy of the sources, and the native build in the switch stays upstream's. A patch is a unified diff whose hunks are placed by their text, so it keeps applying while upstream moves around it.
 
 ## Prerequisites
 
@@ -46,7 +46,7 @@ make final-web
 
 This builds **both backends** (WASM + jsoo) and the React frontend. The first WASM build also builds ocaml-emcc's wasm runtime and C libraries in the switch (`$OPAM_SWITCH_PREFIX/emcc-sysroot`): its clang 9 recipe takes about 15 min on 4 cores.
 
-`make mopsa-update` rebuilds `mopsa` from the latest commit of the pinned branch, `make ocaml-emcc-update` ocaml-emcc and c_of_ocaml from theirs.
+`make mopsa-update` rebuilds `mopsa` from the latest commit of the pinned branch (and moves a switch still pinned to the former 32-bit fork to upstream), `make ocaml-emcc-update` ocaml-emcc and c_of_ocaml from theirs.
 
 To build the frontend with a single backend:
 
@@ -107,7 +107,7 @@ All other code is owned by its respective authors and is not covered by this lic
 
 [ocaml-emcc](https://github.com/rboudrouss/ocaml-emcc) compiles the bytecode of `backend/wasm/mopsa_worker` to C with [c_of_ocaml](https://github.com/rboudrouss/C_of_ocaml), and builds OCaml's runtime with emscripten from the sources of the switch's compiler. The C stubs of every library the bytecode links (Mopsa's own, its Clang-based C parser, zarith, mlgmpidl, apron) are rebuilt with emcc and linked statically with them into a single `ocamlrun.wasm` (about 36 MB, a third of it the CPS versions of `cps-stack`; the file keeps the name of the interpreter it replaced). Clang's resource headers, the Linux 32-bit headers and the Mopsa stubs directory are preloaded into emscripten's virtual filesystem (`ocamlrun.data`).
 
-The bytecode is the switch's (64-bit) one, compiled with 31-bit integers on wasm32: `ocaml-emcc` checks that every literal fits, and the fork of Mopsa avoids the computations that would overflow (C integers are zarith values).
+The bytecode is the switch's (64-bit) one, compiled with 31-bit integers on wasm32: `ocaml-emcc` checks that every literal fits, and the patches of Mopsa avoid the computations that would overflow (C integers are zarith values).
 
 ## The js_of_ocaml backend
 
@@ -119,7 +119,7 @@ It is feature-reduced compared to WASM:
 - **Relational domains via [VPL](https://github.com/VERIMAG-Polyhedra/VPL)** ([rmonat's fork](https://github.com/rmonat/VPL)), a pure-OCaml polyhedra library, instead of Apron (a C library).
 - All three engines work (`automatic`, `interactive`, `dap`) and sessions use the same SharedArrayBuffer stdin channel as WASM.
 
-The analyzer is configured with `--disable-c` in a copy of the sources opam kept when installing Mopsa (`build/mopsa-jsoo`, copied again after `make mopsa-update`), and the worker is compiled against it with the host opam switch (`JSOO_SWITCH`, the same as `SWITCH` by default). js_of_ocaml gives 32-bit integers whatever the compiler, so no 32-bit toolchain is needed.
+The analyzer is configured with `--disable-c` in a copy of the sources opam kept when installing Mopsa, patched as the wasm build (`build/mopsa-jsoo`, copied again after `make mopsa-update` or a change of the patches), and the worker is compiled against it with the host opam switch (`JSOO_SWITCH`, the same as `SWITCH` by default). js_of_ocaml gives 32-bit integers whatever the compiler, so no 32-bit toolchain is needed.
 
 The frontend’s `share.json` is regenerated from Mopsa's share directory installed in the switch by `make jsoo-web` and served to the worker at runtime, so the two backends share the same stubs / config presets.
 

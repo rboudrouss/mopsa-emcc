@@ -1,0 +1,88 @@
+fix(variadic): support va_list on targets where it is not an array
+
+variadic_tests.c passes with -target-triple i386-linux-gnu,
+wasm32-unknown-emscripten and aarch64-linux-gnu, where va_list is a
+pointer or a struct.
+
+diff --git a/analyzer/languages/c/libs/libc/variadic.ml b/analyzer/languages/c/libs/libc/variadic.ml
+index a1170e943..ff67f0e23 100644
+--- a/analyzer/languages/c/libs/libc/variadic.ml
++++ b/analyzer/languages/c/libs/libc/variadic.ml
+@@ -214,14 +214,43 @@ struct
+         List.map (fun p -> mk_remove_var p range) params
+       )
+ 
+-  (* Resolve a pointer to a va_list *)
+-  let resolve_va_list ap range man flow =
++  (* When va_list is an array (x86-64), the builtins receive a pointer to the
++     va_list object, and a va_list passed to a function still designates the
++     caller's object. On other targets (i386, wasm32, aarch64, ...), the
++     builtins take the va_list lvalue itself, and a va_list passed to a
++     function is a copy. *)
++  let is_va_list_array t =
++    match remove_typedef_qual t with
++    | T_c_pointer t | T_c_array (t, _) ->
++      begin match remove_typedef_qual t with
++        | T_c_record { c_record_org_name = "__va_list_tag" } -> true
++        | _ -> false
++      end
++    | _ -> false
++
++  (* On the latter targets, va_start stores the address of the va_list object
++     in its first bytes, so that copies still designate the original object. *)
++  let va_list_link ap range =
++    let ptr = mk_c_cast (mk_c_address_of ap range) (T_c_pointer (T_c_pointer T_c_void)) range in
++    mk_c_deref ptr range
++
++  (* Resolve a pointer to a va_list. With [init], [ap] is resolved to itself
++     (va_start, destination of va_copy); otherwise, copies are followed. *)
++  let resolve_va_list ?(init=false) ap range man flow =
+     let open Common.Points_to in
+-    resolve_pointer ap man flow >>$ fun pt flow ->
++    let ptr =
++      if is_va_list_array ap.etyp then ap
++      else if init then mk_c_address_of ap range
++      else va_list_link ap range
++    in
++    resolve_pointer ptr man flow >>$ fun pt flow ->
+     match pt with
+     | P_block ({ base_kind = Var ap; base_valid = true }, offset, mode) ->
+       let base_size = sizeof_type ap.vtyp flow in
+-      let elem_size = sizeof_type (under_type ap.vtyp) flow in
++      let elem_size =
++        if is_c_array_type ap.vtyp then sizeof_type (under_type ap.vtyp) flow
++        else base_size
++      in
+ 
+       (* We do not consider the case of arrays of va_list *)
+       if not (Z.equal base_size elem_size)
+@@ -261,9 +290,12 @@ struct
+     ;
+ 
+     (* Resolve the pointer to va_list variable *)
+-    resolve_va_list ap range man flow >>$ fun va_list flow ->
++    resolve_va_list ~init:true ap range man flow >>$ fun va_list flow ->
+     let va_list_map = VarMap.add va_list (cs, typs) va_list_map in
+     let flow = set_va_list_map va_list_map flow in
++    (if is_va_list_array ap.etyp then Post.return flow
++     else man.exec (mk_assign (va_list_link ap range) (mk_c_address_of ap range) range) flow)
++    >>% fun flow ->
+ 
+     (* Initialize the counter *)
+     let counter = mk_var (mk_counter va_list) range in
+@@ -340,11 +372,14 @@ struct
+   (** Evaluate calls to va_copy *)
+   let va_copy dst src range man flow =
+     let va_list_map = get_va_list_map flow in
+-    resolve_va_list dst range man flow >>$ fun dst_va_list flow ->
++    resolve_va_list ~init:true dst range man flow >>$ fun dst_va_list flow ->
+     resolve_va_list src range man flow >>$ fun src_va_list flow ->
+     let info = VarMap.find src_va_list va_list_map in
+     let va_list_map = VarMap.add dst_va_list info va_list_map in
+     let flow = set_va_list_map va_list_map flow in
++    (if is_va_list_array dst.etyp then Post.return flow
++     else man.exec (mk_assign (va_list_link dst range) (mk_c_address_of dst range) range) flow)
++    >>% fun flow ->
+     let dst_counter = mk_var (mk_counter dst_va_list) range in
+     let src_counter = mk_var (mk_counter src_va_list) range in
+     man.exec (mk_add dst_counter range) flow >>%

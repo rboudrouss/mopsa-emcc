@@ -1,0 +1,54 @@
+fix(parser): guard Clang_to_ml against clang 9 API gaps
+
+AttributeCommonInfo (Attr::getAttrName, getSyntax and the AS_* syntax
+enum) appeared in clang 10. Its uses are guarded by CLANG_VERSION_MAJOR
+>= 10, with fallbacks for clang 9, the version of the wasm build.
+AS_ContextSensitiveKeyword is guarded by >= 16, where it appeared.
+
+diff --git a/parsers/c/lib/parser/Clang_to_ml.cc b/parsers/c/lib/parser/Clang_to_ml.cc
+index 1c50174b0..1eb96d113 100644
+--- a/parsers/c/lib/parser/Clang_to_ml.cc
++++ b/parsers/c/lib/parser/Clang_to_ml.cc
+@@ -918,8 +918,13 @@ CAMLprim value MLTreeBuilderVisitor::TranslateAttr(const Attr *x) {
+   CAMLlocal1(ret);
+   check_null(x, "TranslateAttr");
+   WITH_CACHE_TUPLE(cacheMisc, ret, x, 4, {
++#if CLANG_VERSION_MAJOR >= 10
+       auto n = x->getAttrName();
+       Store_field_option(ret, 1, n, caml_copy_string(n->getName().str().c_str()));
++#else
++      // Clang 8 doesn't have getAttrName()
++      Store_field(ret, 1, Val_int(0)); // None
++#endif
+ 
+       Store_field(ret, 2, caml_copy_string(x->getSpelling()));
+ 
+@@ -928,6 +933,7 @@ CAMLprim value MLTreeBuilderVisitor::TranslateAttr(const Attr *x) {
+       x->printPretty(o, ppolicy);
+       Store_field(ret, 3, caml_copy_string(o.str().c_str()));
+ 
++#if CLANG_VERSION_MAJOR >= 10
+       int r = 0;
+       switch (x->getSyntax()) {
+         GENERATE_CASE_PREFIX(r, AttributeCommonInfo::,, AS_GNU);
+@@ -939,7 +945,9 @@ CAMLprim value MLTreeBuilderVisitor::TranslateAttr(const Attr *x) {
+         GENERATE_CASE_PREFIX(r, AttributeCommonInfo::,, AS_Microsoft);
+         GENERATE_CASE_PREFIX(r, AttributeCommonInfo::,, AS_Keyword);
+         GENERATE_CASE_PREFIX(r, AttributeCommonInfo::,, AS_Pragma);
++#if CLANG_VERSION_MAJOR >= 16
+         GENERATE_CASE_PREFIX(r, AttributeCommonInfo::,, AS_ContextSensitiveKeyword);
++#endif
+ #if CLANG_VERSION_MAJOR >= 19
+         GENERATE_CASE_PREFIX(r, AttributeCommonInfo::,, AS_HLSLAnnotation);
+ #endif
+@@ -951,6 +959,10 @@ CAMLprim value MLTreeBuilderVisitor::TranslateAttr(const Attr *x) {
+         caml_failwith("mlClangAST: unknown syntax of attribute");
+       }
+       Store_field(ret, 0, Val_int(r));
++#else
++      // Clang 8 doesn't have getSyntax(), use default value
++      Store_field(ret, 0, Val_int(0)); // AS_GNU as default
++#endif
+     });
+   CAMLreturn(ret);
+ }

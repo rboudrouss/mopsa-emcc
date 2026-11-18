@@ -1,6 +1,6 @@
 # Dependencies:
-# - OCaml 4.14.2 opam switch ($(SWITCH)), where mopsa is pinned to the 32-bit fork
-#   (`make mopsa-install`; the C parser needs a host clang + llvm-dev)
+# - OCaml 4.14.2 opam switch ($(SWITCH)), where mopsa is pinned to upstream's main
+#   branch (`make mopsa-install`; the C parser needs a host clang + llvm-dev)
 # - ocaml-emcc (https://github.com/rboudrouss/ocaml-emcc), with cmake for its clang recipe,
 #   and c_of_ocaml (https://github.com/rboudrouss/C_of_ocaml), which compiles the bytecode to C
 # - Emscripten SDK (emcc in PATH)
@@ -39,9 +39,12 @@ C_OF_OCAML_REPO ?= https://github.com/rboudrouss/C_of_ocaml.git
 # Extra options of `ocaml-emcc build` (e.g. `-O -Oz`, `--stack-size 16MB`)
 OCAML_EMCC_FLAGS ?=
 
-# Mopsa is pinned to the 32-bit fork until its 31-bit fixes are merged upstream.
-MOPSA_REPO ?= https://gitlab.com/rboudrouss/mopsa-analyzer-32-bit.git
+# Mopsa is pinned to the latest commit of upstream's main branch. The changes
+# the wasm build and the interface need are patches (emcc-recipes/mopsa/patches),
+# applied by ocaml-emcc for the wasm backend and by jsoo-analyzer for the jsoo one.
+MOPSA_REPO ?= https://gitlab.com/mopsa/mopsa-analyzer.git
 MOPSA_BRANCH ?= main
+MOPSA_PATCHES := $(sort $(wildcard $(CURDIR)/emcc-recipes/mopsa/patches/*.patch))
 # Build directory of mopsa kept by opam (OPAMKEEPBUILDDIR): its configured
 # sources, from which ocaml-emcc rebuilds the C stubs and the jsoo worker is built
 MOPSA_KEPT_SRC = $(SWITCH_PREFIX)/.opam-switch/build/mopsa.$$(opam var --switch=$(SWITCH) mopsa:version)
@@ -81,8 +84,10 @@ $(MOPSA_META): | $(SWITCH_CONFIG)
 	opam pin add --switch=$(SWITCH) -y --no-action mopsa "git+$(MOPSA_REPO)#$(MOPSA_BRANCH)"
 	OPAMKEEPBUILDDIR=true opam install --switch=$(SWITCH) -y mopsa
 
-# Rebuild mopsa from the latest commit of $(MOPSA_BRANCH)
-mopsa-update:
+# Rebuild mopsa from the latest commit of $(MOPSA_BRANCH). Pinning again moves
+# a switch pinned to another repository (the former 32-bit fork) to MOPSA_REPO.
+mopsa-update: | $(SWITCH_CONFIG)
+	OPAMKEEPBUILDDIR=true opam pin add --switch=$(SWITCH) -y mopsa "git+$(MOPSA_REPO)#$(MOPSA_BRANCH)"
 	opam update --switch=$(SWITCH) mopsa
 	OPAMKEEPBUILDDIR=true opam upgrade --switch=$(SWITCH) -y mopsa
 
@@ -288,8 +293,9 @@ final-web: wasm-web-artifacts jsoo-web
 # whatever the compiler, so no 32-bit toolchain is needed.
 #
 # The analyzer is built from a copy of mopsa's kept build directory (without
-# its _build), reconfigured with --disable-c: the kept one must stay configured
-# for C, ocaml-emcc rebuilds its stubs from there.
+# its _build), patched as the wasm build is and reconfigured with --disable-c.
+# The kept one must stay configured for C, as ocaml-emcc rebuilds its stubs
+# from there.
 JSOO_SWITCH ?= $(SWITCH)
 JSOO_OPAM_EXEC := opam exec --switch=$(JSOO_SWITCH) --
 JSOO_SWITCH_PREFIX := $(shell opam var --switch=$(JSOO_SWITCH) prefix 2>/dev/null)
@@ -312,10 +318,16 @@ $(JSOO_SWITCH_PREFIX)/lib/vpl-core/META: | $(JSOO_SWITCH_CONFIG)
 # Copied again whenever mopsa is reinstalled (`make mopsa-update`).  mopsa's
 # OCaml dependencies are only missing when JSOO_SWITCH is not SWITCH (its
 # system ones are those of the C parser, disabled here).
-$(MOPSA_SRC)/.configured: $(MOPSA_META) | $(BUILD_DIR) $(JSOO_SWITCH_CONFIG)
+$(MOPSA_SRC)/.configured: $(MOPSA_META) $(MOPSA_PATCHES) $(OCAML_EMCC_DEP) | $(BUILD_DIR) $(JSOO_SWITCH_CONFIG)
 	rm -rf $(MOPSA_SRC)
 	mkdir -p $(MOPSA_SRC)
 	tar -C $(MOPSA_KEPT_SRC) --exclude=./_build -cf - . | tar -C $(MOPSA_SRC) -xf -
+	# Applied by ocaml-emcc's tool, which places each hunk by its text as the wasm build does
+	patch_awk=$$($(OPAM_EXEC) $(OCAML_EMCC) env | sed -n 's/^share *: *//p')/tools/patch.awk
+	for p in $(MOPSA_PATCHES); do
+		out=$$(cd $(MOPSA_SRC) && awk -f $$patch_awk $$p)
+		echo "patch $${p##*/} $$out"
+	done
 	opam install --switch=$(JSOO_SWITCH) -y --deps-only --assume-depexts $(MOPSA_SRC)
 	cd $(MOPSA_SRC) && $(JSOO_OPAM_EXEC) ./configure --disable-c
 	touch $@

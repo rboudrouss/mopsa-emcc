@@ -1,0 +1,18 @@
+fix(python): drop a dependency on the C analysis, missing with --disable-c
+
+analysis_bugs.ml opened Stubs.Ast without using it, which broke the
+Python analysis of a build configured with --disable-c (the js_of_ocaml
+backend).
+
+diff --git a/analyzer/languages/python/hooks/analysis_bugs.ml b/analyzer/languages/python/hooks/analysis_bugs.ml
+index e69e56e70..d22e0beea 100644
+--- a/analyzer/languages/python/hooks/analysis_bugs.ml
++++ b/analyzer/languages/python/hooks/analysis_bugs.ml
+@@ -29,7 +29,6 @@
+ open MopsaLib
+ open Format
+ open Lang.Ast
+-open Stubs.Ast
+ 
+ 
+ module Hook =

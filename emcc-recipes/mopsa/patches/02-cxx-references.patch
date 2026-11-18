@@ -1,0 +1,27 @@
+fix(parser): model C++ reference types as pointers in Clang_to_C
+
+LValueReferenceType and RValueReferenceType become pointers to the
+referenced type, which have the same ABI. C code meets them through
+builtins such as __builtin_va_start, whose va_list is passed by
+reference where va_list is a pointer (i386, wasm32). Without it the
+CPython stub fails to parse (PyErr_Format's va_start), and with it
+every analysis of C and Python together.
+
+diff --git a/parsers/c/lib/parser/Clang_to_C.ml b/parsers/c/lib/parser/Clang_to_C.ml
+index 417f65046..7c6287e83 100644
+--- a/parsers/c/lib/parser/Clang_to_C.ml
++++ b/parsers/c/lib/parser/Clang_to_C.ml
+@@ -384,6 +384,13 @@ let add_translation_unit (ctx:context) (tu_name:string) (decl:C.decl) (files: st
+           vector_sizeof = sz;
+         },
+         no_qual
++    (* References are ABI-equivalent to pointers; model them as such. These
++       surface in C code via builtins such as __builtin_va_start, whose va_list
++       argument is passed by reference when va_list is a scalar (a void
++       pointer) on 32-bit targets, unlike x86-64 where it is an array that
++       decays to a pointer (see fix_va_list above). *)
++    | C.LValueReferenceType tq -> T_pointer (type_qual range tq), no_qual
++    | C.RValueReferenceType tq -> T_pointer (type_qual range tq), no_qual
+     | _ -> error range "unhandled type" (C.string_of_type t)
+ 
+ 

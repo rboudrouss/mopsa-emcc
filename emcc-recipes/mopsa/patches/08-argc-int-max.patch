@@ -1,0 +1,22 @@
+fix(program): compare argc bounds with INT_MAX in Z
+
+INT_MAX does not fit in a 31-bit OCaml int. Z.to_int raised Z.Overflow
+on any main(argc, argv) on a 32-bit OCaml runtime, 64-bit bytecode on
+wasm32 included.
+
+diff --git a/analyzer/languages/c/iterators/program.ml b/analyzer/languages/c/iterators/program.ml
+index a349fd605..f1ef0a27c 100644
+--- a/analyzer/languages/c/iterators/program.ml
++++ b/analyzer/languages/c/iterators/program.ml
+@@ -491,8 +491,9 @@ struct
+       match hi with
+       | None -> lo'
+       | Some hi -> hi + 1 in
+-    let int_max = rangeof s32 flow |> snd |> Z.to_int in
+-    if (lo' > hi') || (hi' > int_max - 1) then
++    (* INT_MAX does not fit in a 31-bit OCaml int: compare in Z *)
++    let int_max = rangeof s32 flow |> snd in
++    if (lo' > hi') || Z.(of_int hi' > int_max - one) then
+       panic "incorrect argc value [%d,%d]" lo' hi'
+     ;
+     man.exec (mk_assume (mk_in argc (mk_int lo' range) (mk_int hi' range) range) range) flow >>% fun flow ->

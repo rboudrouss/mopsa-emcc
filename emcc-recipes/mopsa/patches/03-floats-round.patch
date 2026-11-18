@@ -1,0 +1,966 @@
+fix(floats_round): emulate directed rounding when the FPU cannot
+
+WebAssembly only rounds to nearest. floats_round.c emulates the other
+directions in software (SOFT_ROUNDING) when compiled to wasm or when
+the C library lacks them, and float.ml converts Z.t to floats with
+these roundings instead of the global mode. On i386 floats_round.c is
+compiled with SSE2 arithmetic, as it needs FLT_EVAL_METHOD == 0.
+
+diff --git a/utils/dune b/utils/dune
+index 19b309127..94b393255 100644
+--- a/utils/dune
++++ b/utils/dune
+@@ -3,8 +3,20 @@
+  (public_name mopsa.mopsa_utils)
+  (library_flags -linkall)
+  (libraries str unix arg-complete zarith)
+- (foreign_stubs (language c) (names floats_round) (flags -fPIC -frounding-math))
++ (foreign_stubs (language c) (names floats_round)
++  (flags -fPIC -frounding-math (:include fpmath_flags.sexp)))
+ )
+ 
++; floats_round.c requires FLT_EVAL_METHOD == 0. On i386, x87 evaluates
++; double expressions in extended precision (FLT_EVAL_METHOD == 2): use SSE2
++; arithmetic instead.
++(rule
++ (enabled_if (= %{architecture} i386))
++ (action (with-stdout-to fpmath_flags.sexp (echo "(-msse2 -mfpmath=sse)"))))
++
++(rule
++ (enabled_if (<> %{architecture} i386))
++ (action (with-stdout-to fpmath_flags.sexp (echo "()"))))
++
+ (include_subdirs qualified)
+ (dirs *)
+diff --git a/utils/itvUtils/float.ml b/utils/itvUtils/float.ml
+index 3346855b3..6b1fa7918 100644
+--- a/utils/itvUtils/float.ml
++++ b/utils/itvUtils/float.ml
+@@ -59,6 +59,31 @@ external set_round_zero: unit -> unit = "ml_round_zero" [@@noalloc]
+  *)
+ 
+ 
++(**
++   Conversion from Z.t to float, adapted from Zarith's Z.to_float.
++   Instead of the global rounding mode, the rounding is done by [of_int64]
++   and [mul], which must round in the same direction and precision.
++   [max_exp] is the largest exponent of the precision.
++ *)
++let z_to_float (of_int64: int64 -> t) (mul: t -> t -> t) (max_exp: int) (x: Z.t) : t =
++  let n = Z.numbits x in
++  if n <= 63 then
++    of_int64 (Z.to_int64 x)
++  else begin
++      let n = n - 55 in
++      (* Extract top 55 bits of x *)
++      let top = Z.shift_right x n in
++      (* Check if the other bits are all zero *)
++      let exact = Z.equal x (Z.shift_left top n) in
++      (* Unless the fractional part is exactly 0, round to an odd integer *)
++      let m = Z.to_int64 top in
++      let m = if exact then m else Int64.logor m 1L in
++      (* Round to float, then apply the exponent.
++         Beyond 2^max_exp, the product overflows anyway. *)
++      mul (of_int64 m) (ldexp 1. (min n max_exp))
++    end
++
++
+ 
+ (** {2 Operations without rounding} *)
+ 
+@@ -274,42 +299,10 @@ module Single = struct
+   (** Conversion from int64 with rounding. *)
+ 
+ 
+-  (**
+-     Code from Zarith to convert from Z.t to float using the current rounding mode.
+-     We add a version for single precision rounding.
+-   *)
+-
+-  let round_z_to_single x exact =
+-    let m = Z.to_int x in
+-    (* Unless the fractional part is exactly 0, round m to an odd integer *)
+-    let m = if exact then m else m lor 1 in
+-    (* Then convert m to float, with the current rounding mode. *)
+-    of_int_cur m
+-
+-  let z_to_single x =
+-    if Obj.is_int (Obj.repr x) then
+-      (* Fast path *)
+-      of_int_cur (Obj.magic x : int)
+-    else begin
+-        let n = Z.numbits x in
+-        if n <= 30 then
+-          of_int_cur (Z.to_int x)
+-        else begin
+-            let n = n - 26 in
+-            (* Extract top 26 bits of x *)
+-            let top = Z.shift_right x n in
+-            (* Check if the other bits are all zero *)
+-            let exact = Z.equal x (Z.shift_left top n) in
+-            (* Round to float and apply exponent *)
+-            ldexp (round_z_to_single top exact) n
+-          end
+-      end
+-
+-
+-  let of_z_near x = set_round_near (); z_to_single x
+-  let of_z_up   x = set_round_up   (); z_to_single x
+-  let of_z_down x = set_round_down (); z_to_single x
+-  let of_z_zero x = set_round_zero (); z_to_single x
++  let of_z_near = z_to_float of_int64_near mul_near 127
++  let of_z_up   = z_to_float of_int64_up   mul_up   127
++  let of_z_down = z_to_float of_int64_down mul_down 127
++  let of_z_zero = z_to_float of_int64_zero mul_zero 127
+   (** Conversion from Zarith with rounding. *)
+ 
+ 
+@@ -443,10 +436,10 @@ module Double = struct
+   external of_int64_zero: int64 -> t = "ml_of_int64_dbl_zero" "ml_of_int64_dbl_zero_opt" [@@unboxed] [@@noalloc]
+   (** Conversion from int64 with rounding. *)
+ 
+-  let of_z_near x = set_round_near (); Z.to_float x
+-  let of_z_up   x = set_round_up   (); Z.to_float x
+-  let of_z_down x = set_round_down (); Z.to_float x
+-  let of_z_zero x = set_round_zero (); Z.to_float x
++  let of_z_near = z_to_float of_int64_near mul_near 1023
++  let of_z_up   = z_to_float of_int64_up   mul_up   1023
++  let of_z_down = z_to_float of_int64_down mul_down 1023
++  let of_z_zero = z_to_float of_int64_zero mul_zero 1023
+   (** Conversion from Zarith with rounding. *)
+ 
+ 
+diff --git a/utils/itvUtils/floats_round.c b/utils/itvUtils/floats_round.c
+index 989abdce0..680cbcb62 100644
+--- a/utils/itvUtils/floats_round.c
++++ b/utils/itvUtils/floats_round.c
+@@ -64,7 +64,263 @@
+ /* ********************************* */
+ 
+ 
+-#if defined(__x86_64__) && defined(__GNUC__)
++/*
++  The rounding direction is set in hardware when possible.
++  It is emulated in software (SOFT_ROUNDING) when:
++  - the C library does not define FE_UPWARD, FE_DOWNWARD and FE_TOWARDZERO,
++    which C99 only defines for supported rounding directions;
++  - compiling to WebAssembly, which only supports rounding to nearest,
++    although Emscripten defines these macros;
++  - SOFT_ROUNDING is defined (-DSOFT_ROUNDING), e.g. on targets where
++    fesetround fails at run time.
++*/
++
++#if defined(__wasm__) || !defined(FE_UPWARD) || !defined(FE_DOWNWARD) || !defined(FE_TOWARDZERO)
++#ifndef SOFT_ROUNDING
++#define SOFT_ROUNDING
++#endif
++#endif
++
++
++#if defined(SOFT_ROUNDING)
++
++/*
++  Software path.
++
++  The rounding directions are emulated on top of rounding to nearest.
++  ROUND_* only records the direction in round_dir, and the R_* macros
++  below compute each operation with it.
++
++  Each operation computes r = RN(x) with the usual C operation, then the
++  sign of the rounding error x - r with an error-free transformation, and
++  moves r by one ulp when it was rounded in the wrong direction.
++  The result is the exact directed rounding, the same as with a hardware
++  rounding mode.
++
++  This requires IEEE 754 single and double precision arithmetic rounded to
++  nearest (in hardware or in a soft-float library), correctly rounded sqrt
++  and fma, and subnormal numbers (no flush-to-zero).
++  It must not be compiled with -ffast-math, which breaks error-free
++  transformations.
++*/
++
++enum { RND_NEAR, RND_UP, RND_DOWN, RND_ZERO };
++
++static int round_dir = RND_NEAR;
++
++#define ROUND_NEAR  round_dir = RND_NEAR
++#define ROUND_ZERO  round_dir = RND_ZERO
++#define ROUND_UP    round_dir = RND_UP
++#define ROUND_DOWN  round_dir = RND_DOWN
++
++/* r = RN(x), err has the sign of x - r (0 if r = x) */
++static inline double dbl_fix(double r, double err, int d)
++{
++  switch (d) {
++  case RND_UP:   return err > 0 ? nextafter(r, INFINITY) : r;
++  case RND_DOWN: return err < 0 ? nextafter(r, -INFINITY) : r;
++  case RND_ZERO: return (r > 0 && err < 0) || (r < 0 && err > 0) ? nextafter(r, 0) : r;
++  default:       return r;
++  }
++}
++
++/* r = RN(x) is infinite but x is finite */
++static inline double dbl_overflow(double r, int d)
++{
++  if ((d == RND_UP && r < 0) || (d == RND_DOWN && r > 0) || d == RND_ZERO)
++    return copysign(DBL_MAX, r);
++  return r;
++}
++
++/* Below 2^-967, the error terms computed with fma may not be exact.
++   We then compute on the mantissas m of the arguments (frexp), with err
++   the error on m, and scale back by 2^e.
++   y = ldexp(m, e) is RN(x) or one of its neighbours, and t = m - y*2^-e is
++   either 0 or larger than err, so x - y has the sign of t, or of err. */
++#define TINY 0x1p-967
++
++static inline double dbl_fix_scaled(double m, double err, int e, int d)
++{
++  double y = ldexp(m, e), t = m - ldexp(y, -e);
++  return dbl_fix(y, t != 0 ? t : err, d);
++}
++
++static inline double dbl_add(double a, double b, int d)
++{
++  double s = a + b;
++  if (d == RND_NEAR) return s;
++  if (!isfinite(s)) return isfinite(a) && isfinite(b) ? dbl_overflow(s, d) : s;
++  /* x + (-x) is -0 when rounding downwards */
++  if (s == 0) return d == RND_DOWN ? -(-a - b) : s;
++  /* Fast2Sum: b - (s - a) is the exact error when |a| >= |b| */
++  if (fabs(a) < fabs(b)) { double t = a; a = b; b = t; }
++  return dbl_fix(s, b - (s - a), d);
++}
++
++static inline double dbl_sub(double a, double b, int d)
++{
++  return dbl_add(a, -b, d);
++}
++
++static inline double dbl_mul(double a, double b, int d)
++{
++  double p = a * b;
++  if (d == RND_NEAR) return p;
++  if (!isfinite(p)) return isfinite(a) && isfinite(b) ? dbl_overflow(p, d) : p;
++  if (a == 0 || b == 0) return p;
++  if (fabs(p) < TINY) {
++    int ea, eb;
++    double ma = frexp(a, &ea), mb = frexp(b, &eb), m = ma * mb;
++    return dbl_fix_scaled(m, fma(ma, mb, -m), ea + eb, d);
++  }
++  /* a * b - p is exact */
++  return dbl_fix(p, fma(a, b, -p), d);
++}
++
++static inline double dbl_div(double a, double b, int d)
++{
++  double q = a / b;
++  if (d == RND_NEAR) return q;
++  if (!isfinite(q)) return isfinite(a) && isfinite(b) && b != 0 ? dbl_overflow(q, d) : q;
++  if (a == 0 || isinf(b)) return q;
++  if (fabs(a) < TINY || fabs(q) < TINY) {
++    int ea, eb;
++    double ma = frexp(a, &ea), mb = frexp(b, &eb), m = ma / mb, rem = fma(-m, mb, ma);
++    return dbl_fix_scaled(m, mb > 0 ? rem : -rem, ea - eb, d);
++  }
++  /* the remainder a - q * b is exact */
++  double rem = fma(-q, b, a);
++  return dbl_fix(q, b > 0 ? rem : -rem, d);
++}
++
++static inline double dbl_sqrt(double a, int d)
++{
++  double s = sqrt(a);
++  if (d == RND_NEAR || !(a > 0) || isinf(a)) return s;
++  if (a < TINY) {
++    /* the result is not tiny, so scaling it back is exact */
++    int e;
++    double m = frexp(a, &e);
++    if (e & 1) { m *= 2; e--; }
++    double sm = sqrt(m);
++    return ldexp(dbl_fix(sm, fma(-sm, sm, m), d), e / 2);
++  }
++  /* a - s * s is exact */
++  return dbl_fix(s, fma(-s, s, a), d);
++}
++
++static inline double dbl_rint(double a, int d)
++{
++  switch (d) {
++  case RND_UP:   return ceil(a);
++  case RND_DOWN: return floor(a);
++  case RND_ZERO: return trunc(a);
++  default:       return rint(a);
++  }
++}
++
++static inline float sgl_rint(float a, int d)
++{
++  switch (d) {
++  case RND_UP:   return ceilf(a);
++  case RND_DOWN: return floorf(a);
++  case RND_ZERO: return truncf(a);
++  default:       return rintf(a);
++  }
++}
++
++static inline float sgl_of_dbl(double x, int d)
++{
++  float f = (float)x;
++  switch (d) {
++  case RND_UP:   return (double)f < x ? nextafterf(f, INFINITY) : f;
++  case RND_DOWN: return (double)f > x ? nextafterf(f, -INFINITY) : f;
++  case RND_ZERO: return (f > 0 && (double)f > x) || (f < 0 && (double)f < x) ? nextafterf(f, 0) : f;
++  default:       return f;
++  }
++}
++
++/* Single-precision operations are rounded in double precision, then in
++   single precision, in the same direction.  This is the same as rounding
++   once in single precision, as every float is a double. */
++static inline float sgl_add(float a, float b, int d)
++{
++  return d == RND_NEAR ? a + b : sgl_of_dbl(dbl_add(a, b, d), d);
++}
++
++static inline float sgl_sub(float a, float b, int d)
++{
++  return d == RND_NEAR ? a - b : sgl_of_dbl(dbl_sub(a, b, d), d);
++}
++
++static inline float sgl_mul(float a, float b, int d)
++{
++  return d == RND_NEAR ? a * b : sgl_of_dbl(dbl_mul(a, b, d), d);
++}
++
++static inline float sgl_div(float a, float b, int d)
++{
++  return d == RND_NEAR ? a / b : sgl_of_dbl(dbl_div(a, b, d), d);
++}
++
++static inline float sgl_sqrt(float a, int d)
++{
++  return d == RND_NEAR ? sqrtf(a) : sgl_of_dbl(dbl_sqrt(a, d), d);
++}
++
++static inline double dbl_of_int64(int64_t i, int d)
++{
++  double x = (double)i;
++  if (d == RND_NEAR) return x;
++  /* c is the sign of x - i ((int64_t)x is undefined for x = 2^63) */
++  int c = x >= 0x1p63 ? 1 : ((int64_t)x > i) - ((int64_t)x < i);
++  return dbl_fix(x, -c, d);
++}
++
++static inline float sgl_of_int64(int64_t i, int d)
++{
++  float x = (float)i;
++  if (d == RND_NEAR) return x;
++  int c = x >= 0x1p63f ? 1 : ((int64_t)x > i) - ((int64_t)x < i);
++  switch (d) {
++  case RND_UP:   return c < 0 ? nextafterf(x, INFINITY) : x;
++  case RND_DOWN: return c > 0 ? nextafterf(x, -INFINITY) : x;
++  default:       return (x > 0 && c > 0) || (x < 0 && c < 0) ? nextafterf(x, 0) : x;
++  }
++}
++
++/* m * 10^e for m >= 0, rounded upwards or downwards */
++static double dbl_scale10(double m, int e, int d)
++{
++  /* when dividing, 10^-e must be rounded in the opposite direction */
++  int dp = e >= 0 ? d : d == RND_UP ? RND_DOWN : RND_UP;
++  int n = e >= 0 ? e : -e;
++  double p = 1;
++  /* beyond 10^400, p is already DBL_MAX or infinity */
++  for (int i = 0; i < n && i < 400; i++) p = dbl_mul(p, 10, dp);
++  if (m == 0) return m;
++  return e >= 0 ? dbl_mul(m, p, d) : dbl_div(m, p, d);
++}
++
++#define R_OP2(OP,a,b) \
++  _Generic((a) + (b), float: sgl_##OP, default: dbl_##OP)((a), (b), round_dir)
++
++#define R_ADD(a,b)        R_OP2(add, a, b)
++#define R_SUB(a,b)        R_OP2(sub, a, b)
++#define R_MUL(a,b)        R_OP2(mul, a, b)
++#define R_DIV(a,b)        R_OP2(div, a, b)
++#define R_SQRT(a)         dbl_sqrt((a), round_dir)
++#define R_SQRTF(a)        sgl_sqrt((a), round_dir)
++#define R_RINT(a)         dbl_rint((a), round_dir)
++#define R_RINTF(a)        sgl_rint((a), round_dir)
++#define R_LRINT(a)        ((long)dbl_rint((a), round_dir))
++#define R_LLRINT(a)       ((long long)dbl_rint((a), round_dir))
++#define R_TO_SGL(a)       sgl_of_dbl((a), round_dir)
++#define R_INT64_TO_DBL(a) dbl_of_int64((a), round_dir)
++#define R_INT64_TO_SGL(a) sgl_of_int64((a), round_dir)
++#define R_SCALE10(m,e)    dbl_scale10((m), (e), round_dir)
++
++#elif defined(__x86_64__) && defined(__GNUC__)
+ 
+ /*
+   Specific path for x86-64 with GCC inline assembly.
+@@ -104,7 +360,7 @@ static const unsigned mxcsr_zero = 0x7f80;
+ */
+ 
+ #define FESETROUND(X)                           \
+-  if (fesetround((X))) { fprintf(stderr,"Could not set FPU rounding direction: fesetround failed.\n"); exit(1); }
++  if (fesetround((X))) { fprintf(stderr,"Could not set FPU rounding direction: fesetround failed (compile with -DSOFT_ROUNDING to emulate rounding directions).\n"); exit(1); }
+ 
+ #define ROUND_NEAR                              \
+   FESETROUND(FE_TONEAREST)
+@@ -121,28 +377,61 @@ static const unsigned mxcsr_zero = 0x7f80;
+ 
+ #endif
+ 
++#ifndef SOFT_ROUNDING
++
++/*
++  Operations rounded in the direction set by the last ROUND_*.
++  With hardware rounding modes, these are the usual C operations.
++*/
++
++#define R_ADD(a,b)        ((a) + (b))
++#define R_SUB(a,b)        ((a) - (b))
++#define R_MUL(a,b)        ((a) * (b))
++#define R_DIV(a,b)        ((a) / (b))
++#define R_SQRT(a)         sqrt(a)
++#define R_SQRTF(a)        sqrtf(a)
++#define R_RINT(a)         rint(a)
++#define R_RINTF(a)        rintf(a)
++#define R_LRINT(a)        lrint(a)
++#define R_LLRINT(a)       llrint(a)
++#define R_TO_SGL(a)       ((float)(a))
++#define R_INT64_TO_DBL(a) ((double)(a))
++#define R_INT64_TO_SGL(a) ((float)(a))
++/* NOTE: not sure whether pow obeys ROUND_UP / ROUND_DOWN */
++#define R_SCALE10(m,e)    ((m) * pow(10., (e)))
++
++#endif
++
+ 
+ 
+ /* global rounding */
+ /* *************** */
+ 
++#ifdef SOFT_ROUNDING
++/* the rounding direction of OCaml float operations cannot be changed */
++#define GLOBAL_ROUND(X)                         \
++  { fprintf(stderr,"Could not set FPU rounding direction: rounding directions are emulated (SOFT_ROUNDING).\n"); exit(1); }
++#else
++#define GLOBAL_ROUND(X) X
++#endif
++
+ CAMLprim value ml_round_near(value unit) {
+   ROUND_NEAR;
+   return Val_unit;
+ }
+ 
+ CAMLprim value ml_round_zero(value unit) {
+-  ROUND_ZERO;
++  GLOBAL_ROUND(ROUND_ZERO);
+   return Val_unit;
+ }
+ 
+ CAMLprim value ml_round_up(value unit) {
+-  ROUND_UP;
++  GLOBAL_ROUND(ROUND_UP);
+   return Val_unit;
+ }
+ 
+ CAMLprim value ml_round_down(value unit) {
+-  ROUND_DOWN;
++  GLOBAL_ROUND(ROUND_DOWN);
+   return Val_unit;
+ }
+ 
+@@ -158,10 +447,10 @@ static const float sgl_inf = 1.f/0.f;
+ static const float sgl_minf = -1.f/0.f;
+ 
+ /* This multiplication ensures that 0 * infty = 0 */
+-#define MUL(a,b)  ((a)==0 || (b)==0 ? 0 : (a) * (b))
++#define MUL(a,b)  ((a)==0 || (b)==0 ? 0 : R_MUL(a,b))
+ 
+ /* This division ensures that 0 / 0 = infty / infty = 0 */
+-#define DIV(a,b)  ((a)==0 || isinf((b)) ? 0 : (a) / (b))
++#define DIV(a,b)  ((a)==0 || isinf((b)) ? 0 : R_DIV(a,b))
+ 
+ 
+ /* unary: double -> double */
+@@ -207,6 +496,21 @@ static const float sgl_minf = -1.f/0.f;
+     CAMLreturn(r);                                              \
+   }
+ 
++/* unary: int64 -> double (the int64 is unboxed in the _opt version) */
++#define OP_I64_D(NAME,CODE)                                     \
++  CAMLprim double ml_##NAME##_opt(int64_t a) {                  \
++    double r;                                                   \
++    CODE;                                                       \
++    return r;                                                   \
++  }                                                             \
++  CAMLprim value ml_##NAME(value aa) {                          \
++    CAMLparam1(aa);                                             \
++    int64_t a = Int64_val(aa);                                  \
++    double r;                                                   \
++    CODE;                                                       \
++    CAMLreturn(caml_copy_double(r));                            \
++  }
++
+ /* unary: value -> double */
+ #define OP_V_D(NAME,CODE)                                       \
+   CAMLprim double ml_##NAME##_opt(value a) {                    \
+@@ -224,34 +528,34 @@ static const float sgl_minf = -1.f/0.f;
+ 
+ 
+ /* add */
+-OP_DD_D(add_dbl_near, { ROUND_NEAR; r = a + b; })
+-OP_DD_D(add_dbl_up,   { ROUND_UP;   r = a + b; })
+-OP_DD_D(add_dbl_down, { ROUND_UP;   a = -a; r = -(a - b); })
+-OP_DD_D(add_dbl_zero, { ROUND_ZERO; r = a + b; })
+-OP_DD_D(add_sgl_near, { ROUND_NEAR; r = (float)a + (float)b; })
+-OP_DD_D(add_sgl_up,   { ROUND_UP;   r = (float)a + (float)b; })
+-OP_DD_D(add_sgl_down, { ROUND_UP;   a = -a; r = -((float)a - (float)b); })
+-OP_DD_D(add_sgl_zero, { ROUND_ZERO; r = (float)a + (float)b; })
++OP_DD_D(add_dbl_near, { ROUND_NEAR; r = R_ADD(a, b); })
++OP_DD_D(add_dbl_up,   { ROUND_UP;   r = R_ADD(a, b); })
++OP_DD_D(add_dbl_down, { ROUND_UP;   a = -a; r = -R_SUB(a, b); })
++OP_DD_D(add_dbl_zero, { ROUND_ZERO; r = R_ADD(a, b); })
++OP_DD_D(add_sgl_near, { ROUND_NEAR; r = R_ADD((float)a, (float)b); })
++OP_DD_D(add_sgl_up,   { ROUND_UP;   r = R_ADD((float)a, (float)b); })
++OP_DD_D(add_sgl_down, { ROUND_UP;   a = -a; r = -R_SUB((float)a, (float)b); })
++OP_DD_D(add_sgl_zero, { ROUND_ZERO; r = R_ADD((float)a, (float)b); })
+ 
+ /* sub */
+-OP_DD_D(sub_dbl_near, { ROUND_NEAR; r = a - b; })
+-OP_DD_D(sub_dbl_up,   { ROUND_UP;   r = a - b; })
+-OP_DD_D(sub_dbl_down, { ROUND_UP;   a = -a; r = -(a + b); })
+-OP_DD_D(sub_dbl_zero, { ROUND_ZERO; r = a - b; })
+-OP_DD_D(sub_sgl_near, { ROUND_NEAR; r = (float)a - (float)b; })
+-OP_DD_D(sub_sgl_up,   { ROUND_UP;   r = (float)a - (float)b; })
+-OP_DD_D(sub_sgl_down, { ROUND_UP;   a = -a; r = -((float)a + (float)b); })
+-OP_DD_D(sub_sgl_zero, { ROUND_ZERO; r = (float)a - (float)b; })
++OP_DD_D(sub_dbl_near, { ROUND_NEAR; r = R_SUB(a, b); })
++OP_DD_D(sub_dbl_up,   { ROUND_UP;   r = R_SUB(a, b); })
++OP_DD_D(sub_dbl_down, { ROUND_UP;   a = -a; r = -R_ADD(a, b); })
++OP_DD_D(sub_dbl_zero, { ROUND_ZERO; r = R_SUB(a, b); })
++OP_DD_D(sub_sgl_near, { ROUND_NEAR; r = R_SUB((float)a, (float)b); })
++OP_DD_D(sub_sgl_up,   { ROUND_UP;   r = R_SUB((float)a, (float)b); })
++OP_DD_D(sub_sgl_down, { ROUND_UP;   a = -a; r = -R_ADD((float)a, (float)b); })
++OP_DD_D(sub_sgl_zero, { ROUND_ZERO; r = R_SUB((float)a, (float)b); })
+ 
+ /* mul */
+-OP_DD_D(mul_dbl_near, { ROUND_NEAR; r = a * b; })
+-OP_DD_D(mul_dbl_up,   { ROUND_UP;   r = a * b; })
+-OP_DD_D(mul_dbl_down, { ROUND_UP;   a = -a; r = -(a * b); })
+-OP_DD_D(mul_dbl_zero, { ROUND_ZERO; r = a * b; })
+-OP_DD_D(mul_sgl_near, { ROUND_NEAR; r = (float)a * (float)b; })
+-OP_DD_D(mul_sgl_up,   { ROUND_UP;   r = (float)a * (float)b; })
+-OP_DD_D(mul_sgl_down, { ROUND_UP;   a = -a; r = -((float)a * (float)b); })
+-OP_DD_D(mul_sgl_zero, { ROUND_ZERO; r = (float)a * (float)b; })
++OP_DD_D(mul_dbl_near, { ROUND_NEAR; r = R_MUL(a, b); })
++OP_DD_D(mul_dbl_up,   { ROUND_UP;   r = R_MUL(a, b); })
++OP_DD_D(mul_dbl_down, { ROUND_UP;   a = -a; r = -R_MUL(a, b); })
++OP_DD_D(mul_dbl_zero, { ROUND_ZERO; r = R_MUL(a, b); })
++OP_DD_D(mul_sgl_near, { ROUND_NEAR; r = R_MUL((float)a, (float)b); })
++OP_DD_D(mul_sgl_up,   { ROUND_UP;   r = R_MUL((float)a, (float)b); })
++OP_DD_D(mul_sgl_down, { ROUND_UP;   a = -a; r = -R_MUL((float)a, (float)b); })
++OP_DD_D(mul_sgl_zero, { ROUND_ZERO; r = R_MUL((float)a, (float)b); })
+ 
+ /* mul with 0 * infty = 0 */
+ OP_DD_D(mulz_dbl_near, { ROUND_NEAR; r = MUL(a,b); })
+@@ -264,14 +568,14 @@ OP_DD_D(mulz_sgl_down, { ROUND_UP;   float aa = -a; float bb = b; r = -MUL(aa,bb
+ OP_DD_D(mulz_sgl_zero, { ROUND_ZERO; float aa = a; float bb = b; r = MUL(aa,bb); })
+ 
+ /* div */
+-OP_DD_D(div_dbl_near, { ROUND_NEAR; r = a / b; })
+-OP_DD_D(div_dbl_up,   { ROUND_UP;   r = a / b; })
+-OP_DD_D(div_dbl_down, { ROUND_UP;   a = -a; r = -(a / b); })
+-OP_DD_D(div_dbl_zero, { ROUND_ZERO; r = a / b; })
+-OP_DD_D(div_sgl_near, { ROUND_NEAR; r = (float)a / (float)b; })
+-OP_DD_D(div_sgl_up,   { ROUND_UP;   r = (float)a / (float)b; })
+-OP_DD_D(div_sgl_down, { ROUND_UP;   a = -a; r = -((float)a / (float)b); })
+-OP_DD_D(div_sgl_zero, { ROUND_ZERO; r = (float)a / (float)b; })
++OP_DD_D(div_dbl_near, { ROUND_NEAR; r = R_DIV(a, b); })
++OP_DD_D(div_dbl_up,   { ROUND_UP;   r = R_DIV(a, b); })
++OP_DD_D(div_dbl_down, { ROUND_UP;   a = -a; r = -R_DIV(a, b); })
++OP_DD_D(div_dbl_zero, { ROUND_ZERO; r = R_DIV(a, b); })
++OP_DD_D(div_sgl_near, { ROUND_NEAR; r = R_DIV((float)a, (float)b); })
++OP_DD_D(div_sgl_up,   { ROUND_UP;   r = R_DIV((float)a, (float)b); })
++OP_DD_D(div_sgl_down, { ROUND_UP;   a = -a; r = -R_DIV((float)a, (float)b); })
++OP_DD_D(div_sgl_zero, { ROUND_ZERO; r = R_DIV((float)a, (float)b); })
+ 
+ /* div with 0 / 0 = 0 */
+ OP_DD_D(divz_dbl_near, { ROUND_NEAR; r = DIV(a,b); })
+@@ -294,63 +598,63 @@ OP_DD_D(mod_sgl_down, { ROUND_UP;   a = -a; r = -(fmodf((float)a, (float)b)); })
+ OP_DD_D(mod_sgl_zero, { ROUND_ZERO; r = fmodf((float)a, (float)b); })
+ 
+ /* sqrt */
+-OP_D_D(sqrt_dbl_near, { ROUND_NEAR; r = sqrt(a); })
+-OP_D_D(sqrt_dbl_up,   { ROUND_UP;   r = sqrt(a); })
+-OP_D_D(sqrt_dbl_down, { ROUND_DOWN; r = sqrt(a); })
+-OP_D_D(sqrt_dbl_zero, { ROUND_ZERO; r = sqrt(a); })
+-OP_D_D(sqrt_sgl_near, { ROUND_NEAR; r = sqrtf((float)a); })
+-OP_D_D(sqrt_sgl_up,   { ROUND_UP;   r = sqrtf((float)a); })
+-OP_D_D(sqrt_sgl_down, { ROUND_DOWN; r = sqrtf((float)a); })
+-OP_D_D(sqrt_sgl_zero, { ROUND_ZERO; r = sqrtf((float)a); })
++OP_D_D(sqrt_dbl_near, { ROUND_NEAR; r = R_SQRT(a); })
++OP_D_D(sqrt_dbl_up,   { ROUND_UP;   r = R_SQRT(a); })
++OP_D_D(sqrt_dbl_down, { ROUND_DOWN; r = R_SQRT(a); })
++OP_D_D(sqrt_dbl_zero, { ROUND_ZERO; r = R_SQRT(a); })
++OP_D_D(sqrt_sgl_near, { ROUND_NEAR; r = R_SQRTF((float)a); })
++OP_D_D(sqrt_sgl_up,   { ROUND_UP;   r = R_SQRTF((float)a); })
++OP_D_D(sqrt_sgl_down, { ROUND_DOWN; r = R_SQRTF((float)a); })
++OP_D_D(sqrt_sgl_zero, { ROUND_ZERO; r = R_SQRTF((float)a); })
+ 
+ /* cast to float */
+-OP_D_D(to_sgl_near, { ROUND_NEAR; r = (float)a; })
+-OP_D_D(to_sgl_up,   { ROUND_UP;   r = (float)a; })
+-OP_D_D(to_sgl_down, { ROUND_UP;   a = -a; r = -((float)a); })
+-OP_D_D(to_sgl_zero, { ROUND_ZERO; r = (float)a; })
++OP_D_D(to_sgl_near, { ROUND_NEAR; r = R_TO_SGL(a); })
++OP_D_D(to_sgl_up,   { ROUND_UP;   r = R_TO_SGL(a); })
++OP_D_D(to_sgl_down, { ROUND_UP;   a = -a; r = -R_TO_SGL(a); })
++OP_D_D(to_sgl_zero, { ROUND_ZERO; r = R_TO_SGL(a); })
+ 
+ /* round to integer (returns a float) */
+-OP_D_D(round_int_dbl_near, { ROUND_NEAR; r = rint(a); })
+-OP_D_D(round_int_dbl_up,   { ROUND_UP;   r = rint(a); })
+-OP_D_D(round_int_dbl_down, { ROUND_UP;   a = -a; r = -rint(a); })
+-OP_D_D(round_int_dbl_zero, { ROUND_ZERO; r = rint(a); })
+-OP_D_D(round_int_sgl_near, { ROUND_NEAR; r = rintf((float)a); })
+-OP_D_D(round_int_sgl_up,   { ROUND_UP;   r = rintf((float)a); })
+-OP_D_D(round_int_sgl_down, { ROUND_UP;   a = -a; r = -(rintf((float)a)); })
+-OP_D_D(round_int_sgl_zero, { ROUND_ZERO; r = rintf((float)a); })
++OP_D_D(round_int_dbl_near, { ROUND_NEAR; r = R_RINT(a); })
++OP_D_D(round_int_dbl_up,   { ROUND_UP;   r = R_RINT(a); })
++OP_D_D(round_int_dbl_down, { ROUND_UP;   a = -a; r = -R_RINT(a); })
++OP_D_D(round_int_dbl_zero, { ROUND_ZERO; r = R_RINT(a); })
++OP_D_D(round_int_sgl_near, { ROUND_NEAR; r = R_RINTF((float)a); })
++OP_D_D(round_int_sgl_up,   { ROUND_UP;   r = R_RINTF((float)a); })
++OP_D_D(round_int_sgl_down, { ROUND_UP;   a = -a; r = -R_RINTF((float)a); })
++OP_D_D(round_int_sgl_zero, { ROUND_ZERO; r = R_RINTF((float)a); })
+ 
+ /* cast to int64 */
+-OP_D_V(to_int64_near, { ROUND_NEAR; r = caml_copy_int64(llrint(a)); })
+-OP_D_V(to_int64_up,   { ROUND_UP;   r = caml_copy_int64(llrint(a)); })
+-OP_D_V(to_int64_down, { ROUND_UP;   a = -a; r = caml_copy_int64(-llrint(a)); })
++OP_D_V(to_int64_near, { ROUND_NEAR; r = caml_copy_int64(R_LLRINT(a)); })
++OP_D_V(to_int64_up,   { ROUND_UP;   r = caml_copy_int64(R_LLRINT(a)); })
++OP_D_V(to_int64_down, { ROUND_UP;   a = -a; r = caml_copy_int64(-R_LLRINT(a)); })
+ OP_D_V(to_int64_zero, { r = caml_copy_int64(a); }) // default C semantics is truncation
+ 
+ /* cast from int64 */
+-OP_V_D(of_int64_dbl_near, { ROUND_NEAR; r = Int64_val(a); })
+-OP_V_D(of_int64_dbl_up,   { ROUND_UP;   r = Int64_val(a); })
+-OP_V_D(of_int64_dbl_down, { ROUND_UP;   r = -((double)(-Int64_val(a))); })
+-OP_V_D(of_int64_dbl_zero, { ROUND_ZERO; r = Int64_val(a); })
+-OP_V_D(of_int64_sgl_near, { ROUND_NEAR; r = (float)Int64_val(a); })
+-OP_V_D(of_int64_sgl_up,   { ROUND_UP;   r = (float)Int64_val(a); })
+-OP_V_D(of_int64_sgl_down, { ROUND_UP;   r = -((float)(-Int64_val(a))); })
+-OP_V_D(of_int64_sgl_zero, { ROUND_ZERO; r = (float)Int64_val(a); })
+-OP_V_D(of_int64_sgl_cur, { r = (float)Int64_val(a); })
++OP_I64_D(of_int64_dbl_near, { ROUND_NEAR; r = R_INT64_TO_DBL(a); })
++OP_I64_D(of_int64_dbl_up,   { ROUND_UP;   r = R_INT64_TO_DBL(a); })
++OP_I64_D(of_int64_dbl_down, { ROUND_UP;   r = -R_INT64_TO_DBL(-a); })
++OP_I64_D(of_int64_dbl_zero, { ROUND_ZERO; r = R_INT64_TO_DBL(a); })
++OP_I64_D(of_int64_sgl_near, { ROUND_NEAR; r = R_INT64_TO_SGL(a); })
++OP_I64_D(of_int64_sgl_up,   { ROUND_UP;   r = R_INT64_TO_SGL(a); })
++OP_I64_D(of_int64_sgl_down, { ROUND_UP;   r = -R_INT64_TO_SGL(-a); })
++OP_I64_D(of_int64_sgl_zero, { ROUND_ZERO; r = R_INT64_TO_SGL(a); })
++OP_I64_D(of_int64_sgl_cur, { r = (float)a; })
+ 
+ /* cast to int */
+-OP_D_V(to_int_near, { ROUND_NEAR; r = Val_long(lrint(a)); })
+-OP_D_V(to_int_up,   { ROUND_UP;   r = Val_long(lrint(a)); })
+-OP_D_V(to_int_down, { ROUND_UP;   a = -a; r = Val_long(-lrint(a)); })
+-OP_D_V(to_int_zero, { r = Val_long(a); }) // default C semantics is truncation
++OP_D_V(to_int_near, { ROUND_NEAR; r = Val_long(R_LRINT(a)); })
++OP_D_V(to_int_up,   { ROUND_UP;   r = Val_long(R_LRINT(a)); })
++OP_D_V(to_int_down, { ROUND_UP;   a = -a; r = Val_long(-R_LRINT(a)); })
++OP_D_V(to_int_zero, { r = Val_long((intnat)a); }) // default C semantics is truncation
+ 
+ /* cast from int */
+-OP_V_D(of_int_dbl_near, { ROUND_NEAR; r = Long_val(a); })
+-OP_V_D(of_int_dbl_up,   { ROUND_UP;   r = Long_val(a); })
+-OP_V_D(of_int_dbl_down, { ROUND_UP;   r = -((double)(-Long_val(a))); })
+-OP_V_D(of_int_dbl_zero, { ROUND_ZERO; r = Long_val(a); })
+-OP_V_D(of_int_sgl_near, { ROUND_NEAR; r = (float)Long_val(a); })
+-OP_V_D(of_int_sgl_up,   { ROUND_UP;   r = (float)Long_val(a); })
+-OP_V_D(of_int_sgl_down, { ROUND_UP;   r = -((float)(-Long_val(a))); })
+-OP_V_D(of_int_sgl_zero, { ROUND_ZERO; r = (float)Long_val(a); })
++OP_V_D(of_int_dbl_near, { ROUND_NEAR; r = R_INT64_TO_DBL(Long_val(a)); })
++OP_V_D(of_int_dbl_up,   { ROUND_UP;   r = R_INT64_TO_DBL(Long_val(a)); })
++OP_V_D(of_int_dbl_down, { ROUND_UP;   r = -R_INT64_TO_DBL(-Long_val(a)); })
++OP_V_D(of_int_dbl_zero, { ROUND_ZERO; r = R_INT64_TO_DBL(Long_val(a)); })
++OP_V_D(of_int_sgl_near, { ROUND_NEAR; r = R_INT64_TO_SGL(Long_val(a)); })
++OP_V_D(of_int_sgl_up,   { ROUND_UP;   r = R_INT64_TO_SGL(Long_val(a)); })
++OP_V_D(of_int_sgl_down, { ROUND_UP;   r = -R_INT64_TO_SGL(-Long_val(a)); })
++OP_V_D(of_int_sgl_zero, { ROUND_ZERO; r = R_INT64_TO_SGL(Long_val(a)); })
+ OP_V_D(of_int_sgl_cur,  { r = (float)Long_val(a); })
+ 
+ 
+@@ -422,85 +726,85 @@ CAMLprim value ml_float_of_bits(value d) {
+ 
+ CAMLprim value ml_add_dbl_itv_near(value a, value b, value r) {
+   ROUND_NEAR;
+-  set_l(r, get_l(a) + get_l(b));
+-  set_u(r, get_u(a) + get_u(b));
++  set_l(r, R_ADD(get_l(a), get_l(b)));
++  set_u(r, R_ADD(get_u(a), get_u(b)));
+   return Val_unit;
+ }
+ 
+ CAMLprim value ml_add_dbl_itv_up(value a, value b, value r) {
+   ROUND_UP;
+-  set_l(r, get_l(a) + get_l(b));
+-  set_u(r, get_u(a) + get_u(b));
++  set_l(r, R_ADD(get_l(a), get_l(b)));
++  set_u(r, R_ADD(get_u(a), get_u(b)));
+   return Val_unit;
+ }
+ 
+ CAMLprim value ml_add_dbl_itv_down(value a, value b, value r) {
+   ROUND_UP;
+-  set_l(r, -(- get_l(a) - get_l(b)));
+-  set_u(r, -(- get_u(a) - get_u(b)));
++  set_l(r, -R_SUB(-get_l(a), get_l(b)));
++  set_u(r, -R_SUB(-get_u(a), get_u(b)));
+   return Val_unit;
+ }
+ 
+ CAMLprim value ml_add_dbl_itv_zero(value a, value b, value r) {
+   ROUND_ZERO;
+-  set_l(r, get_l(a) + get_l(b));
+-  set_u(r, get_u(a) + get_u(b));
++  set_l(r, R_ADD(get_l(a), get_l(b)));
++  set_u(r, R_ADD(get_u(a), get_u(b)));
+   return Val_unit;
+ }
+ 
+ CAMLprim value ml_add_dbl_itv_outer(value a, value b, value r) {
+   ROUND_UP;
+-  set_l(r, -(- get_l(a) - get_l(b)));
+-  set_u(r, get_u(a) + get_u(b));
++  set_l(r, -R_SUB(-get_l(a), get_l(b)));
++  set_u(r, R_ADD(get_u(a), get_u(b)));
+   return Val_unit;
+ }
+ 
+ CAMLprim value ml_add_dbl_itv_inner(value a, value b, value r) {
+   ROUND_UP;
+-  set_l(r, get_l(a) + get_l(b));
+-  set_u(r, -(- get_u(a) - get_u(b)));
++  set_l(r, R_ADD(get_l(a), get_l(b)));
++  set_u(r, -R_SUB(-get_u(a), get_u(b)));
+   return Val_unit;
+ }
+ 
+ CAMLprim value ml_add_sgl_itv_near(value a, value b, value r) {
+   ROUND_NEAR;
+-  set_l(r, get_sl(a) + get_sl(b));
+-  set_u(r, get_su(a) + get_su(b));
++  set_l(r, R_ADD(get_sl(a), get_sl(b)));
++  set_u(r, R_ADD(get_su(a), get_su(b)));
+   return Val_unit;
+ }
+ 
+ CAMLprim value ml_add_sgl_itv_up(value a, value b, value r) {
+   ROUND_UP;
+-  set_l(r, get_sl(a) + get_sl(b));
+-  set_u(r, get_su(a) + get_su(b));
++  set_l(r, R_ADD(get_sl(a), get_sl(b)));
++  set_u(r, R_ADD(get_su(a), get_su(b)));
+   return Val_unit;
+ }
+ 
+ CAMLprim value ml_add_sgl_itv_down(value a, value b, value r) {
+   ROUND_UP;
+-  set_l(r, -(-get_sl(a) - get_sl(b)));
+-  set_u(r, -(-get_su(a) - get_su(b)));
++  set_l(r, -R_SUB(-get_sl(a), get_sl(b)));
++  set_u(r, -R_SUB(-get_su(a), get_su(b)));
+   return Val_unit;
+ }
+ 
+ CAMLprim value ml_add_sgl_itv_zero(value a, value b, value r) {
+   ROUND_ZERO;
+-  set_l(r, get_sl(a) + get_sl(b));
+-  set_u(r, get_su(a) + get_su(b));
++  set_l(r, R_ADD(get_sl(a), get_sl(b)));
++  set_u(r, R_ADD(get_su(a), get_su(b)));
+   return Val_unit;
+ }
+ 
+ CAMLprim value ml_add_sgl_itv_outer(value a, value b, value r) {
+   ROUND_UP;
+-  set_l(r, -(- get_sl(a) - get_sl(b)));
+-  set_u(r, get_su(a) + get_su(b));
++  set_l(r, -R_SUB(-get_sl(a), get_sl(b)));
++  set_u(r, R_ADD(get_su(a), get_su(b)));
+   return Val_unit;
+ }
+ 
+ CAMLprim value ml_add_sgl_itv_inner(value a, value b, value r) {
+   ROUND_UP;
+-  set_l(r, get_sl(a) + get_sl(b));
+-  set_u(r, -(- get_su(a) - get_su(b)));
++  set_l(r, R_ADD(get_sl(a), get_sl(b)));
++  set_u(r, -R_SUB(-get_su(a), get_su(b)));
+   return Val_unit;
+ }
+ 
+@@ -510,85 +814,85 @@ CAMLprim value ml_add_sgl_itv_inner(value a, value b, value r) {
+ 
+ CAMLprim value ml_sub_dbl_itv_near(value a, value b, value r) {
+   ROUND_NEAR;
+-  set_l(r, get_l(a) - get_u(b));
+-  set_u(r, get_u(a) - get_l(b));
++  set_l(r, R_SUB(get_l(a), get_u(b)));
++  set_u(r, R_SUB(get_u(a), get_l(b)));
+   return Val_unit;
+ }
+ 
+ CAMLprim value ml_sub_dbl_itv_up(value a, value b, value r) {
+   ROUND_UP;
+-  set_l(r, get_l(a) - get_u(b));
+-  set_u(r, get_u(a) - get_l(b));
++  set_l(r, R_SUB(get_l(a), get_u(b)));
++  set_u(r, R_SUB(get_u(a), get_l(b)));
+   return Val_unit;
+ }
+ 
+ CAMLprim value ml_sub_dbl_itv_down(value a, value b, value r) {
+   ROUND_UP;
+-  set_l(r, -(- get_l(a) + get_u(b)));
+-  set_u(r, -(- get_u(a) + get_l(b)));
++  set_l(r, -R_ADD(-get_l(a), get_u(b)));
++  set_u(r, -R_ADD(-get_u(a), get_l(b)));
+   return Val_unit;
+ }
+ 
+ CAMLprim value ml_sub_dbl_itv_zero(value a, value b, value r) {
+   ROUND_ZERO;
+-  set_l(r, get_l(a) - get_u(b));
+-  set_u(r, get_u(a) - get_l(b));
++  set_l(r, R_SUB(get_l(a), get_u(b)));
++  set_u(r, R_SUB(get_u(a), get_l(b)));
+   return Val_unit;
+ }
+ 
+ CAMLprim value ml_sub_dbl_itv_outer(value a, value b, value r) {
+   ROUND_UP;
+-  set_l(r, -(- get_l(a) + get_u(b)));
+-  set_u(r, get_u(a) - get_l(b));
++  set_l(r, -R_ADD(-get_l(a), get_u(b)));
++  set_u(r, R_SUB(get_u(a), get_l(b)));
+   return Val_unit;
+ }
+ 
+ CAMLprim value ml_sub_dbl_itv_inner(value a, value b, value r) {
+   ROUND_UP;
+-  set_l(r, get_l(a) - get_u(b));
+-  set_u(r, -(- get_u(a) + get_l(b)));
++  set_l(r, R_SUB(get_l(a), get_u(b)));
++  set_u(r, -R_ADD(-get_u(a), get_l(b)));
+   return Val_unit;
+ }
+ 
+ CAMLprim value ml_sub_sgl_itv_near(value a, value b, value r) {
+   ROUND_NEAR;
+-  set_l(r, get_sl(a) - get_su(b));
+-  set_u(r, get_su(a) - get_sl(b));
++  set_l(r, R_SUB(get_sl(a), get_su(b)));
++  set_u(r, R_SUB(get_su(a), get_sl(b)));
+   return Val_unit;
+ }
+ 
+ CAMLprim value ml_sub_sgl_itv_up(value a, value b, value r) {
+   ROUND_UP;
+-  set_l(r, get_sl(a) - get_su(b));
+-  set_u(r, get_su(a) - get_sl(b));
++  set_l(r, R_SUB(get_sl(a), get_su(b)));
++  set_u(r, R_SUB(get_su(a), get_sl(b)));
+   return Val_unit;
+ }
+ 
+ CAMLprim value ml_sub_sgl_itv_down(value a, value b, value r) {
+   ROUND_UP;
+-  set_l(r, -(- get_sl(a) + get_su(b)));
+-  set_u(r, -(- get_su(a) + get_sl(b)));
++  set_l(r, -R_ADD(-get_sl(a), get_su(b)));
++  set_u(r, -R_ADD(-get_su(a), get_sl(b)));
+   return Val_unit;
+ }
+ 
+ CAMLprim value ml_sub_sgl_itv_zero(value a, value b, value r) {
+   ROUND_ZERO;
+-  set_l(r, get_sl(a) - get_su(b));
+-  set_u(r, get_su(a) - get_sl(b));
++  set_l(r, R_SUB(get_sl(a), get_su(b)));
++  set_u(r, R_SUB(get_su(a), get_sl(b)));
+   return Val_unit;
+ }
+ 
+ CAMLprim value ml_sub_sgl_itv_outer(value a, value b, value r) {
+   ROUND_UP;
+-  set_l(r, -(- get_sl(a) + get_su(b)));
+-  set_u(r, get_su(a) - get_sl(b));
++  set_l(r, -R_ADD(-get_sl(a), get_su(b)));
++  set_u(r, R_SUB(get_su(a), get_sl(b)));
+   return Val_unit;
+ }
+ 
+ CAMLprim value ml_sub_sgl_itv_inner(value a, value b, value r) {
+   ROUND_UP;
+-  set_l(r, get_sl(a) - get_su(b));
+-  set_u(r, -(- get_su(a) + get_sl(b)));
++  set_l(r, R_SUB(get_sl(a), get_su(b)));
++  set_u(r, -R_ADD(-get_su(a), get_sl(b)));
+   return Val_unit;
+ }
+ 
+@@ -894,7 +1198,7 @@ static double parse_string(int up, const char* s)
+   /* integer mantissa */
+   SKIP_SPACE(s);
+   while (*s >= '0' && *s <= '9') {
+-    mantissa = mantissa * 10 + (*s - '0');
++    mantissa = R_ADD(R_MUL(mantissa, 10), *s - '0');
+     s++;
+   }
+   /* fractional mantissa */
+@@ -903,7 +1207,7 @@ static double parse_string(int up, const char* s)
+     s++;
+     SKIP_SPACE(s);
+     while (*s >= '0' && *s <= '9') {    
+-      mantissa = mantissa * 10 + (*s - '0');
++      mantissa = R_ADD(R_MUL(mantissa, 10), *s - '0');
+       exponent--;
+       s++;
+     }
+@@ -923,8 +1227,7 @@ static double parse_string(int up, const char* s)
+     }
+     exponent += expsign * exp;
+   }
+-  /* NOTE: not sure whether pow obeys ROUND_UP / ROUND_DOWN */
+-  mantissa *= pow(10., exponent);
++  mantissa = R_SCALE10(mantissa, exponent);
+   if (neg) mantissa = -mantissa;
+   return mantissa;
+ }
+@@ -945,7 +1248,7 @@ CAMLprim value ml_of_string_sgl_up(value s) {
+   CAMLparam1(s);
+   double f = parse_string(1, String_val(s));
+   ROUND_UP;
+-  float r = f;
++  float r = R_TO_SGL(f);
+   CAMLreturn(caml_copy_double(r));
+ }
+ 
+@@ -953,7 +1256,7 @@ CAMLprim value ml_of_string_sgl_down(value s) {
+   CAMLparam1(s);
+   double f = parse_string(1, String_val(s));
+   ROUND_DOWN;
+-  float r = f;
++  float r = R_TO_SGL(f);
+   CAMLreturn(caml_copy_double(r));
+ }
+ 

@@ -1,0 +1,23 @@
+fix(json): print -help for options of every argument spec
+
+The JSON output of -help failed on the options with float, tuple, rest
+and expand specs. The interface reads it to describe every option.
+
+diff --git a/analyzer/framework/output/json.ml b/analyzer/framework/output/json.ml
+index 943921661..128d3ca29 100644
+--- a/analyzer/framework/output/json.ml
++++ b/analyzer/framework/output/json.ml
+@@ -250,8 +250,12 @@ let help (args:ArgExt.arg list) ~out =
+               | Set_string _ -> "string"
+               | Int _ -> "int"
+               | Set_int _ -> "int"
++              | Float _ -> "float"
++              | Set_float _ -> "float"
+               | Symbol (l, _) -> "symbol:" ^ (String.concat "," l)
+-              | _ -> failwith "Not implemented"
++              | Tuple _ -> "tuple"
++              | Rest _ | Rest_all _ -> "rest"
++              | Expand _ -> "expand"
+             )
+           ]
+         )

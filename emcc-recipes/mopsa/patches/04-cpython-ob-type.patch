@@ -1,0 +1,30 @@
+fix(cpython): set ob_type via named field, not a hardcoded offset
+
+The offset of ob_type in PyObject is that of 64 bits. Setting the named
+field makes it right on 32-bit targets too.
+
+diff --git a/analyzer/languages/cpython/cmodule.ml b/analyzer/languages/cpython/cmodule.ml
+index eef7d7f24..6b5e775a0 100644
+--- a/analyzer/languages/cpython/cmodule.ml
++++ b/analyzer/languages/cpython/cmodule.ml
+@@ -770,11 +770,16 @@ module Domain =
+                       )
+                   else flow in
+                 debug "ob_type assignment: obj = %a, type_obj = %a" pp_expr obj pp_expr type_c_addr;
+-                (* this is obj->ob_type = type *)
++                (* obj->ob_type = type. Use the named field access so the C
++                   frontend computes ob_type's offset from the target layout.
++                   The previous code hardcoded byte offset 8, which is the
++                   x86-64 offset (Py_ssize_t ob_refcnt is 8 bytes there); on a
++                   32-bit target ob_refcnt is 4 bytes, so ob_type sits at
++                   offset 4 and sizeof(PyObject) is only 8 bytes - writing at
++                   offset 8 overran the block and aborted every Python->C
++                   object materialization. *)
+                 man.exec (mk_assign
+-                            (mk_c_deref (mk_c_cast
+-                                           (add (mk_c_cast obj (T_c_pointer s8) range) (mk_int 8 range) range)
+-                                           (T_c_pointer (T_c_pointer pytypeobject_typ)) range) range)
++                            (mk_c_arrow_access_by_name obj "ob_type" range)
+                             type_c_addr
+                             range) flow
+               ) >>% Cases.return final_obj

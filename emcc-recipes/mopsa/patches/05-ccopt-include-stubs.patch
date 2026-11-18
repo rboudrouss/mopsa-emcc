@@ -1,0 +1,38 @@
+perf(c): don't force-include user -ccopt headers into internal stubs
+
+parse_file strips the -include directives of opt_clang when it parses a
+stub. User C sources keep them, and the additional stubs include
+python_stubs.h themselves.
+
+diff --git a/analyzer/languages/c/lang/frontend.ml b/analyzer/languages/c/lang/frontend.ml
+index 8b5edb6e4..b196520cf 100644
+--- a/analyzer/languages/c/lang/frontend.ml
++++ b/analyzer/languages/c/lang/frontend.ml
+@@ -397,6 +397,18 @@ and parse_file (cmd: string) ?nb ?(stub=false) (opts: string list) (file: string
+   debug "parsing file %s" file;
+   (* clang does not like -MT and -MD options *)
+   let opts = List.filter (fun x -> x != "-MT" && x != "-MD") opts in
++  (* A user "-ccopt=-include<header>" force-includes <header> into the
++     translation unit. This is meaningful only for the user's own C sources
++     (stub=false). MOPSA's internal stubs (libc, mopsa.c, compiler_builtins,
++     and additional-stubs which already #include what they need) must not pay
++     to re-parse a heavy force-included header: for the CPython driver that
++     header is python_stubs.h, which pulls in the whole <Python.h> chain and,
++     applied to every libc stub TU, dominates parse time. *)
++  let user_clang =
++    if stub
++    then List.filter (fun o -> not (String.starts_with ~prefix:"-include" o)) !opt_clang
++    else !opt_clang
++  in
+   let opts' = ("-I" ^ (Paths.resolve_stub "c" "mopsa")) ::
+               ("-include" ^ "mopsa.h") ::
+               "-Wall" ::
+@@ -408,7 +420,7 @@ and parse_file (cmd: string) ?nb ?(stub=false) (opts: string list) (file: string
+               "-Qunused-arguments"::
+               (List.map (fun dir -> "-I" ^ dir) !opt_include_dirs) @
+               opts @
+-              !opt_clang
++              user_clang
+   in
+   input_files := file :: !input_files;
+   (* if adding a stub file, keep all static functions as they may be used

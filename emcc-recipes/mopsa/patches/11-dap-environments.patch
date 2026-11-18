@@ -1,0 +1,644 @@
+feat(dap): environments per call stack, lines reached and states before and after each line
+
+Requests of the debug adapter used by the interface. Environments are
+given per call stack, the envdbLines request lists the lines the
+analysis reached, and the environments request gives the states before
+and after each line.
+
+diff --git a/analyzer/framework/engines/interactive/dap.ml b/analyzer/framework/engines/interactive/dap.ml
+index 3a51eefc3..d0cce61e2 100644
+--- a/analyzer/framework/engines/interactive/dap.ml
++++ b/analyzer/framework/engines/interactive/dap.ml
+@@ -160,6 +160,18 @@ struct
+   let extract_expression request = request |> member "arguments" |>  member "expression" |> to_string
+   let extract_file request = request |> member "arguments" |> member "file" |> to_string
+   let extract_line request = request |> member "arguments" |> member "line" |> to_int
++  let extract_scope request =
++    match request |> member "arguments" |> member "scope" with
++    | `String s -> s
++    | _ -> "line"
++  let extract_when request =
++    match request |> member "arguments" |> member "when" with
++    | `String s -> s
++    | _ -> "pre"
++  let extract_file_opt request =
++    match request |> member "arguments" with
++    | `Assoc _ as args -> (match member "file" args with `String f -> Some f | _ -> None)
++    | _ -> None
+   let extract_frame_id request = request |> member "arguments" |> member "frameId" |> to_int
+ 
+   (** Creating JSON responses *)
+@@ -407,6 +419,12 @@ struct
+ 
+     | Environment of string * int
+ 
++    | Environments of string * int * string * string
++    (** States at a line, per callstack: before (pre or entry) or after it *)
++
++    | EnvdbLines of string option
++    (** Lines recorded in the environment database *)
++
+     | RestartFrame of int
+     (** Restart the given frame *)
+ 
+@@ -440,6 +458,8 @@ struct
+       | "evaluate" -> Evaluate (extract_expression req)
+       | "disconnect" -> Disconnect
+       | "environment" -> Environment (extract_file req, extract_line req)
++      | "environments" -> Environments (extract_file req, extract_line req, extract_scope req, extract_when req)
++      | "envdbLines" -> EnvdbLines (extract_file_opt req)
+       | "restartFrame" -> RestartFrame (extract_frame_id req)
+       | "restart" -> Restart
+       | "alarms" -> Alarms
+@@ -477,13 +497,224 @@ struct
+ 
+   let get_alarms flow =
+     let report = Flow.get_report flow in
+-    AlarmSet.elements @@ fold_report 
++    AlarmSet.elements @@ fold_report
+       (fun diag acc ->
+         match diag.diag_kind with
+         | Error | Warning    -> AlarmSet.union diag.diag_alarms acc
+         | Safe | Unreachable -> acc
+       ) report AlarmSet.empty
+-            
++
++  let environment_body envdb man ctx file line : Yojson.Basic.t =
++    let envs, vars =
++      match find_envdb_opt file line envdb with
++      | None -> CallstackMap.empty, []
++      | Some(action, envs) ->
++        let vars = action_line_vars action in
++        envs, vars
++    in
++    let printer = Print.empty_printer () in
++    Core.Ast.Var.force_print_uniq_with_uid false (fun () ->
++        let names = List.map (fun v -> Format.asprintf "%a" pp_var v) vars in
++        CallstackMap.iter
++          (fun cs env ->
++             let cc = List.map (fun c -> Call c) cs in
++             let ctx' = add_ctx control_ctx_key cc ctx in
++             let flow' = Flow.singleton ctx' T_cur env in
++             let defined =
++               try ask_and_reduce man.ask (Q_defined_variables None) flow'
++               with _ -> []
++             in
++             let instances =
++               List.filter
++                 (fun v ->
++                    List.mem (Format.asprintf "%a" pp_var v) names)
++                 defined
++             in
++             (* Print both the action's own variables (the identities the
++                engine actually executed — e.g. inlining-renamed parameters)
++                and the matching defined variables (declaration identities
++                for locals/globals); failures are silently skipped, so only
++                the identities present in this environment contribute. *)
++             let to_print =
++               List.fold_left
++                 (fun acc v ->
++                    if List.exists (fun v' -> compare_var v v' = 0) acc
++                    then acc else v :: acc)
++                 [] (vars @ instances)
++             in
++             to_print |> List.iter
++               (fun v ->
++                  try man.print_expr flow' printer (mk_var v dummy_range)
++                  with Not_found -> ()
++               )
++          ) envs);
++    print_object_to_json (get_printed_object printer)
++
++  (** Which part of an envdb state the [environments] request prints *)
++  type env_scope =
++    | Scope_line     (** variables occurring at the line *)
++    | Scope_function (** variables of the innermost function *)
++    | Scope_all      (** globals and the locals of every frame *)
++    | Scope_state    (** the whole abstract state, as printed by domains *)
++
++  let env_scope_of_string = function
++    | "function" -> Scope_function
++    | "all" -> Scope_all
++    | "state" -> Scope_state
++    | _ -> Scope_line
++
++  let dedup_vars vars =
++    List.rev @@ List.fold_left
++      (fun acc v ->
++         if List.exists (fun v' -> compare_var v v' = 0) acc
++         then acc else v :: acc)
++      [] vars
++
++  (** Text of line [line] of [file], "" when unreadable *)
++  let source_line file line =
++    try
++      let ch = open_in file in
++      let rec go i =
++        match input_line ch with
++        | s when i = line -> close_in ch; s
++        | _ -> go (i + 1)
++        | exception End_of_file -> close_in ch; ""
++      in
++      go 1
++    with Sys_error _ -> ""
++
++  (** Test if [name] occurs in [s] as an identifier *)
++  let occurs_ident name s =
++    let is_ident c =
++      match c with
++      | 'a'..'z' | 'A'..'Z' | '0'..'9' | '_' | '$' -> true
++      | _ -> false
++    in
++    let n = String.length name and m = String.length s in
++    let rec at i =
++      i + n <= m &&
++      ( ( String.sub s i n = name &&
++          (i = 0 || not (is_ident s.[i - 1])) &&
++          (i + n = m || not (is_ident s.[i + n])) )
++        || at (i + 1) )
++    in
++    n > 0 && at 0
++
++  (** Print one state of the envdb, i.e. one callstack at one line;
++      [source] is the text of the line *)
++  let print_env_json ?(source="") scope man ctx line_vars cs env : Yojson.Basic.t =
++    let cc = List.map (fun c -> Call c) cs in
++    let ctx' = add_ctx control_ctx_key cc ctx in
++    let flow' = Flow.singleton ctx' T_cur env in
++    let defined q = try ask_and_reduce man.ask q flow' with _ -> [] in
++    let print_vars vars =
++      let printer = Print.empty_printer () in
++      vars |> List.iter
++        (fun v ->
++           try man.print_expr flow' printer (mk_var v dummy_range)
++           with _ -> ());
++      print_object_to_json (get_printed_object printer)
++    in
++    Core.Ast.Var.force_print_uniq_with_uid false (fun () ->
++        match scope with
++        | Scope_state ->
++          print_object_to_json (Print.pbox man.lattice.print env)
++        | Scope_line ->
++          let names = List.map (fun v -> Format.asprintf "%a" pp_var v) line_vars in
++          (* The defined variables named like the line's variables, or named
++             in its source text (e.g. the variable a C declaration
++             declares, which is no expression of the line) *)
++          let instances =
++            defined (Q_defined_variables None) |>
++            List.filter (fun v ->
++                let name = Format.asprintf "%a" pp_var v in
++                List.mem name names || occurs_ident name source)
++          in
++          print_vars (dedup_vars (line_vars @ instances))
++        | Scope_function ->
++          let vars =
++            match cs with
++            | [] -> defined (Q_defined_variables None)
++            | c :: _ -> defined (Q_defined_variables (Some c.call_fun_orig_name))
++          in
++          print_vars (dedup_vars vars)
++        | Scope_all ->
++          print_vars (dedup_vars (defined (Q_defined_variables None))))
++
++  (** States recorded at [file:line], one per callstack, not joined: every
++      state before the line ([when_] = "pre"), the states entering it in
++      program order ("entry"), or the states after it ("post") *)
++  let environments_body envdb man ctx file line scope when_ : Yojson.Basic.t =
++    let found =
++      match when_ with
++      | "entry" ->
++        Option.map (fun (action, envs) -> [action], envs) (find_entry_envdb_opt file line envdb)
++      | "post" -> (
++        match find_post_envdb_opt file line envdb with
++        | None -> None
++        | Some cmap ->
++          (* The variables of the whole line: of its first statement and of
++             the last ones *)
++          let actions =
++            (match find_envdb_opt file line envdb with
++             | Some (pre_action, _) -> [pre_action]
++             | None -> [])
++            @ CallstackMap.fold (fun _ (action, _, _) acc -> action :: acc) cmap []
++          in
++          Some (actions, CallstackMap.map (fun (_, _, env) -> env) cmap))
++      | _ ->
++        Option.map (fun (action, envs) -> [action], envs) (find_envdb_opt file line envdb)
++    in
++    match found with
++    | None ->
++      `Assoc [ "file", `String file; "line", `Int line; "contexts", `List [] ]
++    | Some(actions, envs) ->
++      let line_vars = dedup_vars (List.concat_map action_line_vars actions) in
++      let source = source_line file line in
++      let contexts =
++        CallstackMap.fold
++          (fun cs env acc ->
++             let bottom = man.lattice.is_bottom env in
++             `Assoc [
++               "callstack", Output.Json.render_callstack cs;
++               "bottom", `Bool bottom;
++               "env",
++               if bottom then `Null
++               else
++                 print_env_json ~source scope man ctx line_vars cs env;
++             ] :: acc
++          ) envs []
++      in
++      `Assoc [
++        "file", `String file;
++        "line", `Int line;
++        "contexts", `List (List.rev contexts);
++      ]
++
++  (** Lines recorded in the envdb, split by whether some state reaching them
++      is not bottom; [file] restricts the answer to one file *)
++  let envdb_lines_body envdb man file : Yojson.Basic.t =
++    let files =
++      FileMap.fold
++        (fun f lmap acc ->
++           match file with
++           | Some f' when f' <> f -> acc
++           | _ ->
++             let reached, unreachable =
++               LineMap.fold
++                 (fun l (_, envs) (r, u) ->
++                    if CallstackMap.exists (fun _ env -> not (man.lattice.is_bottom env)) envs
++                    then (`Int l :: r, u) else (r, `Int l :: u)
++                 ) lmap ([], [])
++             in
++             (f, `Assoc [
++                 "reached", `List (List.rev reached);
++                 "unreachable", `List (List.rev unreachable);
++               ]) :: acc
++        ) envdb.pre []
++    in
++    `Assoc [ "files", `Assoc (List.rev files) ]
++
+   let set_func_breaks breakpoints_info =
+     let breakpoints_tmp =
+       BreakpointSet.filter
+@@ -649,28 +880,18 @@ struct
+           read_command action envdb man flow
+ 
+         | Environment(file, line) ->
+-          let envs, vars =
+-            match find_envdb_opt file line envdb with
+-            | None -> CallstackMap.empty, []
+-            | Some(action, envs) ->
+-              let vars = action_line_vars action in
+-              envs, vars
+-          in
+           let ctx = Flow.get_ctx flow in
+-          let env =
+-            CallstackMap.fold
+-              (fun _ -> man.lattice.join ctx)
+-              envs man.lattice.bottom
+-          in
+-          let flow' = Flow.singleton ctx T_cur env in
+-          let printer = Print.empty_printer () in
+-          vars |> List.iter
+-            (fun v ->
+-              try man.print_expr flow' printer (mk_var v dummy_range)
+-              with Not_found -> ()
+-            );
+-          let body = print_object_to_json (get_printed_object printer) in
+-          write_json_DAP (create_response !last_request body);
++          write_json_DAP (create_response !last_request (environment_body envdb man ctx file line));
++          read_command action envdb man flow
++
++        | Environments(file, line, scope, when_) ->
++          let ctx = Flow.get_ctx flow in
++          let scope = env_scope_of_string scope in
++          write_json_DAP (create_response !last_request (environments_body envdb man ctx file line scope when_));
++          read_command action envdb man flow
++
++        | EnvdbLines file ->
++          write_json_DAP (create_response !last_request (envdb_lines_body envdb man file));
+           read_command action envdb man flow
+ 
+         | Disconnect ->
+@@ -691,7 +912,7 @@ struct
+         write_json_DAP (create_error_response !last_request (Printexc.to_string e));
+         raise e
+ 
+-  let rec wait_disconnect flow =
++  let rec wait_disconnect ?env_ctx flow =
+     let cmd =
+       try read_dap_command ()
+       with Exit -> exit 0
+@@ -705,24 +926,50 @@ struct
+       raise Toplevel.Restart
+     | Alarms, Some flow ->
+       write_json_DAP (create_response !last_request (create_body_alarms_output (get_alarms flow)));
+-      wait_disconnect (Some flow)
++      wait_disconnect ?env_ctx (Some flow)
++    | Environment(file, line), Some flow ->
++      (* Environments stay queryable after termination: the envdb now covers
++         the whole analysis, which is what editor-hover clients need. *)
++      (match env_ctx with
++       | Some (envdb, man) ->
++         let ctx = Flow.get_ctx flow in
++         write_json_DAP (create_response !last_request (environment_body envdb man ctx file line))
++       | None ->
++         write_json_DAP (create_error_response !last_request "The environment database is not available."));
++      wait_disconnect ?env_ctx (Some flow)
++    | Environments(file, line, scope, when_), Some flow ->
++      (match env_ctx with
++       | Some (envdb, man) ->
++         let ctx = Flow.get_ctx flow in
++         let scope = env_scope_of_string scope in
++         write_json_DAP (create_response !last_request (environments_body envdb man ctx file line scope when_))
++       | None ->
++         write_json_DAP (create_error_response !last_request "The environment database is not available."));
++      wait_disconnect ?env_ctx (Some flow)
++    | EnvdbLines file, flow ->
++      (match env_ctx with
++       | Some (envdb, man) ->
++         write_json_DAP (create_response !last_request (envdb_lines_body envdb man file))
++       | None ->
++         write_json_DAP (create_error_response !last_request "The environment database is not available."));
++      wait_disconnect ?env_ctx flow
+     | ExceptBreaks, flow ->
+       write_json_DAP (create_response !last_request `Null);
+-      wait_disconnect flow
++      wait_disconnect ?env_ctx flow
+     | Breaks breakpoints_info, flow ->
+       set_breaks breakpoints_info;
+-      wait_disconnect flow
++      wait_disconnect ?env_ctx flow
+     | FuncBreaks breakpoints_info, flow ->
+       set_func_breaks breakpoints_info;
+-      wait_disconnect flow
+-    | _ -> 
++      wait_disconnect ?env_ctx flow
++    | _ ->
+       write_json_DAP (create_error_response !last_request "This command is not available in terminated state.");
+-      wait_disconnect flow
++      wait_disconnect ?env_ctx flow
+ 
+ 
+-  let finish man flow =
++  let finish envdb man flow =
+     write_json_DAP (create_event "terminated" `Null);
+-    wait_disconnect (Some flow)
++    wait_disconnect ~env_ctx:(envdb, man) (Some flow)
+ 
+ 
+   let error e =
+diff --git a/analyzer/framework/engines/interactive/engine.ml b/analyzer/framework/engines/interactive/engine.ml
+index 91e787e23..aec716f9b 100644
+--- a/analyzer/framework/engines/interactive/engine.ml
++++ b/analyzer/framework/engines/interactive/engine.ml
+@@ -206,6 +206,62 @@ struct
+ 
+   let envdb : t envdb ref = ref empty_envdb
+ 
++  (** Depth of the statements of the current line: the depth of the first
++      statement that reached it, i.e. its statements as opposed to the
++      statements they are rewritten into. *)
++  let line_depth = ref 0
++
++  (** End of the last statement of the current line: the next statements of
++      the line end after it, the ones inside it are its parts *)
++  let line_end : pos option ref = ref None
++
++  (** Test if a statement contains statements of other lines (conditionals,
++      loops, function definitions): its post-state is not the state after
++      its line. *)
++  let has_other_lines stmt =
++    let line = get_range_line stmt.srange in
++    try
++      fold_stmt
++        (fun acc _ -> VisitParts acc)
++        (fun acc s ->
++           if acc then Keep true
++           else
++             let r = untag_range s.srange in
++             if is_orig_range r && get_range_line r <> line then Keep true
++             else VisitParts acc)
++        false stmt
++    with _ -> true
++
++  (** Test if [action] is a statement of the line started by [old.loc] *)
++  let is_line_stmt : type a. state -> a return_action -> bool = fun old action ->
++    match action with
++    | Eval _ -> false
++    | Exec({skind = S_block _},_) -> false
++    | Exec(stmt,_) ->
++      let range = untag_range stmt.srange in
++      is_orig_range range &&
++      state.depth = !line_depth &&
++      ( match !line_end with
++        | None -> false
++        | Some e -> compare_pos (get_range_end range) e > 0 ) &&
++      ( match old.loc with
++        | None -> false
++        | Some range' ->
++          let p = get_range_start range in
++          let p' = get_range_start range' in
++          p.pos_file = p'.pos_file && p.pos_line = p'.pos_line )
++
++  (** Test if a new line is reached by going back up in the same function,
++      i.e. by a loop going back to its head *)
++  let is_loop_back old range =
++    not (is_call old.callstack state.callstack) &&
++    match old.loc with
++    | None -> false
++    | Some range' ->
++      let p = get_range_start range in
++      let p' = get_range_start range' in
++      p.pos_file = p'.pos_file && p'.pos_line > p.pos_line
++
+   (** {2 Interactive engine} *)
+   (** ********************** *)
+ 
+@@ -236,6 +292,19 @@ struct
+     | _        -> apply_action action flow
+ 
+ 
++  (** Record the post-state of a statement of a line *)
++  and record_post : type a. a return_action -> Toplevel.t flow -> a -> unit =
++    fun action flow ret ->
++    match action with
++    | Eval _ -> ()
++    | Exec(stmt, _) ->
++      line_depth := state.depth;
++      line_end := Some (get_range_end stmt.srange);
++      if not (has_other_lines stmt) then
++        let post = post_to_flow man ret |> Flow.get T_cur man.lattice in
++        envdb := add_post_envdb (interface_action action) (Flow.get_ctx flow) post man !envdb
++
++
+   (** Interact with the user input or apply the action *)
+   and interact_or_apply_action : type a. a return_action -> Location.range -> Toplevel.t flow -> a =
+     fun action range flow ->
+@@ -268,13 +337,19 @@ struct
+       (* Check if we reached a new loc *)
+       let new_loc = is_new_loc_action old action in
+       let last_trace_element_id = ref 0 in
++      let loop_back = new_loc && is_loop_back old (action_range action) in
++      let line_stmt = (new_loc && not loop_back) || is_line_stmt old action in
++      if line_stmt then (
++        line_depth := state.depth;
++        line_end := Some (get_range_end (action_range action)) )
++      else if loop_back then line_depth := -1;
+       ( if new_loc then
+           let range = action_range action in
+           state.loc <- Some range;
+           state.trace <- begin_trace_element (interface_action action) state.trace;
+           last_trace_element_id := get_last_trace_element_id state.trace;
+           let ctx = Flow.get_ctx flow in
+-          envdb := add_envdb (interface_action action) ctx cur man !envdb
++          envdb := add_envdb ~entry:(not loop_back) (interface_action action) ctx cur man !envdb
+       );
+       (* Check if we reached an interaction point *)
+       let interaction = is_interaction_point old action &&
+@@ -289,6 +364,7 @@ struct
+         ) else
+           apply_action action flow
+       in
++      if line_stmt then record_post action flow ret;
+       (* Check if there are new alarms *)
+       if new_loc then (
+         state.trace <- end_trace_element !last_trace_element_id (interface_action action) state.trace;
+@@ -376,7 +452,7 @@ struct
+           exec (mk_stmt (S_block ([], [])) (tag_range stmt.srange "end")) flow
+         )
+         |> post_to_flow man in
+-      Interface.finish man ret;
++      Interface.finish !envdb man ret;
+       ret
+     with
+     | Exit ->
+diff --git a/analyzer/framework/engines/interactive/envdb.ml b/analyzer/framework/engines/interactive/envdb.ml
+index a9f975d43..f1d1f0318 100644
+--- a/analyzer/framework/engines/interactive/envdb.ml
++++ b/analyzer/framework/engines/interactive/envdb.ml
+@@ -32,35 +32,83 @@ module CallstackMap = MapExt.Make
+       let compare = compare_callstack
+     end)
+ 
+-type 'a envdb = (action * 'a CallstackMap.t) LineMap.t FileMap.t
++(** Pre-states: the state before each line of code, per callstack, joined
++    over every time the analysis reached the line. *)
++type 'a predb = (action * 'a CallstackMap.t) LineMap.t FileMap.t
+ 
+-let empty_envdb = FileMap.empty
++(** Post-states: the state after the statements of a line. When a line holds
++    several statements, the state after the last one (the one ending last,
++    see [add_post_envdb]). *)
++type 'a postdb = (action * Location.pos * 'a) CallstackMap.t LineMap.t FileMap.t
+ 
+-let add_envdb action ctx (env:'a) man (db:'a envdb) =
+-  let range = action_range action in
++(** [pre] has every state reaching a line, [entry] only the states entering
++    it in program order: not the ones a loop brings back to its head (e.g.
++    the increment of a [for]). *)
++type 'a envdb = { pre : 'a predb; entry : 'a predb; post : 'a postdb }
++
++let empty_envdb = { pre = FileMap.empty; entry = FileMap.empty; post = FileMap.empty }
++
++let range_key range =
+   let file = Location.get_range_file range |> Params.Paths.absolute_path in
+   let line = Location.get_range_line range in
++  file, line
++
++let update_line file line f db =
++  let lmap = FileMap.find_opt file db |> Option.value ~default:LineMap.empty in
++  FileMap.add file (LineMap.add line (f (LineMap.find_opt line lmap)) lmap) db
++
++let add_predb action ctx (env:'a) man (db:'a predb) =
++  let file, line = range_key (action_range action) in
++  let cs = find_ctx control_ctx_key ctx |> extract_callstack in
++  update_line file line
++    (function
++      | None -> (action, CallstackMap.singleton cs env)
++      | Some (_, cmap) ->
++        match CallstackMap.find_opt cs cmap with
++        | None -> (action, CallstackMap.add cs env cmap)
++        | Some env' -> (action, CallstackMap.add cs (man.lattice.join ctx env env') cmap))
++    db
++
++(** Record the state before [action], the first statement of its line;
++    [entry] tells whether it enters the line in program order *)
++let add_envdb ?(entry=true) action ctx (env:'a) man (db:'a envdb) =
++  { db with
++    pre = add_predb action ctx env man db.pre;
++    entry = if entry then add_predb action ctx env man db.entry else db.entry }
++
++(** Record the state after [action], a statement of its line. A statement
++    ending further on the line supersedes the earlier ones: its post-state
++    is the one after the line. *)
++let add_post_envdb action ctx (env:'a) man (db:'a envdb) =
++  let range = action_range action in
++  let file, line = range_key range in
++  let stop = Location.get_range_end range in
+   let cs = find_ctx control_ctx_key ctx |> extract_callstack in
+-  match FileMap.find_opt file db with
+-  | None ->
+-    FileMap.add file (LineMap.singleton line (action, CallstackMap.singleton cs env)) db
+-  | Some lmap ->
+-    match LineMap.find_opt line lmap with
+-    | None ->
+-      FileMap.add file (LineMap.add line (action, CallstackMap.singleton cs env) lmap) db
+-    | Some (action', cmap) ->
+-      match CallstackMap.find_opt cs cmap with
+-      | None ->
+-        FileMap.add file (LineMap.add line (action, CallstackMap.add cs env cmap) lmap) db
+-      | Some env' ->
+-        let env'' = man.lattice.join ctx env env' in
+-        FileMap.add file (LineMap.add line (action, CallstackMap.add cs env'' cmap) lmap) db
++  let post =
++    update_line file line
++      (fun cmap ->
++         let cmap = Option.value ~default:CallstackMap.empty cmap in
++         match CallstackMap.find_opt cs cmap with
++         | Some (_, stop', _) when Location.compare_pos stop' stop > 0 -> cmap
++         | Some (action', stop', env') when Location.compare_pos stop' stop = 0 ->
++           CallstackMap.add cs (action', stop, man.lattice.join ctx env env') cmap
++         | _ -> CallstackMap.add cs (action, stop, env) cmap)
++      db.post
++  in
++  { db with post }
+ 
+ let find_envdb file line (db: 'a envdb) =
+-  FileMap.find file db |>
++  FileMap.find file db.pre |>
+   LineMap.find line
+ 
+ let find_envdb_opt file line db =
+   try Some(find_envdb file line db)
+   with Not_found -> None
+ 
++let find_entry_envdb_opt file line (db: 'a envdb) =
++  try Some (FileMap.find file db.entry |> LineMap.find line)
++  with Not_found -> None
++
++let find_post_envdb_opt file line (db: 'a envdb) =
++  try Some (FileMap.find file db.post |> LineMap.find line)
++  with Not_found -> None
+diff --git a/analyzer/framework/engines/interactive/interface.ml b/analyzer/framework/engines/interactive/interface.ml
+index 5dc22e27b..05663348c 100644
+--- a/analyzer/framework/engines/interactive/interface.ml
++++ b/analyzer/framework/engines/interactive/interface.ml
+@@ -120,6 +120,6 @@ sig
+   val reach : ?reason:string -> action -> (Toplevel.t, Toplevel.t) man -> Toplevel.t flow -> unit
+   val alarm : alarm list -> action -> (Toplevel.t, Toplevel.t) man -> Toplevel.t flow -> unit
+   val read_command : action -> Toplevel.t envdb -> (Toplevel.t, Toplevel.t) man -> Toplevel.t flow -> command
+-  val finish : (Toplevel.t, Toplevel.t) man -> Toplevel.t flow -> unit
++  val finish : Toplevel.t envdb -> (Toplevel.t, Toplevel.t) man -> Toplevel.t flow -> unit
+   val error : exn -> unit
+ end
+diff --git a/analyzer/framework/engines/interactive/terminal.ml b/analyzer/framework/engines/interactive/terminal.ml
+index d5fd4306e..47dd8c66b 100644
+--- a/analyzer/framework/engines/interactive/terminal.ml
++++ b/analyzer/framework/engines/interactive/terminal.ml
+@@ -916,7 +916,7 @@ struct
+       read_command action envdb man flow
+ 
+ 
+-  let finish man flow =
++  let finish _envdb _man _flow =
+     ()
+ 
+   let error ex =

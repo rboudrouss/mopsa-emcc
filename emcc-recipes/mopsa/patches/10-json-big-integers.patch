@@ -1,0 +1,19 @@
+fix(print): integers beyond the native int range in JSON print objects
+
+An integer of a JSON print object that does not fit in a native int is
+printed as a string instead of raising Z.Overflow, as on wasm32 where
+ints have 31 bits.
+
+diff --git a/analyzer/framework/core/print.ml b/analyzer/framework/core/print.ml
+index e5d476b1a..3beba3fd4 100644
+--- a/analyzer/framework/core/print.ml
++++ b/analyzer/framework/core/print.ml
+@@ -385,7 +385,7 @@ let pp_set ?(path=[]) ?(sopen=default_set_symbols.sopen) ?(ssep=default_set_symb
+ let rec print_object_to_json = function
+   | Empty     -> `Null
+   | Bool b    -> `Bool b
+-  | Int n     -> `Int (Z.to_int n)
++  | Int n     -> if Z.fits_int n then `Int (Z.to_int n) else `String (Z.to_string n)
+   | Float f   -> `Float f
+   | String s  -> `String s
+   | Var v     -> `String (Format.asprintf "%a" pp_var v)
