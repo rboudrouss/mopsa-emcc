@@ -1,5 +1,4 @@
 import {
-  Languages,
   MoonIcon,
   SunIcon,
   ZapIcon,
@@ -9,7 +8,7 @@ import { PulseDot } from "@/components/ui/PulseDot";
 import { EntryPointPicker } from "@/components/TopBar/EntryPointPicker";
 import { useAppStore } from "@/lib/store";
 import { ShareButton } from "@/components/ShareButton";
-import { findById, getActiveAnalysisMode } from "@/lib/tree";
+import { findById } from "@/lib/tree";
 
 interface MobileTopBarProps {
   isAnalyzing: boolean;
@@ -129,9 +128,6 @@ function StatusStrip({ isAnalyzing }: { isAnalyzing: boolean }) {
   const fileTree = useAppStore((s) => s.fileTree);
   const activeFile = useAppStore((s) => s.activeFile);
 
-  const isMultilang =
-    getActiveAnalysisMode({ fileTree, activeFile, lang }) === "multilanguage";
-
   const fileName =
     (activeFile ? findById(fileTree, activeFile)?.name : null) ?? "untitled";
 
@@ -170,14 +166,6 @@ function StatusStrip({ isAnalyzing }: { isAnalyzing: boolean }) {
       >
         {LANG_ABBREV[lang] ?? lang}
       </span>
-
-      {isMultilang && (
-        <Languages
-          size={12}
-          style={{ color: "#818cf8", flexShrink: 0 }}
-          aria-label="Cross-language analysis"
-        />
-      )}
 
       <span
         style={{

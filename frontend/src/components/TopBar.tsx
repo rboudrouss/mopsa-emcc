@@ -3,8 +3,6 @@ import { PulseDot } from "@/components/ui/PulseDot";
 import { ShareButton } from "@/components/ShareButton";
 import { useAppStore } from "@/lib/store";
 import { EntryPointPicker } from "@/components/TopBar/EntryPointPicker";
-import { Languages } from "lucide-react";
-import { getActiveAnalysisMode } from "@/lib/tree";
 
 interface TopBarProps {
   isAnalyzing: boolean;
@@ -24,15 +22,6 @@ export function TopBar({
   const analysisTime = useAppStore((s) => s.analysisTime);
   const autoRun = useAppStore((s) => s.autoRun);
   const toggleAutoRun = useAppStore((s) => s.toggleAutoRun);
-  const fileTree = useAppStore((s) => s.fileTree);
-  const activeFile = useAppStore((s) => s.activeFile);
-  const lang = useAppStore((s) => s.lang);
-  const isMultilang =
-    getActiveAnalysisMode({
-      fileTree,
-      activeFile,
-      lang,
-    }) === "multilanguage";
 
   // Auto-run governs the automatic (re)runs: re-running the batch analysis in
   // automatic mode, and auto-(re)starting the REPL in interactive mode (once on
@@ -74,28 +63,6 @@ export function TopBar({
           MOPSA
         </span>
       </div>
-
-      {isMultilang && (
-        <div
-          title="Cross-language analysis (auto-detected from workspace)"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 4,
-            padding: "2px 8px",
-            background: "color-mix(in srgb, #818cf8 15%, transparent)",
-            border: "1px solid #818cf8",
-            borderRadius: 12,
-            fontSize: 11,
-            fontWeight: 500,
-            color: "#818cf8",
-            flexShrink: 0,
-          }}
-        >
-          <Languages size={11} />
-          Cross-language
-        </div>
-      )}
 
       <div style={{ flex: 1 }} />
 
