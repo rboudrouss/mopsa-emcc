@@ -88,6 +88,8 @@ Cloudflare Pages serves no file over 25 MiB, and `ocamlrun.wasm` is bigger: it i
 
 The files go in a directory named after the hash of the build (`<bucket>/<hash>/ocamlrun.wasm`), as they must match the `ocamlrun.js` served with the page: an upload replaces nothing a deployed page uses, and they are cached for good. The directories of old builds stay in the bucket until deleted. The PWA caches them on first use instead of precaching them.
 
+The `deploy` job of `.github/workflows/build.yml` does these steps after each build of `main`, and the weekly run builds and deploys only when Mopsa's commit differs from the one in the deployed `mopsa-build.json`. It needs the repository secrets `CLOUDFLARE_API_TOKEN` (with R2 and Pages edit permissions) and `CLOUDFLARE_ACCOUNT_ID`.
+
 ## Cleaning
 
 ```sh
