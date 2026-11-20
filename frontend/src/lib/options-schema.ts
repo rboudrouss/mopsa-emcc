@@ -368,14 +368,6 @@ export const OPTIONS_SCHEMA: { group: string; options: OptionSpec[] }[] = [
     group: "Debugging",
     options: [
       {
-        // UI-only: the flame graph panel of the results, a debug tool.
-        flag: "__profiler",
-        type: "bool",
-        default: false,
-        label: "Profiler panel",
-        hint: "Show a flame graph of where the analysis spends its time, in the results",
-      },
-      {
         flag: "-debug",
         type: "text",
         default: "",
@@ -811,6 +803,15 @@ export const OPTIONS_SCHEMA: { group: string; options: OptionSpec[] }[] = [
   {
     group: "Profiling",
     options: [
+      {
+        // UI-only: profiles each analysis for the flame graph panel of the
+        // results.
+        flag: "__profiler",
+        type: "bool",
+        default: false,
+        label: "Profiler panel",
+        hint: "Show a flame graph of where the analysis spends its time, in the results",
+      },
       {
         flag: "-flamegraph",
         type: "text",
