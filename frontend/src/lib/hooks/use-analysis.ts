@@ -5,8 +5,12 @@ import { useAppStore } from "../store";
 import { DEFAULT_OPTION_VALUES } from "../options-schema";
 import { snapshotRun, useRunCompare } from "../run-compare";
 import { getWorkspaceForFile } from "../tree";
-import { PROGRESS_FLAGS, useProgress } from "../progress";
+import { PROFILE_FILE, PROFILE_FLAGS, PROGRESS_FLAGS, useProgress } from "../progress";
 import { getBackend } from "../backend";
+
+// The times the function_profiler hook prints, already in the profile panel
+// (it would land in the warnings, before the JSON).
+const PROFILE_TABLE = /^Functions profiling:\n(?:.*s\(total\) .*s\(self\) .*\n)*/m;
 
 function currentSnapshot() {
   const s = useAppStore.getState();
@@ -33,6 +37,13 @@ export function useAnalysis() {
       const progress = useProgress.getState();
       progress.start();
       if (getBackend() !== "wasm") return analyzeJson(args);
+      // Profiled after the user's flags, so its -flamegraph path wins.
+      if (useAppStore.getState().optionValues["__profiler"] === true)
+        return analyzeJson(
+          [...PROGRESS_FLAGS, ...args, ...PROFILE_FLAGS],
+          progress.update,
+          [PROFILE_FILE],
+        ).then((r) => r && { ...r, raw: r.raw.replace(PROFILE_TABLE, "") });
       return analyzeJson([...PROGRESS_FLAGS, ...args], progress.update);
     },
     // null ⇒ this run was superseded by a newer one; keep the current result.

@@ -64,6 +64,8 @@ export interface AnalysisResult {
   raw: string;
   parsed: ParsedOutput | null;
   durationMs: number;
+  // Contents of the files the run was asked to read back, by path.
+  files?: Record<string, string>;
 }
 
 export interface FileTreeNode {

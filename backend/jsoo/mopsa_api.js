@@ -191,9 +191,9 @@
     /**
      * query(options, readFiles?) → Promise<{ output, files }>
      *
-     * Runs a side-effect-free Mopsa command (-help, -list=…, a profiled
-     * run) on a dedicated, throwaway Worker, so it neither supersedes nor
-     * waits for the batch analyses and sessions of the shared worker.
+     * Runs a side-effect-free Mopsa command (-help, -list=…) on a
+     * dedicated, throwaway Worker, so it neither supersedes nor waits for
+     * the batch analyses and sessions of the shared worker.
      * `files` maps each path of `readFiles` the run wrote to its content.
      */
     query: function (options, readFiles) {

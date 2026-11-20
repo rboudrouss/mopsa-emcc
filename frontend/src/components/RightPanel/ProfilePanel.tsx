@@ -1,19 +1,18 @@
 import { useMemo, useState } from "react";
-import { FlameIcon, LoaderCircleIcon } from "lucide-react";
-import { computeAnalysisArgs } from "@/lib/analysis-args";
 import { getBackend } from "@/lib/backend";
-import { FoldHeader } from "./Fold";
+import { useAppStore } from "@/lib/store";
+import { FoldHeader, useFold } from "./Fold";
 
 const MONO = "'JetBrains Mono', monospace";
-const FLAME_FILE = "/tmp/mopsa-flamegraph.txt";
 const MAX_DEPTH = 24;
 const ROW = 18;
 
 /**
- * Where the analysis spends its time: a profiled re-run of the current
- * analysis with Mopsa's function_profiler hook, its flame graph samples
- * ("main;f;g 1234", in µs) drawn as an icicle chart. WASM backend only (the
- * jsoo worker can't hand back the samples file).
+ * Where the analysis spends its time: the flame graph samples
+ * ("main;f;g 1234", in µs) of Mopsa's function_profiler hook, which the
+ * analysis runs with when the profiler panel is on, drawn as an icicle
+ * chart. WASM backend only (the jsoo worker can't hand back the samples
+ * file).
  */
 
 interface FlameNode {
@@ -69,87 +68,33 @@ function color(name: string): string {
 }
 
 export function ProfilePanel() {
-  const [open, setOpen] = useState(false);
-  const [state, setState] = useState<
-    | { kind: "idle" }
-    | { kind: "running" }
-    | { kind: "done"; root: FlameNode }
-    | { kind: "error"; message: string }
-  >({ kind: "idle" });
+  const samples = useAppStore((s) => s.profile);
+  const [open, toggle] = useFold("profile", true);
   const [zoom, setZoom] = useState<string[]>([]);
-
-  const run = async () => {
-    const args = computeAnalysisArgs();
-    if (!args) return;
-    setState({ kind: "running" });
+  const root = useMemo(
+    () => (samples === null ? null : parseFolded(samples)),
+    [samples],
+  );
+  // A new run starts back from the whole graph.
+  const [shown, setShown] = useState(root);
+  if (shown !== root) {
+    setShown(root);
     setZoom([]);
-    const { output, files } = await mopsaJs.query(
-      [
-        ...args,
-        "-hook",
-        "function_profiler",
-        "-flamegraph",
-        FLAME_FILE,
-        "-flamegraph-resolution",
-        "us",
-      ],
-      [FLAME_FILE],
-    );
-    const samples = files[FLAME_FILE];
-    if (samples === undefined)
-      setState({
-        kind: "error",
-        message: output.split("\n").find((l) => l.trim()) ?? "no samples",
-      });
-    else setState({ kind: "done", root: parseFolded(samples) });
-  };
+  }
 
   if (getBackend() !== "wasm") return null;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <FoldHeader title="Profile" open={open} onToggle={() => setOpen(!open)} />
-      {open && (
-        <>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <button
-              onClick={run}
-              disabled={state.kind === "running"}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "4px 10px",
-                fontSize: 12,
-                borderRadius: 5,
-                border: "1px solid var(--border)",
-                background: "var(--bg-elevated)",
-                color: "var(--text-primary)",
-                cursor: state.kind === "running" ? "default" : "pointer",
-              }}
-            >
-              {state.kind === "running" ? (
-                <LoaderCircleIcon
-                  size={12}
-                  style={{ animation: "mopsa-spin 0.8s linear infinite" }}
-                />
-              ) : (
-                <FlameIcon size={12} />
-              )}
-              {state.kind === "done" ? "Profile again" : "Profile this analysis"}
-            </button>
-            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
-              Time spent per analyzed function
-            </span>
-          </div>
-          {state.kind === "error" && (
-            <span style={{ fontSize: 12, color: "#f87171" }}>{state.message}</span>
-          )}
-          {state.kind === "done" && (
-            <FlameView root={state.root} zoom={zoom} setZoom={setZoom} />
-          )}
-        </>
-      )}
+      <FoldHeader title="Profile" open={open} onToggle={toggle} />
+      {open &&
+        (root ? (
+          <FlameView root={root} zoom={zoom} setZoom={setZoom} />
+        ) : (
+          <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+            No samples, run the analysis again.
+          </span>
+        ))}
     </div>
   );
 }

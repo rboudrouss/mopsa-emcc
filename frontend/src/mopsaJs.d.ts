@@ -38,11 +38,14 @@ declare global {
      * Run an analysis and return the captured stdout/stderr output, or null if
      * the run was superseded by a newer analyze() call (the in-flight run is
      * interrupted by terminating + respawning the worker). Async because it
-     * hands off to the OCaml event loop in WASM.
+     * hands off to the OCaml event loop in WASM. `onFiles` receives the
+     * paths of `readFiles` the run wrote (WASM backend only).
      */
     analyze: (
       options: string[],
       onProgress?: (entries: MopsaProgressEntry[]) => void,
+      readFiles?: string[],
+      onFiles?: (files: Record<string, string>) => void,
     ) => Promise<string | null>;
 
     /**
@@ -66,7 +69,7 @@ declare global {
     ) => MopsaSessionHandle;
 
     /**
-     * Run a side-effect-free command (-help, -list=…, a profiled run) on a
+     * Run a side-effect-free command (-help, -list=…) on a
      * throwaway worker: never supersedes nor waits for analyses or
      * sessions. `files` holds the paths of `readFiles` the run wrote (WASM
      * backend only).

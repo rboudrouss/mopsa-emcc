@@ -22,3 +22,16 @@ export const useProgress = create<ProgressState>((set) => ({
 /** Flags turning on the JSON progress lines (WASM backend only: the jsoo
  *  worker doesn't stream its output). */
 export const PROGRESS_FLAGS = ["-hook", "progress", "-progress-json"];
+
+/** Where the function_profiler hook writes its flame graph samples
+ *  ("main;f;g 1234", in µs) when the profiler panel is on. WASM backend
+ *  only, the jsoo worker can't hand back the file. */
+export const PROFILE_FILE = "/tmp/mopsa-flamegraph.txt";
+export const PROFILE_FLAGS = [
+  "-hook",
+  "function_profiler",
+  "-flamegraph",
+  PROFILE_FILE,
+  "-flamegraph-resolution",
+  "us",
+];

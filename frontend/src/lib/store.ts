@@ -11,6 +11,7 @@ import {
   setCodeFilePath,
 } from "./mopsa-client";
 import { DEFAULT_OPTION_VALUES } from "./options-schema";
+import { PROFILE_FILE } from "./progress";
 import { getBackendSetting, isFlagLockedByBackend, setBackendSetting, type BackendSetting } from "./backend";
 import { loadAndRestoreState, saveState } from "./persistence";
 import { getLanguageFromFileExtension } from "./index";
@@ -207,6 +208,8 @@ interface AppStore {
   analysisTime: number | null;
   analysisSuccess: boolean | null;
   analysisError: string | null;
+  // Flame graph samples of the run, when the profiler panel is on.
+  profile: string | null;
   // Message shown when a run was blocked because the selected backend does
   // not support it (e.g. C on the js_of_ocaml backend). Dismissable.
   backendNotice: string | null;
@@ -298,6 +301,7 @@ const CLEARED_ANALYSIS = {
   analysisTime: null,
   analysisSuccess: null,
   analysisError: null,
+  profile: null,
 };
 
 export const useAppStore = create<AppStore>((set, get) => ({
@@ -320,6 +324,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   analysisTime: null,
   analysisSuccess: null,
   analysisError: null,
+  profile: null,
   backendNotice: null,
   activePanel: _restored?.activePanel ?? "files",
   activeTab: "source",
@@ -470,6 +475,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         analysisTime: r.durationMs / 1000,
         analysisSuccess: null,
         analysisError: null,
+        profile: null,
       });
       return;
     }
@@ -500,6 +506,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       analysisTime: r.durationMs / 1000,
       analysisSuccess: p?.success ?? null,
       analysisError: error,
+      profile: r.files?.[PROFILE_FILE] ?? null,
     });
   },
 

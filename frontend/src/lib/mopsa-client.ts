@@ -356,6 +356,7 @@ export function computeOptionsFlags(values: Record<string, unknown>): string[] {
 export async function analyzeJson(
   extraOptions: string[],
   onProgress?: (entries: MopsaProgressEntry[]) => void,
+  readFiles?: string[],
 ): Promise<AnalysisResult | null> {
   let isHelp =
     extraOptions.includes("-help") ||
@@ -372,8 +373,11 @@ export async function analyzeJson(
 
   const t0 = performance.now();
   let raw: string | null = "";
+  let files: Record<string, string> = {};
   try {
-    raw = await mopsaJs.analyze(options, onProgress);
+    raw = await mopsaJs.analyze(options, onProgress, readFiles, (f) => {
+      files = f;
+    });
   } catch (e) {
     raw = String(e);
   }
@@ -386,6 +390,7 @@ export async function analyzeJson(
     raw,
     parsed: parseOutput(raw),
     durationMs,
+    files,
   };
 }
 
