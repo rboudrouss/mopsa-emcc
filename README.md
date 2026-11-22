@@ -22,6 +22,14 @@ The frontend actually ships two backends: the full WASM build, and a lighter pur
 
 Mopsa itself is not vendored. It is installed in the opam switch from the latest commit of [upstream](https://gitlab.com/mopsa/mopsa-analyzer)'s `main` branch (`MOPSA_REPO` / `MOPSA_BRANCH` in the Makefile), and changed by the patches of `emcc-recipes/mopsa/patches/`. They fix 31-bit integers and floating-point rounding on wasm32, and add the debug adapter requests and JSON progress the frontend reads. ocaml-emcc applies them to the wasm build (`PATCH_OCAML=1` in the recipe), `make jsoo-web` to its copy of the sources, and the native build in the switch stays upstream's. A patch is a unified diff whose hunks are placed by their text, so it keeps applying while upstream moves around it. The About panel shows the upstream commit and the patches of the build (`frontend/mopsa-build.json`, written by the Makefile).
 
+## Sharing
+
+The Share button gives a link, or the HTML of an iframe that embeds the page in another site (`?embed`: the editor and the results, a file switcher, a button that opens the files in Mopsa). The link carries the current file, its workspace or all files after its `#`, never uploaded, and by default the configuration and the options that differ from their defaults. A file whose path the visitor already uses with another text is renamed (`a_1.c`, or a folder `w_2/`). Links of the first version (`#share=` of one workspace) still open.
+
+A link with `?open=owner/repo@tag:folder` opens the C, Python and Universal sources of a GitHub repository, or of one of its folders, fetched through jsDelivr, in a workspace named after it (`NAME_2/` when the visitor's folder of that name holds other files). `open` also takes a GitHub URL or an archive's URL (zip, tar, tar.gz, served with CORS), can be repeated, and `?file=NAME` names the file opened. The Share dialog lists the folders opened so and can put them, or others, in a link instead of their files, a GitHub repository pinned to its latest commit by default.
+
+With `?temp`, as in an embed, the files, config and options stay in memory and the visitor's own are left alone, for a course or a demo. The top bar says so, and its badge has a button that keeps the files. The dialog checks it by default when the link opens folders. Its (i) buttons explain each part, including what an embed needs. `frontend/tests/share.mjs` tests all of this in headless Chromium against `pnpm dev`.
+
 ## Prerequisites
 
 The opam switch and the opam packages below are created / installed by the Makefile when missing (`make deps` installs them all at once); the other prerequisites are system ones.
@@ -70,7 +78,7 @@ Step targets are also available if you only want to (re)run a single stage.
 
 ### Hosting
 
-`frontend/dist` is a static site, which needs two response headers, `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp` (the interactive and DAP engines use `SharedArrayBuffer`), as `frontend/public/_headers` sets them on Cloudflare Pages.
+`frontend/dist` is a static site, which needs two response headers, `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp` (the interactive and DAP engines use `SharedArrayBuffer`), as `frontend/public/_headers` sets them on Cloudflare Pages. It also sends `Cross-Origin-Resource-Policy: cross-origin`, without which a cross-origin isolated page cannot embed the site.
 
 Cloudflare Pages serves no file over 25 MiB, and `ocamlrun.wasm` is bigger: it is served, with `ocamlrun.data`, from an R2 bucket.
 
