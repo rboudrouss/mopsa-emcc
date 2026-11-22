@@ -1,0 +1,48 @@
+fix(newpolka): sort the rows in a logarithmic stack depth
+
+The quicksort of the rows of matrices recursed on both parts: on large,
+unbalanced matrices (relations between all the variables of a C+Python
+analysis), its depth grows with the number of rows and exhausts the stack
+of a wasm worker. It now recurses on the smaller part and loops on the
+larger one. The rows end in the same order.
+
+diff --git a/newpolka/pk_qsort.h b/newpolka/pk_qsort.h
+index c6480b8..0675374 100644
+--- a/newpolka/pk_qsort.h
++++ b/newpolka/pk_qsort.h
+@@ -15,7 +15,9 @@
+                                                                         \
+   static void NAME(TYPE* data, size_t size, void* param) {              \
+                                                                         \
+-    if (size >= 12) {                                                    \
++    /* recursion on the smaller part, a loop on the larger one: a       \
++       logarithmic depth, for the small stack of a wasm worker */       \
++    while (size >= 12) {                                                \
+                                                                         \
+       /* choose pivot: median of begining, middle, end */               \
+       TYPE* beg = data;                                                 \
+@@ -48,12 +50,20 @@
+         beg++; end--;                                                   \
+       }                                                                 \
+                                                                         \
+-      /* recursive calls */                                             \
+-      if (end+1 > data) NAME(data, end-data+1, param);                  \
+-      if (data+size > end+1) NAME(end+1, data+size-end-1, param);       \
++      /* the parts: data[0, left) and (end+1)[0, right) */              \
++      size_t left = end+1 > data ? (size_t)(end+1-data) : 0;            \
++      size_t right = data+size > end+1 ? (size_t)(data+size-end-1) : 0; \
++      if (left <= right) {                                              \
++        if (left > 0) NAME(data, left, param);                          \
++        data = end+1; size = right;                                     \
++      }                                                                 \
++      else {                                                            \
++        if (right > 0) NAME(end+1, right, param);                       \
++        size = left;                                                    \
++      }                                                                 \
+     }                                                                   \
+                                                                         \
+-    else if (size > 1) {                                                \
++    if (size > 1) {                                                     \
+       /* simple insertion sort */                                       \
+       for (TYPE* p = data+1; p < data+size; p++) {                      \
+         for (TYPE* q = p; q > data && CMP(param, q-1, q) > 0; q--) {    \
