@@ -12,8 +12,8 @@ export const DEFAULT_CODE: Record<SupportedLanguage, string> = {
  *
  * reverse() is correct, yet the default config reports a possible
  * out-of-bounds write at r[j], since intervals do not relate i, j and n. With
- * the config cell-pack-rel-itv.json (Domains panel), Mopsa finds
- * n = j + i + 1 and the false alarm disappears. "Inline: all lines" with
+ * Relations "Within each function" (Domains panel), Mopsa finds n = j + i + 1
+ * and the false alarm disappears. "Inline: all lines" with
  * "Show: relations" displays the relations each line adds.
  */
 #include <stdio.h>
@@ -45,9 +45,9 @@ int main(void) {
 # AttributeError.
 #
 # squares_desc() is correct, yet the default config reports a possible
-# IndexError at out[j], since intervals do not relate i and j. With the config
-# values-relational.json (Domains panel), Mopsa finds j + i = 4 at the start of
-# each iteration and the false alarm disappears. "Inline: all lines" with
+# IndexError at out[j], since intervals do not relate i and j. With Relations
+# "Between all variables" (Domains panel), Mopsa finds j + i = 4 at the start
+# of each iteration and the false alarm disappears. "Inline: all lines" with
 # "Show: relations" displays the relations each line adds.
 
 
@@ -92,9 +92,10 @@ print(squares_desc(5))
   universal: `// The last assert fails when n = 100.
 //
 // With the default config (intervals), Mopsa cannot prove any of the three
-// asserts. With rel-poly.json (Domains panel), it finds the loop invariants
-// up = 2i and n = i + down, and proves the first two. "Inline: all lines"
-// with "Show: values + relations" displays them line by line.
+// asserts. With Relations "Between all variables" (Domains panel), it finds
+// the loop invariants up = 2i and n = i + down, and proves the first two.
+// "Inline: all lines" with "Show: values + relations" displays them line by
+// line.
 
 int n;
 int i;
