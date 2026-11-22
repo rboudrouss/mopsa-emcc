@@ -11,6 +11,7 @@ import { buildOptionsView, useHelpOptions } from "@/lib/options-help";
 import { isFlagLockedByBackend } from "@/lib/backend";
 import { clearState } from "@/lib/persistence";
 import { cancelPendingSave, useAppStore } from "@/lib/store";
+import { SELECT_STYLE } from "@/components/ui/select-style";
 
 /** Strip dashes and lowercase so dash-heavy flags match dash-free queries. */
 function normalize(s: string): string {
@@ -480,16 +481,7 @@ function OptionInput({
         value={String(value ?? spec.default)}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
-        style={{
-          padding: "2px 6px",
-          background: "var(--bg-elevated)",
-          border: "1px solid var(--border)",
-          borderRadius: 4,
-          color: "var(--text-primary)",
-          fontSize: 12,
-          fontFamily: "'JetBrains Mono', monospace",
-          cursor: "pointer",
-        }}
+        style={SELECT_STYLE}
       >
         {spec.choices?.map((c) => (
           <option key={c} value={c}>

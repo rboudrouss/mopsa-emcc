@@ -7,6 +7,8 @@ import {
 import { DomainNode } from "@/components/ui/DomainNode";
 import { parseConfigText } from "@/lib/mopsa-client";
 import { isFlagLockedByBackend } from "@/lib/backend";
+import { OPTIONS_SCHEMA } from "@/lib/options-schema";
+import { SELECT_STYLE } from "@/components/ui/select-style";
 import {
   choicePreset,
   MEMORY_DOMAINS,
@@ -36,11 +38,10 @@ const TITLE: Record<DomainKind, string> = {
   multilanguage: "Multilanguage Domains",
 };
 
-const ALGORITHMS: [string, string][] = [
-  ["polyhedra", "Polyhedra"],
-  ["octagon", "Octagons"],
-  ["lineq", "Linear equalities"],
-];
+// The relational domains, as the Options panel lists them.
+const NUMERIC = OPTIONS_SCHEMA.flatMap((g) => g.options).find(
+  (o) => o.flag === "-numeric",
+);
 
 // Modules the options cannot show: a config with one of them was written by
 // hand or comes from another preset.
@@ -180,7 +181,26 @@ export function DomainsPanel() {
             ))}
           </Section>
 
-          <Section title="Relations">
+          <Section
+            title="Relations"
+            action={
+              !isFlagLockedByBackend("-numeric") && (
+                <select
+                  aria-label="Relational domain"
+                  title="The relational domain of the options below"
+                  value={String(numeric ?? NUMERIC?.default)}
+                  onChange={(e) => setOptionValue("-numeric", e.target.value)}
+                  style={SELECT_STYLE}
+                >
+                  {NUMERIC?.choices?.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              )
+            }
+          >
             {relationOptions(kind).map((r) => (
               <Radio
                 key={r.id}
@@ -191,30 +211,6 @@ export function DomainsPanel() {
                 onChange={() => apply({ ...choice, relations: r.id })}
               />
             ))}
-            {choice.relations !== "none" &&
-              !isFlagLockedByBackend("-numeric") && (
-                <select
-                  aria-label="Relational domain"
-                  value={String(numeric ?? "polyhedra")}
-                  onChange={(e) => setOptionValue("-numeric", e.target.value)}
-                  style={{
-                    alignSelf: "flex-start",
-                    margin: "2px 0 0 22px",
-                    background: "var(--bg-elevated)",
-                    border: "1px solid var(--border)",
-                    borderRadius: 5,
-                    color: "var(--text-primary)",
-                    fontSize: 11,
-                    padding: "1px 4px",
-                  }}
-                >
-                  {ALGORITHMS.map(([v, l]) => (
-                    <option key={v} value={v}>
-                      {l}
-                    </option>
-                  ))}
-                </select>
-              )}
           </Section>
 
           {kind === "c" && (
@@ -322,27 +318,41 @@ const HEADING: React.CSSProperties = {
 
 function Section({
   title,
+  action,
   children,
 }: {
   title: string;
+  action?: React.ReactNode;
   children: React.ReactNode;
 }) {
+  const id = `domains-${title.toLowerCase()}`;
   return (
-    <fieldset
+    <div
+      role="group"
+      aria-labelledby={id}
       style={{
-        border: "none",
         margin: "8px 0 0",
-        padding: 0,
         display: "flex",
         flexDirection: "column",
         gap: 1,
       }}
     >
-      <legend style={{ ...HEADING, fontSize: 10, padding: "0 0 3px" }}>
-        {title}
-      </legend>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          minHeight: 18,
+          paddingBottom: 3,
+        }}
+      >
+        <span id={id} style={{ ...HEADING, fontSize: 10 }}>
+          {title}
+        </span>
+        {action}
+      </div>
       {children}
-    </fieldset>
+    </div>
   );
 }
 
