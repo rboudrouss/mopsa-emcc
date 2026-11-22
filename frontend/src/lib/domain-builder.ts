@@ -105,9 +105,9 @@ const PACKING: Record<DomainKind, string | null> = {
 };
 
 // Left out in the browser: with C+Python, bitmasks lose the alarms (the
-// analysis ends early) and relations between all variables exhaust the stack.
+// analysis ends early).
 const UNAVAILABLE: Partial<Record<DomainKind, string[]>> = {
-  multilanguage: ["bitmask", "all"],
+  multilanguage: ["bitmask"],
 };
 
 export function valueOptions(kind: DomainKind) {
@@ -133,7 +133,13 @@ export function relationOptions(
               "Linear relations between all variables, those of the C library headers too: analyzing them takes minutes",
             hint: "very slow",
           }
-        : { title: "Linear relations between all variables" }),
+        : kind === "multilanguage"
+          ? {
+              title:
+                "Linear relations between all variables, those of the C library and of CPython too: analyzing them takes a very long time",
+              hint: "very slow",
+            }
+          : { title: "Linear relations between all variables" }),
     },
   ];
   return options.filter(
