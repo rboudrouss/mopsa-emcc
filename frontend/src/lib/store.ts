@@ -13,7 +13,7 @@ import {
 import { DEFAULT_OPTION_VALUES } from "./options-schema";
 import { PROFILE_FILE } from "./progress";
 import { getBackendSetting, isFlagLockedByBackend, setBackendSetting, type BackendSetting } from "./backend";
-import { loadAndRestoreState, saveState } from "./persistence";
+import { loadAndRestoreState, saveState, type StateToSave } from "./persistence";
 import { getLanguageFromFileExtension } from "./index";
 import {
   genId,
@@ -32,6 +32,7 @@ import {
   toggleWorkspaceById,
   getActiveAnalysisMode,
   setWorkspaceModeById,
+  markWorkspacesAt,
 } from "./tree";
 import type {
   ActivePanel,
@@ -40,6 +41,7 @@ import type {
   Assumption,
   CheckItem,
   FileTreeNode,
+  OpenedFolder,
   PanicInfo,
   SavedConfig,
   SupportedLanguage,
@@ -48,7 +50,18 @@ import type {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function buildInitialTree(): FileTreeNode[] {
+// The default examples: their files, and their tree.
+export const DEFAULT_FILES: Record<string, string> = {
+  "c-single/example.c": DEFAULT_CODE.c,
+  "c-multifile/main.c": MULTIFILE_C["main.c"],
+  "c-multifile/stack.c": MULTIFILE_C["stack.c"],
+  "python/example.py": DEFAULT_CODE.python,
+  "c-python/main.py": MULTILANG_CPYTHON["main.py"],
+  "c-python/mymod.c": MULTILANG_CPYTHON["mymod.c"],
+  "universal/example.u": DEFAULT_CODE.universal,
+};
+
+export function buildInitialTree(): FileTreeNode[] {
   // Order is intentional: c-single first so findFirstFile picks it as active.
   return [
     {
@@ -233,6 +246,10 @@ interface AppStore {
   // ── Auto-run ─────────────────────────────────────────────────────────────
   autoRun: boolean;
 
+  // ── Folders opened by a link (?open=) ────────────────────────────────────
+  opened: OpenedFolder[];
+  setOpened: (opened: OpenedFolder[]) => void;
+
   // ── Actions ──────────────────────────────────────────────────────────────
   setPresets: (presets: shareData) => void;
   toggleAutoRun: () => void;
@@ -263,6 +280,8 @@ interface AppStore {
     parentId?: string | null,
   ) => void;
   toggleWorkspace: (id: string) => void;
+  // The folders at these paths made workspaces, with their mode if given.
+  markWorkspaces: (list: { path: string; mode?: WorkspaceMode }[]) => void;
   createWorkspaceNode: (parentId: string | null) => string;
 }
 
@@ -270,12 +289,8 @@ interface AppStore {
 
 setCodeFilePath("/c-single/example.c");
 mopsaJs.setCode(DEFAULT_CODE.c);
-mopsaJs.writeFile("/c-multifile/main.c", MULTIFILE_C["main.c"]);
-mopsaJs.writeFile("/c-multifile/stack.c", MULTIFILE_C["stack.c"]);
-mopsaJs.writeFile("/python/example.py", DEFAULT_CODE.python);
-mopsaJs.writeFile("/c-python/main.py", MULTILANG_CPYTHON["main.py"]);
-mopsaJs.writeFile("/c-python/mymod.c", MULTILANG_CPYTHON["mymod.c"]);
-mopsaJs.writeFile("/universal/example.u", DEFAULT_CODE.universal);
+for (const [path, content] of Object.entries(DEFAULT_FILES))
+  if (path !== "c-single/example.c") mopsaJs.writeFile("/" + path, content);
 
 // ── Restore from localStorage (overwrites WASM defaults if saved state exists) ─
 
@@ -339,6 +354,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
   fileTree: _initialTree,
   activeFile: _initialActiveFile,
   autoRun: _restored?.autoRun ?? true,
+  opened: _restored?.opened ?? [],
+  setOpened: (opened) => set({ opened }),
 
   // ── Presets ────────────────────────────────────────────────────────────
   setPresets: (presets) => set({ presets }),
@@ -884,6 +901,17 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set({ fileTree: toggleWorkspaceById(fileTree, id) });
   },
 
+  markWorkspaces: (list) => {
+    const state = get();
+    const newTree = markWorkspacesAt(state.fileTree, list);
+    const newMode = getActiveAnalysisMode({
+      fileTree: newTree,
+      activeFile: state.activeFile,
+      lang: state.lang,
+    });
+    set({ fileTree: newTree, ...computeConfigBucketSwap(state, newMode, state.lang) });
+  },
+
   createWorkspaceNode: (parentId) => {
     const { fileTree } = get();
     const id = genId();
@@ -907,22 +935,26 @@ export function cancelPendingSave(): void {
   }
 }
 
+/** What is saved of the state. */
+export function stateToSave(state: AppStore): StateToSave {
+  return {
+    lang: state.lang,
+    fileTree: state.fileTree,
+    activeFile: state.activeFile,
+    codeByLang: state.codeByLang,
+    configByLang: state.configByLang,
+    configXL: state.configXL,
+    customConfigs: state.customConfigs,
+    optionValues: state.optionValues,
+    pyEntryPoint: state.pyEntryPoint,
+    autoRun: state.autoRun,
+    activePanel: state.activePanel,
+    openCategories: state.openCategories,
+    opened: state.opened,
+  };
+}
+
 useAppStore.subscribe((state) => {
   if (_saveTimer) clearTimeout(_saveTimer);
-  _saveTimer = setTimeout(() => {
-    saveState({
-      lang: state.lang,
-      fileTree: state.fileTree,
-      activeFile: state.activeFile,
-      codeByLang: state.codeByLang,
-      configByLang: state.configByLang,
-      configXL: state.configXL,
-      customConfigs: state.customConfigs,
-      optionValues: state.optionValues,
-      pyEntryPoint: state.pyEntryPoint,
-      autoRun: state.autoRun,
-      activePanel: state.activePanel,
-      openCategories: state.openCategories,
-    });
-  }, 1000);
+  _saveTimer = setTimeout(() => saveState(stateToSave(state)), 1000);
 });

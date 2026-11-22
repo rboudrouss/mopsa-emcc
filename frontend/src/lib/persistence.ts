@@ -5,20 +5,22 @@ import {
   writeFile,
 } from "./mopsa-client";
 import { DEFAULT_OPTION_VALUES } from "./options-schema";
+import { temporary } from "./session";
 import { findFirstFile, getActiveAnalysisMode, getNodePath } from "./tree";
 import type {
   ActivePanel,
   FileTreeNode,
+  OpenedFolder,
   SavedConfig,
   SupportedLanguage,
 } from "./types";
 
-const STORAGE_KEY = "mopsa-state";
+export const STORAGE_KEY = "mopsa-state";
 const STORAGE_VERSION = 2;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-interface PersistedState {
+export interface PersistedState {
   version: number;
   lang: SupportedLanguage;
   fileTree: FileTreeNode[];
@@ -38,6 +40,8 @@ interface PersistedState {
   // Which options categories are expanded in the sidebar. Optional so older
   // saved state (without it) still loads — missing means "all collapsed".
   openCategories?: Record<string, boolean>;
+  // The folders opened by a link (?open=), with their source.
+  opened?: OpenedFolder[];
 }
 
 interface RestoredState {
@@ -57,9 +61,10 @@ interface RestoredState {
   autoRun: boolean;
   activePanel: ActivePanel;
   openCategories: Record<string, boolean>;
+  opened: OpenedFolder[];
 }
 
-interface StateToSave {
+export interface StateToSave {
   lang: SupportedLanguage;
   fileTree: FileTreeNode[];
   activeFile: string | null;
@@ -72,11 +77,12 @@ interface StateToSave {
   autoRun: boolean;
   activePanel: ActivePanel;
   openCategories: Record<string, boolean>;
+  opened: OpenedFolder[];
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function collectFileContents(fileTree: FileTreeNode[]): Record<string, string> {
+export function collectFileContents(fileTree: FileTreeNode[]): Record<string, string> {
   const result: Record<string, string> = {};
   function walk(nodes: FileTreeNode[], prefix: string) {
     for (const node of nodes) {
@@ -98,26 +104,43 @@ function collectFileContents(fileTree: FileTreeNode[]): Record<string, string> {
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
-export function saveState(state: StateToSave): void {
+/** The state as saved, its files read from the WASM filesystem. */
+export function toPersisted(state: StateToSave): PersistedState {
+  return {
+    version: STORAGE_VERSION,
+    ...state,
+    fileContents: collectFileContents(state.fileTree),
+  };
+}
+
+/** The visitor's saved state, null when there is none (or an older one). */
+export function readPersisted(): PersistedState | null {
   try {
-    const fileContents = collectFileContents(state.fileTree);
-    const persisted: PersistedState = {
-      version: STORAGE_VERSION,
-      ...state,
-      fileContents,
-    };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(persisted));
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const saved = JSON.parse(raw) as PersistedState;
+    return saved.version === STORAGE_VERSION ? saved : null;
+  } catch {
+    return null;
+  }
+}
+
+// A temporary session (?temp, ?embed) saves nothing.
+export function saveState(state: StateToSave): void {
+  if (temporary) return;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(toPersisted(state)));
   } catch {
     /* localStorage might be full or disabled */
   }
 }
 
+// A temporary session starts from the defaults, not the visitor's state.
 export function loadAndRestoreState(): RestoredState | null {
+  if (temporary) return null;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const saved = JSON.parse(raw) as PersistedState;
-    if (saved.version !== STORAGE_VERSION) return null;
+    const saved = readPersisted();
+    if (!saved) return null;
 
     // Determine active file and code
     let code = DEFAULT_CODE[saved.lang] ?? "";
@@ -198,6 +221,7 @@ export function loadAndRestoreState(): RestoredState | null {
       autoRun: saved.autoRun,
       activePanel: saved.activePanel,
       openCategories: saved.openCategories ?? {},
+      opened: Array.isArray(saved.opened) ? saved.opened : [],
     };
   } catch {
     return null;
@@ -205,5 +229,6 @@ export function loadAndRestoreState(): RestoredState | null {
 }
 
 export function clearState(): void {
+  if (temporary) return;
   localStorage.removeItem(STORAGE_KEY);
 }

@@ -335,3 +335,41 @@ export function getActiveAnalysisMode(args: {
   }
   return args.lang;
 }
+
+// The folders at these paths ("a/b") made workspaces, with their mode if
+// given (the others unchanged).
+export function markWorkspacesAt(
+  tree: FileTreeNode[],
+  list: { path: string; mode?: WorkspaceMode }[],
+  prefix = "",
+): FileTreeNode[] {
+  return tree.map((n) => {
+    if (!n.children) return n;
+    const path = prefix ? `${prefix}/${n.name}` : n.name;
+    const mark = list.find((w) => w.path === path);
+    const next: FileTreeNode = {
+      ...n,
+      children: markWorkspacesAt(n.children, list, path),
+    };
+    if (mark) {
+      next.isWorkspace = true;
+      if (mark.mode) next.mode = mark.mode;
+    }
+    return next;
+  });
+}
+
+// The node at a path ("a/b/c.c"), null if none.
+export function findByPath(
+  tree: FileTreeNode[],
+  path: string,
+): FileTreeNode | null {
+  let level = tree;
+  let node: FileTreeNode | null = null;
+  for (const name of path.split("/").filter(Boolean)) {
+    node = level.find((n) => n.name === name) ?? null;
+    if (!node) return null;
+    level = node.children ?? [];
+  }
+  return node;
+}

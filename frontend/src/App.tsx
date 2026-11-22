@@ -15,7 +15,9 @@ import { usePresets } from "@/lib/hooks/use-presets";
 import { useAppStore } from "@/lib/store";
 import { computeRunSignature } from "@/lib/analysis-args";
 import { getBackend, isWasmFallback } from "@/lib/backend";
-import { importSharedWorkspace } from "@/lib/share";
+import { openLink } from "@/lib/open-link";
+import { embedded } from "@/lib/session";
+import { LinkBanners } from "@/components/LinkBanners";
 
 export default function App() {
   const { resolved, toggle } = useTheme();
@@ -46,12 +48,14 @@ export default function App() {
     }
   }, [isSuccess, presets, applyPreset, setPresets]);
 
-  // Open the workspace of a share link (#share=…) once presets are known.
+  // Open what the page's link brings (#share=…, ?open=…) once presets are
+  // known.
   const sharedImported = useRef(false);
+  const [linkOpened, setLinkOpened] = useState(false);
   useEffect(() => {
     if (!isSuccess || !presets || sharedImported.current) return;
     sharedImported.current = true;
-    void importSharedWorkspace(presets);
+    void openLink(presets).finally(() => setLinkOpened(true));
   }, [isSuccess, presets]);
 
   const debouncedRun = useDebouncedFn(runAnalysis, 500);
@@ -89,9 +93,45 @@ export default function App() {
           onRunClick={runAnalysis}
           resolvedTheme={resolved}
           onThemeToggle={toggle}
+          banners={<LinkBanners linkOpened={linkOpened} />}
         />
-        <JsooBackendBanner />
+        {!embedded && <JsooBackendBanner />}
       </>
+    );
+  }
+
+  // Embedded in another page (?embed): the editor and the results
+  if (embedded) {
+    return (
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr",
+          gridTemplateRows: "48px auto 1fr",
+          height: "100dvh",
+          width: "100vw",
+          overflow: "hidden",
+          background: "var(--bg-base)",
+        }}
+      >
+        <TopBar
+          isAnalyzing={isAnalyzing}
+          onRunClick={runAnalysis}
+          resolvedTheme={resolved}
+          onThemeToggle={toggle}
+          embedded
+        />
+        <LinkBanners linkOpened={linkOpened} />
+        <PanelGroup direction="horizontal" style={{ height: "100%", overflow: "hidden" }}>
+          <Panel minSize={30} id="center" order={1} style={{ overflow: "hidden" }}>
+            <CenterPane resolvedTheme={resolved} />
+          </Panel>
+          <PanelResizeHandle style={resizeHandleStyle} />
+          <Panel defaultSize={40} minSize={20} id="right" order={2} style={{ overflow: "hidden" }}>
+            <RightPanel isAnalyzing={isAnalyzing} />
+          </Panel>
+        </PanelGroup>
+      </div>
     );
   }
 
@@ -100,7 +140,7 @@ export default function App() {
       style={{
         display: "grid",
         gridTemplateColumns: "44px 1fr",
-        gridTemplateRows: "48px 1fr",
+        gridTemplateRows: "48px auto 1fr",
         height: "100dvh",
         width: "100vw",
         overflow: "hidden",
@@ -113,6 +153,7 @@ export default function App() {
         resolvedTheme={resolved}
         onThemeToggle={toggle}
       />
+      <LinkBanners linkOpened={linkOpened} />
       <ActivityBar />
       <PanelGroup
         direction="horizontal"

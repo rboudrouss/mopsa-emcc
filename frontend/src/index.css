@@ -213,3 +213,276 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-muted);
 }
+
+/* ── Dialogs (Share) ─────────────────────────────────────────────────────── */
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 64px 12px 12px;
+  background: rgba(0, 0, 0, 0.45);
+}
+.dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: min(560px, 100%);
+  max-height: calc(100dvh - 80px);
+  overflow-y: auto;
+  padding: 14px 16px 16px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+  font-size: 13px;
+  color: var(--text-primary);
+}
+.dialog-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.dialog h2 {
+  font-size: 15px;
+  font-weight: 600;
+}
+.dialog h3 {
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+.dialog .with-info h3 {
+  margin-top: 0;
+}
+.dialog button.icon {
+  display: flex;
+  padding: 4px;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-muted);
+}
+.dialog button.icon:hover {
+  color: var(--text-primary);
+}
+.dialog .button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  padding: 5px 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-primary);
+  font-size: 12px;
+}
+.dialog .button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+.dialog label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.dialog label input {
+  margin-top: 3px;
+  accent-color: #f5b544;
+}
+.dialog .muted,
+.dialog label.muted {
+  color: var(--text-secondary);
+}
+.dialog code {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+}
+.dialog .error {
+  color: #f87171;
+}
+.dialog input:not([type]),
+.dialog textarea {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 8px;
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+}
+.dialog textarea {
+  resize: vertical;
+}
+.dialog .with-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+.dialog .with-info > label {
+  flex: 1;
+}
+.dialog .info {
+  display: flex;
+  padding: 2px;
+  background: none;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--text-muted);
+}
+.dialog .info:hover,
+.dialog .info[aria-expanded="true"] {
+  color: #f5b544;
+}
+.dialog .info-text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  background: var(--bg-elevated);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.dialog .segmented {
+  display: inline-flex;
+  padding: 2px;
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.dialog .segmented button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.dialog .segmented button[aria-pressed="true"] {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.dialog .share-link,
+.dialog .share-add {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+.dialog .share-told {
+  font-size: 11px;
+}
+.dialog .share-warning {
+  padding: 6px 8px;
+  border: 1px solid color-mix(in srgb, #f5b544 45%, transparent);
+  border-radius: 6px;
+  font-size: 12px;
+}
+.dialog .share-warning.error {
+  border-color: color-mix(in srgb, #f87171 45%, transparent);
+}
+
+/* ── Banners (link, temporary session) ───────────────────────────────────── */
+.banner {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding: 6px 12px;
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-primary);
+}
+.banner.warning {
+  border-bottom-color: color-mix(in srgb, #f5b544 45%, transparent);
+}
+.banner > span {
+  flex: 1;
+  min-width: 12em;
+}
+.banner button {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-primary);
+  font-size: 12px;
+}
+.banner button.close {
+  padding: 2px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+}
+
+/* ── The top bar's temporary session ─────────────────────────────────────── */
+.temporary-badge {
+  position: relative;
+  flex-shrink: 0;
+}
+.temporary-badge > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 9px;
+  background: color-mix(in srgb, #f5b544 12%, transparent);
+  border: 1px solid color-mix(in srgb, #f5b544 55%, transparent);
+  border-radius: 13px;
+  cursor: pointer;
+  color: #d9971f;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.temporary-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  width: min(260px, calc(100vw - 20px));
+  padding: 10px 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.temporary-popover .keep {
+  padding: 4px 10px;
+  background: #f5b544;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  color: #0f1117;
+  font-size: 12px;
+  font-weight: 600;
+}

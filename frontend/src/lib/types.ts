@@ -77,3 +77,13 @@ export interface FileTreeNode {
   // Only meaningful when isWorkspace is true; undefined = auto-detect.
   mode?: WorkspaceMode;
 }
+
+/** A folder opened by a link (?open=SPEC), which a link can open again. */
+export interface OpenedFolder {
+  // Its path in the tree.
+  folder: string;
+  // The spec it came from, and that spec at the commit fetched when it
+  // named no version (owner/repo@SHA[:folder]).
+  source: string;
+  pinned?: string;
+}

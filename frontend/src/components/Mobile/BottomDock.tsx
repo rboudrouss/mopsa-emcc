@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { DEFAULT_OPTION_VALUES } from "@/lib/options-schema";
 import { useAppStore } from "@/lib/store";
+import { embedded } from "@/lib/session";
 import type { MobileSheet } from "./index";
 
 interface BottomDockProps {
@@ -48,6 +49,10 @@ export function BottomDock({
         flexShrink: 0,
       }}
     >
+      {embedded ? (
+        <div style={{ flex: 1 }} />
+      ) : (
+      <>
       <DockButton
         label="Files"
         icon={<FolderIcon size={16} />}
@@ -76,6 +81,8 @@ export function BottomDock({
         active={sheet === "about"}
         onClick={() => onSheetToggle("about")}
       />
+      </>
+      )}
 
       <button
         onClick={onRunClick}

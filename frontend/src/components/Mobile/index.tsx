@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { CenterPane } from "@/components/CenterPane";
 import { RightPanel } from "@/components/RightPanel";
 import { AboutPanel } from "@/components/SecondarySidebar/AboutPanel";
@@ -17,6 +17,8 @@ interface MobileLayoutProps {
   onRunClick: () => void;
   resolvedTheme: "light" | "dark";
   onThemeToggle: () => void;
+  // What the page's link does (components/LinkBanners.tsx)
+  banners?: ReactNode;
 }
 
 /**
@@ -30,6 +32,7 @@ export function MobileLayout({
   onRunClick,
   resolvedTheme,
   onThemeToggle,
+  banners,
 }: MobileLayoutProps) {
   const activeTab = useAppStore((s) => s.activeTab);
   const setActiveTab = useAppStore((s) => s.setActiveTab);
@@ -74,6 +77,7 @@ export function MobileLayout({
         resolvedTheme={resolvedTheme}
         onThemeToggle={onThemeToggle}
       />
+      {banners}
 
       {/* Segmented tab switcher */}
       <div

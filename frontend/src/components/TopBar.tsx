@@ -3,12 +3,18 @@ import { PulseDot } from "@/components/ui/PulseDot";
 import { ShareButton } from "@/components/ShareButton";
 import { useAppStore } from "@/lib/store";
 import { EntryPointPicker } from "@/components/TopBar/EntryPointPicker";
+import { OpenFullButton } from "@/components/OpenFullButton";
+import { FileSwitcher } from "@/components/TopBar/FileSwitcher";
+import { TemporaryBadge } from "@/components/TemporaryBadge";
 
 interface TopBarProps {
   isAnalyzing: boolean;
   onRunClick: () => void;
   resolvedTheme: "light" | "dark";
   onThemeToggle: () => void;
+  // Embedded in another page: its files to switch between, a way out
+  // instead of Share.
+  embedded?: boolean;
 }
 
 export function TopBar({
@@ -16,6 +22,7 @@ export function TopBar({
   onRunClick,
   resolvedTheme,
   onThemeToggle,
+  embedded,
 }: TopBarProps) {
   const checks = useAppStore((s) => s.checks);
   const selectivity = useAppStore((s) => s.selectivity);
@@ -63,6 +70,9 @@ export function TopBar({
           MOPSA
         </span>
       </div>
+
+      {embedded && <FileSwitcher />}
+      <TemporaryBadge />
 
       <div style={{ flex: 1 }} />
 
@@ -149,7 +159,7 @@ export function TopBar({
         Run
       </button>
 
-      <ShareButton />
+      {embedded ? <OpenFullButton /> : <ShareButton />}
 
       {/* Theme toggle */}
       <button

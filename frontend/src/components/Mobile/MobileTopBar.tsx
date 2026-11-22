@@ -8,6 +8,10 @@ import { PulseDot } from "@/components/ui/PulseDot";
 import { EntryPointPicker } from "@/components/TopBar/EntryPointPicker";
 import { useAppStore } from "@/lib/store";
 import { ShareButton } from "@/components/ShareButton";
+import { OpenFullButton } from "@/components/OpenFullButton";
+import { embedded } from "@/lib/session";
+import { FileSwitcher } from "@/components/TopBar/FileSwitcher";
+import { TemporaryBadge } from "@/components/TemporaryBadge";
 import { findById } from "@/lib/tree";
 
 interface MobileTopBarProps {
@@ -53,6 +57,8 @@ export function MobileTopBar({
           style={{ objectFit: "contain", flexShrink: 0 }}
         />
 
+        {embedded && <FileSwitcher />}
+        <TemporaryBadge compact />
 
         <div style={{ flex: 1 }} />
 
@@ -78,7 +84,7 @@ export function MobileTopBar({
           {autoRun ? <ZapIcon size={14} /> : <ZapOffIcon size={14} />}
         </button>
 
-        <ShareButton />
+        {embedded ? <OpenFullButton compact /> : <ShareButton />}
 
         <button
           onClick={onThemeToggle}

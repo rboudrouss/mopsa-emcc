@@ -1,57 +1,40 @@
-import { useState } from "react";
-import { CheckIcon, Share2Icon } from "lucide-react";
-import { createShareLink } from "@/lib/share";
+import { useCallback, useState } from "react";
+import { createPortal } from "react-dom";
+import { Share2Icon } from "lucide-react";
+import { ShareDialog } from "@/components/ShareDialog";
 
 /**
- * Copies a permalink of the active workspace (files, config, options) to
- * the clipboard. Everything travels in the URL fragment: no server.
+ * Opens the Share dialog: a link to these files, config and options, or the
+ * HTML that embeds the page in another site. Everything travels in the URL:
+ * no server.
  */
 export function ShareButton() {
-  const [state, setState] = useState<"idle" | "copied" | "error">("idle");
-
-  const share = async () => {
-    try {
-      const link = await createShareLink();
-      if (!link) throw new Error("nothing to share");
-      await navigator.clipboard.writeText(link);
-      setState("copied");
-    } catch {
-      setState("error");
-    }
-    window.setTimeout(() => setState("idle"), 2000);
-  };
-
+  const [open, setOpen] = useState(false);
+  const close = useCallback(() => setOpen(false), []);
   return (
-    <button
-      onClick={share}
-      title={
-        state === "copied"
-          ? "Link copied to the clipboard"
-          : state === "error"
-            ? "Could not copy the link"
-            : "Copy a link to this workspace (files, config, options)"
-      }
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        width: 32,
-        height: 32,
-        background: "none",
-        border: `1px solid ${state === "copied" ? "#4ade80" : "var(--border)"}`,
-        borderRadius: 6,
-        cursor: "pointer",
-        color:
-          state === "copied"
-            ? "#4ade80"
-            : state === "error"
-              ? "#f87171"
-              : "var(--text-secondary)",
-        flexShrink: 0,
-        transition: "color 120ms, border-color 120ms",
-      }}
-    >
-      {state === "copied" ? <CheckIcon size={15} /> : <Share2Icon size={15} />}
-    </button>
+    <>
+      <button
+        onClick={() => setOpen(!open)}
+        title="A link to these files, or the HTML that embeds them"
+        aria-label="Share"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: 32,
+          height: 32,
+          background: open ? "var(--bg-elevated)" : "none",
+          border: "1px solid var(--border)",
+          borderRadius: 6,
+          cursor: "pointer",
+          color: "var(--text-secondary)",
+          flexShrink: 0,
+          transition: "color 120ms, border-color 120ms",
+        }}
+      >
+        <Share2Icon size={15} />
+      </button>
+      {open && createPortal(<ShareDialog close={close} />, document.body)}
+    </>
   );
 }
