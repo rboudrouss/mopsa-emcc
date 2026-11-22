@@ -10,34 +10,71 @@ on:
   schedule:
     - cron: '0 4 * * 1'
 
+permissions:
+  contents: read
+  # the artifacts of earlier runs
+  actions: read
+
 env:
   EMSDK_VERSION: 6.0.11
 
 jobs:
-  # On the weekly run, whether Mopsa's commit differs from the deployed one
-  # (mopsa-build.json, published with the site)
-  mopsa-changed:
-    if: github.event_name == 'schedule'
+  # What to redo: all, site (the frontend, with the backends of the last
+  # build of main) or nothing. A push changing only the frontend, the docs or
+  # the workflows since the last build of main builds and deploys the frontend
+  # only. The weekly run builds everything when Mopsa's commit differs from
+  # the deployed one (mopsa-build.json, published with the site), nothing
+  # otherwise.
+  plan:
     runs-on: ubuntu-24.04
     env:
+      GH_TOKEN: ${{ github.token }}
+      EVENT: ${{ github.event_name }}
+      REPO: ${{ github.repository }}
       MOPSA_REPO: https://gitlab.com/mopsa/mopsa-analyzer.git
       MOPSA_BRANCH: main
       SITE_URL: https://mopsawasm.pages.dev
     outputs:
-      changed: ${{ steps.compare.outputs.changed }}
+      redo: ${{ steps.plan.outputs.redo }}
+      built-run: ${{ steps.plan.outputs.built-run }}
     steps:
-      - id: compare
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      # The last build of main is the run of the newest artifact
+      # frontend-public of this repository's main branch
+      - id: plan
         run: |
-          latest=$(git ls-remote "$MOPSA_REPO" "refs/heads/$MOPSA_BRANCH" | cut -f1)
-          test -n "$latest"
-          deployed=$(curl -fsSL "$SITE_URL/mopsa-build.json" | jq -r .commit) || deployed=
-          echo "latest $latest, deployed ${deployed:-unknown}"
-          echo "changed=$([ "$latest" = "$deployed" ] && echo false || echo true)" >> "$GITHUB_OUTPUT"
+          site_only='^(frontend/|bench/|\.github/workflows/|README\.md$|LICENSE$|\.gitignore$)'
+          # they make share.json, of the jsoo backend
+          backend_in_frontend='^frontend/(generateShareJson\.sh|folderToJson\.cjs)$'
+          read -r built_run built < <(gh api "repos/$REPO/actions/artifacts?name=frontend-public&per_page=30" \
+            --jq '[.artifacts[] | select((.expired | not) and .workflow_run.head_branch == "main"
+              and .workflow_run.head_repository_id == .workflow_run.repository_id)][0] // empty
+              | "\(.workflow_run.id) \(.workflow_run.head_sha)"') || true
+          if [ "$EVENT" = schedule ]; then
+            latest=$(git ls-remote "$MOPSA_REPO" "refs/heads/$MOPSA_BRANCH" | cut -f1)
+            test -n "$latest"
+            deployed=$(curl -fsSL "$SITE_URL/mopsa-build.json" | jq -r .commit) || deployed=
+            echo "Mopsa: latest $latest, deployed ${deployed:-unknown}"
+            if [ "$latest" = "$deployed" ]; then redo=nothing; else redo=all; fi
+          elif [ "$EVENT" = push ] && [ -n "$built" ] && git cat-file -e "$built^{commit}" 2>/dev/null; then
+            changed=$(git diff --name-only "$built" HEAD)
+            echo "since the last build ($built):"
+            echo "$changed"
+            backend=$(printf '%s\n' "$changed" | grep -vE "$site_only" || true)
+            backend+=$(printf '%s\n' "$changed" | grep -E "$backend_in_frontend" || true)
+            if [ -z "$backend" ]; then redo=site; else redo=all; fi
+          else
+            redo=all
+          fi
+          echo "built-run=$built_run" >> "$GITHUB_OUTPUT"
+          echo "redo=$redo" | tee -a "$GITHUB_OUTPUT"
 
   # `make final-web`: both backends (WASM + jsoo) and the frontend
   build:
-    needs: mopsa-changed
-    if: ${{ !cancelled() && (needs.mopsa-changed.result == 'skipped' || needs.mopsa-changed.outputs.changed == 'true') }}
+    needs: plan
+    if: needs.plan.outputs.redo == 'all'
     # i386 containers resolve no name on ubuntu-26.04 (docker image of the
     # 32-bit headers)
     runs-on: ubuntu-24.04
@@ -122,6 +159,7 @@ jobs:
           path: |
             frontend/public
             frontend/mopsa-build.json
+          retention-days: 90
       - if: failure() || cancelled()
         uses: actions/upload-artifact@v7
         with:
@@ -131,9 +169,10 @@ jobs:
   # ocamlrun.wasm and ocamlrun.data to R2, the rest to Cloudflare Pages (see
   # Hosting in the README)
   deploy:
-    needs: build
-    # build's own need may be skipped, which makes the implicit success() false
-    if: ${{ !cancelled() && needs.build.result == 'success' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+    needs: [plan, build]
+    # build is skipped for the site only, which makes the implicit success()
+    # false
+    if: ${{ !cancelled() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && (needs.plan.outputs.redo == 'site' || (needs.plan.outputs.redo == 'all' && needs.build.result == 'success')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     concurrency:
@@ -151,10 +190,18 @@ jobs:
       - uses: pnpm/action-setup@v4
         with:
           version: 10
+      # This run's backends, or those of the last build of main for the site
+      # only
       - uses: actions/download-artifact@v8
         with:
           name: frontend-public
           path: frontend
+          run-id: ${{ needs.plan.outputs.redo == 'site' && needs.plan.outputs.built-run || github.run_id }}
+          github-token: ${{ github.token }}
+      # The files of frontend/public in the repository are this commit's
+      - run: git checkout -- frontend
+      # Already in the bucket for the site only, unless that build's
+      # deployment failed
       - name: Upload ocamlrun.wasm and ocamlrun.data
         run: make wasm-r2-upload R2_BUCKET=mopsa-wasm
       # mopsa-build.json is the deployed commit the weekly run compares with
