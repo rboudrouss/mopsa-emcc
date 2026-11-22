@@ -455,6 +455,24 @@ body {
   font-weight: 500;
   white-space: nowrap;
 }
+.update-badge {
+  flex-shrink: 0;
+}
+.update-badge > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 9px;
+  background: color-mix(in srgb, #4ade80 12%, transparent);
+  border: 1px solid color-mix(in srgb, #4ade80 55%, transparent);
+  border-radius: 13px;
+  cursor: pointer;
+  color: #22a95a;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
 .temporary-popover {
   position: absolute;
   top: calc(100% + 6px);

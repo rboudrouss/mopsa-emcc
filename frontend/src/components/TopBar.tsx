@@ -6,6 +6,7 @@ import { EntryPointPicker } from "@/components/TopBar/EntryPointPicker";
 import { OpenFullButton } from "@/components/OpenFullButton";
 import { FileSwitcher } from "@/components/TopBar/FileSwitcher";
 import { TemporaryBadge } from "@/components/TemporaryBadge";
+import { UpdateBadge } from "@/components/UpdateBadge";
 
 interface TopBarProps {
   isAnalyzing: boolean;
@@ -73,6 +74,7 @@ export function TopBar({
 
       {embedded && <FileSwitcher />}
       <TemporaryBadge />
+      <UpdateBadge />
 
       <div style={{ flex: 1 }} />
 

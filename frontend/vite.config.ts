@@ -56,73 +56,73 @@ export default defineConfig(({ mode }) => {
       },
     },
     plugins: [
-      enablePWA &&
-        VitePWA({
-          registerType: "autoUpdate",
-          workbox: {
-            maximumFileSizeToCacheInBytes: 500000000,
-            // Served apart: cached when first fetched, under URLs that change
-            // with their contents
-            ...(assetsUrl && {
-              globIgnores: ["**/ocamlrun.wasm", "**/ocamlrun.data"],
-              runtimeCaching: [
-                {
-                  // a RegExp: generateSW writes it into sw.js
-                  urlPattern: new RegExp(
-                    "^" +
-                      assetsUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") +
-                      "/",
-                  ),
-                  handler: "CacheFirst",
-                  options: {
-                    cacheName: "mopsa-wasm",
-                    expiration: { maxEntries: 4 },
-                    cacheableResponse: { statuses: [200] },
-                  },
+      // Disabled, the page's useRegisterSW does nothing. A new version waits
+      // until the top bar's button (UpdateBadge) reloads the page with it.
+      VitePWA({
+        disable: !enablePWA,
+        registerType: "prompt",
+        workbox: {
+          maximumFileSizeToCacheInBytes: 500000000,
+          // Served apart: cached when first fetched, under URLs that change
+          // with their contents
+          ...(assetsUrl && {
+            globIgnores: ["**/ocamlrun.wasm", "**/ocamlrun.data"],
+            runtimeCaching: [
+              {
+                // a RegExp: generateSW writes it into sw.js
+                urlPattern: new RegExp(
+                  "^" + assetsUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "/",
+                ),
+                handler: "CacheFirst",
+                options: {
+                  cacheName: "mopsa-wasm",
+                  expiration: { maxEntries: 4 },
+                  cacheableResponse: { statuses: [200] },
                 },
-              ],
-            }),
-          },
-          includeAssets: [
-            "web-app-manifest-192x192.png",
-            "web-app-manifest-512x512.png",
-            "screenshot-desktop.png",
-            "screenshot-other.png",
+              },
+            ],
+          }),
+        },
+        includeAssets: [
+          "web-app-manifest-192x192.png",
+          "web-app-manifest-512x512.png",
+          "screenshot-desktop.png",
+          "screenshot-other.png",
+        ],
+        manifest: {
+          name: "MopsaJs",
+          short_name: "MopsaJs",
+          theme_color: "#ffffff",
+          background_color: "#ffffff",
+          display: "standalone",
+          description: "Modular Open Platform for Static Analysis.",
+          icons: [
+            {
+              src: "/web-app-manifest-192x192.png",
+              sizes: "192x192",
+              type: "image/png",
+            },
+            {
+              src: "/web-app-manifest-512x512.png",
+              sizes: "512x512",
+              type: "image/png",
+            },
           ],
-          manifest: {
-            name: "MopsaJs",
-            short_name: "MopsaJs",
-            theme_color: "#ffffff",
-            background_color: "#ffffff",
-            display: "standalone",
-            description: "Modular Open Platform for Static Analysis.",
-            icons: [
-              {
-                src: "/web-app-manifest-192x192.png",
-                sizes: "192x192",
-                type: "image/png",
-              },
-              {
-                src: "/web-app-manifest-512x512.png",
-                sizes: "512x512",
-                type: "image/png",
-              },
-            ],
-            screenshots: [
-              {
-                src: "/screenshot-desktop.png",
-                sizes: "1662x1003",
-                type: "image/png",
-                form_factor: "wide",
-              },
-              {
-                src: "/screenshot-other.png",
-                sizes: "650x863",
-                type: "image/png",
-              },
-            ],
-          },
-        }),
+          screenshots: [
+            {
+              src: "/screenshot-desktop.png",
+              sizes: "1662x1003",
+              type: "image/png",
+              form_factor: "wide",
+            },
+            {
+              src: "/screenshot-other.png",
+              sizes: "650x863",
+              type: "image/png",
+            },
+          ],
+        },
+      }),
       react(),
       tailwindcss(),
     ],

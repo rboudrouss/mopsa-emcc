@@ -12,6 +12,7 @@ import { OpenFullButton } from "@/components/OpenFullButton";
 import { embedded } from "@/lib/session";
 import { FileSwitcher } from "@/components/TopBar/FileSwitcher";
 import { TemporaryBadge } from "@/components/TemporaryBadge";
+import { UpdateBadge } from "@/components/UpdateBadge";
 import { findById } from "@/lib/tree";
 
 interface MobileTopBarProps {
@@ -59,6 +60,7 @@ export function MobileTopBar({
 
         {embedded && <FileSwitcher />}
         <TemporaryBadge compact />
+        <UpdateBadge compact />
 
         <div style={{ flex: 1 }} />
 
