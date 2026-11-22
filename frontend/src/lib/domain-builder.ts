@@ -121,12 +121,12 @@ export function relationOptions(
     { id: "none", label: "None", title: "Each variable on its own" },
     {
       id: "packed",
-      label: "Within each function",
+      label: "Per function",
       title: "Linear relations between the variables of a function",
     },
     {
       id: "all",
-      label: "Between all variables",
+      label: "All",
       ...(kind === "c"
         ? {
             title:

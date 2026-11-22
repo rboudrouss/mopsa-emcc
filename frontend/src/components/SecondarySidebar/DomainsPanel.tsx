@@ -9,6 +9,7 @@ import { parseConfigText } from "@/lib/mopsa-client";
 import { isFlagLockedByBackend } from "@/lib/backend";
 import { OPTIONS_SCHEMA } from "@/lib/options-schema";
 import { SELECT_STYLE } from "@/components/ui/select-style";
+import { Switch } from "@/components/ui/Switch";
 import {
   choicePreset,
   MEMORY_DOMAINS,
@@ -167,9 +168,9 @@ export function DomainsPanel() {
           )}
 
           <Section title="Values">
-            <Check label="Intervals" checked disabled title="Always on" />
+            <Toggle label="Intervals" checked disabled title="Always on" />
             {valueOptions(kind).map((d) => (
-              <Check
+              <Toggle
                 key={d.id}
                 label={d.label}
                 title={d.title}
@@ -201,17 +202,12 @@ export function DomainsPanel() {
               )
             }
           >
-            {relationOptions(kind).map((r) => (
-              <Radio
-                key={r.id}
-                name={`relations-${kind}`}
-                label={r.label}
-                title={r.title}
-                hint={r.hint}
-                checked={choice.relations === r.id}
-                onChange={() => apply({ ...choice, relations: r.id })}
-              />
-            ))}
+            <Steps
+              label="Relations"
+              items={relationOptions(kind)}
+              value={choice.relations}
+              onPick={(relations) => apply({ ...choice, relations })}
+            />
           </Section>
 
           {kind === "c" && (
@@ -220,7 +216,7 @@ export function DomainsPanel() {
                 const needsStrings =
                   d.id === "sentinels" && !choice.memory.includes("strings");
                 return (
-                  <Check
+                  <Toggle
                     key={d.id}
                     label={d.label}
                     title={d.title}
@@ -239,7 +235,7 @@ export function DomainsPanel() {
           )}
 
           <Section title="Partitioning">
-            <Check
+            <Toggle
               label="Keep branches apart"
               title="The states of the last if/else stay separate instead of being joined"
               checked={choice.branches}
@@ -357,66 +353,182 @@ function Section({
   );
 }
 
-interface ChoiceProps {
+/**
+ * Options ordered from the cheapest to the most precise, as stops on a
+ * track: the track fills up to the one picked.
+ */
+function Steps<T extends string>({
+  label,
+  items,
+  value,
+  onPick,
+}: {
   label: string;
-  title?: string;
-  hint?: string;
-  checked: boolean;
-  disabled?: boolean;
-  onChange?: () => void;
+  items: { id: T; label: string; title: string; hint?: string }[];
+  value: T;
+  onPick: (v: T) => void;
+}) {
+  const index = Math.max(
+    0,
+    items.findIndex((it) => it.id === value),
+  );
+  const last = items.length - 1;
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    const next =
+      e.key === "ArrowRight"
+        ? index + 1
+        : e.key === "ArrowLeft"
+          ? index - 1
+          : -1;
+    if (next < 0 || next > last) return;
+    e.preventDefault();
+    onPick(items[next].id);
+  };
+  return (
+    <div
+      role="radiogroup"
+      aria-label={label}
+      onKeyDown={onKeyDown}
+      style={{ position: "relative", padding: "4px 0 2px" }}
+    >
+      {/* the track, between the centers of the first and last dots */}
+      <div
+        style={{
+          position: "absolute",
+          top: 4 + DOT / 2 - 1,
+          left: DOT / 2,
+          right: DOT / 2,
+          height: 2,
+          borderRadius: 1,
+          background: "var(--border)",
+        }}
+      >
+        <div
+          style={{
+            width: `${last ? (100 * index) / last : 0}%`,
+            height: "100%",
+            borderRadius: 1,
+            background: "var(--color-accent)",
+            transition: "width 150ms",
+          }}
+        />
+      </div>
+      <div
+        style={{
+          position: "relative",
+          display: "flex",
+          justifyContent: "space-between",
+        }}
+      >
+        {items.map((it, i) => {
+          const active = i === index;
+          return (
+            <button
+              key={it.id}
+              role="radio"
+              aria-checked={active}
+              tabIndex={active ? 0 : -1}
+              title={it.title}
+              onClick={() => onPick(it.id)}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems:
+                  i === 0 ? "flex-start" : i === last ? "flex-end" : "center",
+                gap: 4,
+                padding: 0,
+                background: "none",
+                border: "none",
+                cursor: active ? "default" : "pointer",
+              }}
+            >
+              <span
+                style={{
+                  width: DOT,
+                  height: DOT,
+                  boxSizing: "border-box",
+                  borderRadius: "50%",
+                  border: `2px solid ${i <= index ? "var(--color-accent)" : "var(--border)"}`,
+                  background: active
+                    ? "var(--color-accent)"
+                    : "var(--bg-surface)",
+                  transition: "background 150ms, border-color 150ms",
+                }}
+              />
+              <span
+                style={{
+                  fontSize: 12,
+                  fontWeight: active ? 600 : 500,
+                  color: active ? "var(--text-primary)" : "var(--text-muted)",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {it.label}
+              </span>
+              {it.hint && (
+                <span
+                  style={{
+                    fontSize: 10,
+                    color: "var(--text-muted)",
+                    whiteSpace: "nowrap",
+                    marginTop: -3,
+                  }}
+                >
+                  {it.hint}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
-function Check(props: ChoiceProps) {
-  return <ChoiceRow type="checkbox" {...props} />;
-}
+const DOT = 12;
 
-function Radio(props: ChoiceProps & { name: string }) {
-  return <ChoiceRow type="radio" {...props} />;
-}
-
-function ChoiceRow({
-  type,
-  name,
+function Toggle({
   label,
   title,
-  hint,
   checked,
   disabled,
   onChange,
-}: ChoiceProps & { type: "checkbox" | "radio"; name?: string }) {
+}: {
+  label: string;
+  title?: string;
+  checked: boolean;
+  disabled?: boolean;
+  onChange?: () => void;
+}) {
   return (
-    <label
+    <div
       title={title}
       style={{
         display: "flex",
         alignItems: "center",
+        justifyContent: "space-between",
         gap: 8,
-        padding: "2px 0",
-        fontSize: 12,
-        color: disabled ? "var(--text-muted)" : "var(--text-primary)",
-        cursor: disabled ? "default" : "pointer",
+        padding: "3px 0",
+        opacity: disabled ? 0.5 : 1,
       }}
     >
-      <input
-        type={type}
-        name={name}
+      <span
+        onClick={disabled ? undefined : onChange}
+        style={{
+          fontSize: 12,
+          fontWeight: 500,
+          color: "var(--text-primary)",
+          cursor: disabled ? "default" : "pointer",
+        }}
+      >
+        {label}
+      </span>
+      <Switch
+        label={label}
         checked={checked}
         disabled={disabled}
-        onChange={onChange ?? (() => {})}
-        style={{ margin: 0, accentColor: "var(--color-accent)" }}
+        onChange={() => onChange?.()}
       />
-      {label}
-      {hint && (
-        <span
-          style={{
-            marginLeft: "auto",
-            fontSize: 11,
-            color: "var(--text-muted)",
-          }}
-        >
-          {hint}
-        </span>
-      )}
-    </label>
+    </div>
   );
 }

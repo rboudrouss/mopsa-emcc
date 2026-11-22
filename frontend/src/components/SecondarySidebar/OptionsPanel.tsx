@@ -12,6 +12,7 @@ import { isFlagLockedByBackend } from "@/lib/backend";
 import { clearState } from "@/lib/persistence";
 import { cancelPendingSave, useAppStore } from "@/lib/store";
 import { SELECT_STYLE } from "@/components/ui/select-style";
+import { Switch } from "@/components/ui/Switch";
 
 /** Strip dashes and lowercase so dash-heavy flags match dash-free queries. */
 function normalize(s: string): string {
@@ -416,39 +417,12 @@ function OptionInput({
   disabled?: boolean;
 }) {
   if (spec.type === "bool" || spec.type === "boolArg") {
-    const checked = Boolean(value);
     return (
-      <button
-        role="switch"
-        aria-checked={checked}
+      <Switch
+        checked={Boolean(value)}
         disabled={disabled}
-        onClick={() => onChange(!checked)}
-        style={{
-          width: 32,
-          height: 18,
-          borderRadius: 9,
-          background: checked ? "var(--color-accent)" : "var(--bg-elevated)",
-          border: `1px solid ${checked ? "var(--color-accent)" : "var(--border)"}`,
-          cursor: "pointer",
-          position: "relative",
-          transition: "background 150ms, border-color 150ms",
-          flexShrink: 0,
-          padding: 0,
-        }}
-      >
-        <span
-          style={{
-            position: "absolute",
-            top: 2,
-            left: checked ? 14 : 2,
-            width: 12,
-            height: 12,
-            borderRadius: "50%",
-            background: checked ? "#0f1117" : "var(--text-muted)",
-            transition: "left 150ms",
-          }}
-        />
-      </button>
+        onChange={(v) => onChange(v)}
+      />
     );
   }
 
