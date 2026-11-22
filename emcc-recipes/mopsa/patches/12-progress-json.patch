@@ -1,10 +1,12 @@
 feat(progress): -progress-json prints the progress as JSON lines
 
 -progress-json prints the progress of the analysis as JSON lines, read
-by the progress bar of the interface.
+by the progress bar of the interface. Outside any function (e.g. while
+the globals of the C library are initialized), the line gives the
+statement reached.
 
 diff --git a/analyzer/languages/universal/hooks/progress.ml b/analyzer/languages/universal/hooks/progress.ml
-index 0c347d488..ece163de0 100644
+index 0c347d4..ce4124a 100644
 --- a/analyzer/languages/universal/hooks/progress.ml
 +++ b/analyzer/languages/universal/hooks/progress.ml
 @@ -35,6 +35,20 @@ struct
@@ -28,7 +30,7 @@ index 0c347d488..ece163de0 100644
  
    (** {2 Entries of the progress table} *)
    (** ********************************* *)
-@@ -80,6 +94,31 @@ struct
+@@ -80,6 +94,49 @@ struct
    let table : entry Stack.t = Stack.create ()
  
  
@@ -37,22 +39,40 @@ index 0c347d488..ece163de0 100644
 +
 +  let last_json = ref neg_infinity
 +
++  (** The last statement analyzed outside any function, e.g. the
++      initialization of the globals of the C library *)
++  let toplevel : range option ref = ref None
++
 +  (** Print the table, outermost call first, as one JSON line:
-+      [MOPSA_PROGRESS [{"function":"main","line":14,"percent":42},...]] *)
++      [MOPSA_PROGRESS [{"function":"main","file":"a.c","line":14,"percent":42},...]].
++      Outside any function, one entry without a function nor a percentage:
++      [{"function":"","file":"stdio.c","line":869,"percent":-1}] *)
 +  let print_json () =
 +    (* Wall clock: Sys.time is constant in some runtimes (emscripten) *)
 +    let now = Unix.gettimeofday () in
 +    if now -. !last_json >= 0.1 then (
 +      last_json := now;
-+      let entries = Stack.fold (fun acc e -> e :: acc) [] table in
-+      let pp_json_entry fmt e =
-+        fprintf fmt "{\"function\":%S,\"line\":%d,\"percent\":%d}"
-+          e.name
-+          (match e.range with Some r -> (get_range_start r).pos_line | None -> 0)
-+          (if e.nb_all_stmt = 0 then 100 else 100*e.nb_analyzed_stmt/e.nb_all_stmt)
++      let pp_json fmt (name, range, percent) =
++        fprintf fmt "{\"function\":%S,\"file\":%S,\"line\":%d,\"percent\":%d}"
++          name
++          (match range with Some r -> get_range_file r | None -> "")
++          (match range with Some r -> (get_range_start r).pos_line | None -> 0)
++          percent
++      in
++      let entries =
++        if Stack.is_empty table then
++          match !toplevel with
++          | Some r -> [("", Some r, -1)]
++          | None -> []
++        else
++          Stack.fold (fun acc e ->
++              (e.name, e.range,
++               if e.nb_all_stmt = 0 then 100 else 100*e.nb_analyzed_stmt/e.nb_all_stmt)
++              :: acc
++            ) [] table
 +      in
 +      eprintf "MOPSA_PROGRESS [%a]@."
-+        (pp_print_list ~pp_sep:(fun fmt () -> pp_print_string fmt ",") pp_json_entry)
++        (pp_print_list ~pp_sep:(fun fmt () -> pp_print_string fmt ",") pp_json)
 +        entries
 +    )
 +
@@ -60,7 +80,7 @@ index 0c347d488..ece163de0 100644
    (** Return the set of statements in the body of a function *)
    let get_function_statements f =
      Visitor.fold_stmt
-@@ -104,22 +143,24 @@ struct
+@@ -104,35 +161,43 @@ struct
      }
      in
      Stack.push entry table;
@@ -88,7 +108,17 @@ index 0c347d488..ece163de0 100644
  
  
    (** Update the progress table before a statement is analyzed *)
-@@ -131,8 +172,9 @@ struct
+   let before_stmt range =
+     if Stack.is_empty table
+-    then ()
++    then (
++      if !opt_json then
++        match untag_range range with
++        | R_orig _ | R_ext_orig _ -> toplevel := Some range; print_json ()
++        | _ -> ()
++    )
+     else (
+       let entry = Stack.top table in
        if not @@ RangeSet.mem range entry.all_stmt_range_set then ()
        else (
          entry.range <- Some range;
@@ -100,7 +130,7 @@ index 0c347d488..ece163de0 100644
        )
      )
  
-@@ -147,8 +189,9 @@ struct
+@@ -147,8 +212,9 @@ struct
        else (
          entry.analyzed_stmt_range_set <- RangeSet.add range entry.analyzed_stmt_range_set;
          entry.nb_analyzed_stmt <- entry.nb_analyzed_stmt + 1;

@@ -180,6 +180,16 @@ body {
   }
 }
 
+/* A bar without a percentage: a segment sliding across */
+@keyframes mopsa-indeterminate {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+
 /* ── Mobile bottom sheet ─────────────────────────────────────────────────── */
 @keyframes mopsa-fade-in {
   from {

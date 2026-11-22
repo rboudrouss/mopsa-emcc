@@ -19,6 +19,10 @@ export function AnalyzingView() {
   const elapsed = startedAt === null ? 0 : (now - startedAt) / 1000;
   // The innermost frames tell where the analysis is; keep the outermost
   // one too: its percentage is the closest thing to a global progress.
+  // Outside any function, e.g. while the globals of the C library are
+  // initialized: the statement reached, no percentage.
+  const outside =
+    entries.length === 1 && entries[0].function === "" ? entries[0] : null;
   const shown =
     entries.length <= MAX_FRAMES
       ? entries
@@ -52,7 +56,9 @@ export function AnalyzingView() {
       <div style={{ fontSize: 15, fontWeight: 600, color: "#f5b544" }}>
         Analysis in progress… {elapsed.toFixed(1)}s
       </div>
-      {shown.length === 0 ? (
+      {outside ? (
+        <OutsideFunctions entry={outside} />
+      ) : shown.length === 0 ? (
         <div
           style={{
             fontSize: 12,
@@ -121,6 +127,59 @@ export function AnalyzingView() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/** Where the analysis is outside any function, over a sliding bar. */
+function OutsideFunctions({ entry }: { entry: MopsaProgressEntry }) {
+  const file = entry.file ?? "";
+  const library = file.includes("/stubs/");
+  return (
+    <div
+      style={{
+        width: "100%",
+        maxWidth: 320,
+        display: "flex",
+        flexDirection: "column",
+        gap: 3,
+        textAlign: "left",
+      }}
+    >
+      <div
+        title={file}
+        style={{
+          fontSize: 11,
+          fontFamily: "'JetBrains Mono', monospace",
+          color: "var(--text-secondary)",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {library && <span style={{ color: "var(--text-muted)" }}>C library › </span>}
+        {file.split("/").pop()}
+        {entry.line > 0 && (
+          <span style={{ color: "var(--text-muted)" }}> line {entry.line}</span>
+        )}
+      </div>
+      <div
+        style={{
+          height: 4,
+          borderRadius: 2,
+          background: "var(--bg-elevated)",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            width: "25%",
+            height: "100%",
+            background: "#f5b544",
+            animation: "mopsa-indeterminate 1.4s ease-in-out infinite",
+          }}
+        />
+      </div>
     </div>
   );
 }

@@ -24,8 +24,12 @@ declare global {
 
   /** One frame of Mopsa's progress hook (-progress-json), outermost first. */
   interface MopsaProgressEntry {
+    /** "" outside any function (e.g. the C library's globals initialized). */
     function: string;
+    /** Missing from Mopsa builds before the file was added. */
+    file?: string;
     line: number;
+    /** -1 outside any function. */
     percent: number;
   }
 
