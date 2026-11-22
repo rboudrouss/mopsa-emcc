@@ -136,8 +136,8 @@ export function relationOptions(
         : kind === "multilanguage"
           ? {
               title:
-                "Linear relations between all variables, those of the C library and of CPython too: analyzing them takes a very long time",
-              hint: "very slow",
+                "Linear relations between all variables, those of the C library and of CPython too: hours of analysis, and more than the 4 GB of memory of the browser",
+              hint: "may fail",
             }
           : { title: "Linear relations between all variables" }),
     },
