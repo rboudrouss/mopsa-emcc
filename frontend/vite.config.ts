@@ -10,9 +10,11 @@ const enablePWA = process.env.VITE_PWA === "true" || isProd;
 
 // Cross-origin isolation is required for SharedArrayBuffer, which the
 // interactive/DAP engines use to feed synchronous stdin into the WASM worker.
+// CORP cross-origin lets a cross-origin isolated page embed it (?embed).
 const crossOriginIsolation = {
   "Cross-Origin-Opener-Policy": "same-origin",
   "Cross-Origin-Embedder-Policy": "require-corp",
+  "Cross-Origin-Resource-Policy": "cross-origin",
 };
 
 // The Mopsa commit and patches of the backends, written by the Makefile

@@ -1,6 +1,8 @@
 # Cloudflare Pages headers (https://developers.cloudflare.com/pages/configuration/headers/)
 # Cross-origin isolation enables SharedArrayBuffer, required by the
 # interactive/DAP engines (synchronous stdin over an Atomics-backed channel).
+# CORP cross-origin lets a cross-origin isolated page embed the site (?embed).
 /*
   Cross-Origin-Opener-Policy: same-origin
   Cross-Origin-Embedder-Policy: require-corp
+  Cross-Origin-Resource-Policy: cross-origin
