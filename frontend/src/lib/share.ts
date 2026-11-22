@@ -1,5 +1,6 @@
 import { DEFAULT_OPTION_VALUES } from "./options-schema";
 import { readFile } from "./mopsa-client";
+import { presetText } from "./domain-builder";
 import { useAppStore } from "./store";
 import { findByPath, getAllFilePaths, getNodePath } from "./tree";
 import type { FileTreeNode, WorkspaceMode } from "./types";
@@ -306,7 +307,7 @@ export function applySettings(
   if (settings.config !== undefined) after.setConfigText(settings.config, true);
   else if (settings.preset) {
     const lang = after.lang as keyof shareData["configs"];
-    const text = presets.configs[lang]?.[settings.preset];
+    const text = presetText(presets.configs, lang, settings.preset);
     if (text) after.applyPreset(settings.preset, text);
   }
 }

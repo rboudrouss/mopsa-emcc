@@ -7,6 +7,7 @@ import { snapshotRun, useRunCompare } from "../run-compare";
 import { getWorkspaceForFile } from "../tree";
 import { PROFILE_FILE, PROFILE_FLAGS, PROGRESS_FLAGS, useProgress } from "../progress";
 import { getBackend } from "../backend";
+import { presetLabel } from "../domain-builder";
 
 // The times the function_profiler hook prints, already in the profile panel
 // (it would land in the warnings, before the JSON).
@@ -18,7 +19,7 @@ function currentSnapshot() {
     ([flag, v]) =>
       !flag.startsWith("__") && v !== undefined && v !== DEFAULT_OPTION_VALUES[flag],
   ).length;
-  const config = s.configDirty ? "custom config" : s.configPreset;
+  const config = s.configDirty ? "custom config" : presetLabel(s.configPreset);
   const label =
     config + (changed ? `, ${changed} option${changed > 1 ? "s" : ""}` : "");
   const scope = s.activeFile
