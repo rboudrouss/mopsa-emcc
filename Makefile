@@ -51,7 +51,7 @@ MOPSA_KEPT_SRC = $(SWITCH_PREFIX)/.opam-switch/build/mopsa.$$(opam var --switch=
 
 # Phony targets
 .PHONY: all wasm wasm-node wasm-web wasm-web-artifacts final-web frontend-build \
-        deps switch mopsa-install mopsa-update mopsa-sysroot-sync ocaml-emcc-install ocaml-emcc-update jsoo-deps \
+        deps switch mopsa-install mopsa-update mopsa-sysroot-sync recipes-sync ocaml-emcc-install ocaml-emcc-update jsoo-deps \
         docker-image extract-32-headers wasm-r2-upload \
         jsoo-analyzer jsoo-worker jsoo-web \
         clean clean-project clean-docker clean-jsoo
@@ -106,6 +106,20 @@ mopsa-sysroot-sync: $(MOPSA_META)
 		rm -f */stamps/mopsa */stamps/shadow-mopsa */lib/libmopsa_*_stubs.a
 		echo "$$commit" > $(MOPSA_SYSROOT_COMMIT)
 	fi
+
+# ocaml-emcc only notes that a recipe changed since it was built (its
+# patches...). The project's recipes already built are built again then, a
+# sysroot restored from a cache (CI) included.
+PROJECT_RECIPES := $(filter-out mopsa,$(notdir $(wildcard $(CURDIR)/emcc-recipes/*)))
+
+recipes-sync: $(OCAML_EMCC_DEP)
+	stamps=$$($(OPAM_EXEC) $(OCAML_EMCC) env --sysroot)/stamps
+	for r in $(PROJECT_RECIPES); do
+		[ -f "$$stamps/$$r" ] || continue
+		if $(OPAM_EXEC) $(OCAML_EMCC) install $$r 2>&1 | grep -q "recipe changed since it was built"; then
+			$(OPAM_EXEC) $(OCAML_EMCC) install --force $$r
+		fi
+	done
 
 # The Mopsa commit and the patches of the build, shown in the About panel
 # (read by frontend/vite.config.ts). The commit is that of the sources opam
@@ -193,7 +207,7 @@ WASM_EMCC_FLAGS := -sEXPORTED_RUNTIME_METHODS=FS,ENV \
 	backend/wasm/sys_time.c
 
 # Standalone browser build (HTML harness)
-wasm: mopsa-sysroot-sync $(OCAML_EMCC_DEP) $(C_OF_OCAML_DEP) | $(DIST_DIR)
+wasm: mopsa-sysroot-sync recipes-sync $(OCAML_EMCC_DEP) $(C_OF_OCAML_DEP) | $(DIST_DIR)
 	$(call OCAML_EMCC_BUILD,$(DIST_DIR)/ocamlrun.html) -- \
 		-sENVIRONMENT=web $(WASM_EMCC_FLAGS) \
 		--preload-file $(MOPSA_SHARE)@/share/mopsa \
@@ -203,7 +217,7 @@ wasm: mopsa-sysroot-sync $(OCAML_EMCC_DEP) $(C_OF_OCAML_DEP) | $(DIST_DIR)
 #   node dist/node/mopsa.js -share-dir=$(MOPSA_SHARE) -target-triple=x86_64-pc-linux-gnu \
 #     -I <sysroot>/lib/clang/9.0.1/include -I /usr/include/x86_64-linux-gnu -I /usr/include ...
 # (the C parser's resource directory is the host clang's, whose headers are newer)
-wasm-node: mopsa-sysroot-sync $(OCAML_EMCC_DEP) $(C_OF_OCAML_DEP)
+wasm-node: mopsa-sysroot-sync recipes-sync $(OCAML_EMCC_DEP) $(C_OF_OCAML_DEP)
 	mkdir -p $(DIST_DIR)/node
 	$(call OCAML_EMCC_BUILD,$(DIST_DIR)/node/mopsa.js) --node-fs
 
@@ -215,7 +229,7 @@ wasm-node: mopsa-sysroot-sync $(OCAML_EMCC_DEP) $(C_OF_OCAML_DEP)
 #
 # ocamlrun.data holds Mopsa's share directory (C/Python stubs)
 # at /share/mopsa, clang's resource headers and the 32-bit Linux headers.
-wasm-web-artifacts: mopsa-sysroot-sync $(OCAML_EMCC_DEP) $(C_OF_OCAML_DEP) $(BUILD_DIR)/.linux32-headers-stamp $(MOPSA_BUILD_INFO) | $(DIST_DIR)
+wasm-web-artifacts: mopsa-sysroot-sync recipes-sync $(OCAML_EMCC_DEP) $(C_OF_OCAML_DEP) $(BUILD_DIR)/.linux32-headers-stamp $(MOPSA_BUILD_INFO) | $(DIST_DIR)
 	$(call OCAML_EMCC_BUILD,$(DIST_DIR)/ocamlrun.js) -- \
 		-sENVIRONMENT=web -sMODULARIZE=1 -sEXPORT_NAME=createMopsaModule \
 		$(WASM_EMCC_FLAGS) \
