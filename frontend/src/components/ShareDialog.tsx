@@ -79,7 +79,6 @@ export function ShareDialog({ close }: { close: () => void }) {
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [link, setLink] = useState("");
-  const [told, setTold] = useState("");
   const field = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
 
   // (the folders the link opens: their files left out, the current one
@@ -119,15 +118,7 @@ export function ShareDialog({ close }: { close: () => void }) {
     }).then(async (u) => {
       if (!current) return;
       setLink(u);
-      const ok = await copy(embed ? embedCode(embedUrl(u)) : u);
-      if (!current) return;
-      const what = [
-        shared.length && plural(shared.length, "file"),
-        opens.length && plural(opens.length, "opened folder"),
-      ].filter(Boolean);
-      setTold(
-        `${embed ? "Embed" : temporary ? "Temporary link" : "Link"}${what.length ? ` with ${what.join(" and ")}` : ""}${settings ? ", config and options" : ""} ${ok ? "copied" : "made"} (${(embed ? embedUrl(u) : u).length} characters)`,
-      );
+      copy(embed ? embedCode(embedUrl(u)) : u);
     });
     return () => {
       current = false;
@@ -245,7 +236,6 @@ export function ShareDialog({ close }: { close: () => void }) {
             <CopyIcon size={13} /> Copy
           </button>
         </div>
-        {told && <p className="muted share-told">{told}</p>}
         {length > maxUrl ? (
           <p className="share-warning error">
             Chrome and Edge cannot open links over 2 MB. Share fewer files, or open them from a

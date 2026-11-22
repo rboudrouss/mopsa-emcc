@@ -388,9 +388,6 @@ body {
   align-items: flex-start;
   gap: 6px;
 }
-.dialog .share-told {
-  font-size: 11px;
-}
 .dialog .share-warning {
   padding: 6px 8px;
   border: 1px solid color-mix(in srgb, #f5b544 45%, transparent);

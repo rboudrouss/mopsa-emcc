@@ -68,11 +68,15 @@ const savedWith = (page, path) =>
     (p) => JSON.parse(localStorage.getItem("mopsa-state") ?? "{}").fileContents?.[p] !== undefined,
     path,
   );
+// (copied once made)
+const copied = (page, text) =>
+  page
+    .waitForFunction(async (t) => (await navigator.clipboard.readText()) === t, text, { timeout: 5000 })
+    .then(() => true, () => false);
 const linkOf = async (page) => {
-  await page.waitForFunction(() => document.querySelector(".share-told")?.textContent);
+  await page.waitForFunction(() => document.querySelector('input[aria-label="The link"]')?.value);
   return page.inputValue('input[aria-label="The link"]');
 };
-const told = (page) => page.locator(".share-told").textContent();
 
 // ── A link to a workspace ─────────────────────────────────────────────────────
 let page = await fresh();
@@ -84,12 +88,13 @@ await page.keyboard.type("/* shared */");
 await page.click('button[aria-label="Share"]');
 let link = await linkOf(page);
 check(link.includes("#share=") && !link.includes("?"), `a link with the files only: ${link.slice(0, 60)}…`);
-check(/1 file, config and options copied/.test(await told(page)), `copied: ${await told(page)}`);
-const clip = await page.evaluate(() => navigator.clipboard.readText());
-check(clip === link, "the link in the clipboard");
+check(await copied(page, link), "the link in the clipboard");
 await page.getByText("All files").click();
 await page.waitForFunction((l) => document.querySelector('input[aria-label="The link"]').value !== l, link);
-check(/7 files/.test(await told(page)), `all files: ${await told(page)}`);
+check(
+  await copied(page, await page.inputValue('input[aria-label="The link"]')),
+  "all files: another link, copied",
+);
 await page.getByText("All files").click();
 await page.waitForFunction((l) => document.querySelector('input[aria-label="The link"]').value === l, link);
 const workspaceLink = await linkOf(page);
@@ -189,7 +194,6 @@ link = await page.waitForFunction(() => {
 const u = new URL(link);
 check(u.search.startsWith("?temp&") && u.searchParams.get("open") === archive && u.searchParams.get("file") === "lib/b.c", `?open= and &file=, temporary: ${u.search}`);
 check(await page.getByText("opened from course/'s source").isVisible(), "this file from the folder's source");
-check(/with 1 opened folder,/.test(await told(page)), `the folder's files left out: ${await told(page)}`);
 await page.close();
 
 page = await fresh();
