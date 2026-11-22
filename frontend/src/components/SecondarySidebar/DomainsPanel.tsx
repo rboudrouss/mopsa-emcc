@@ -207,6 +207,7 @@ export function DomainsPanel() {
                 name={`relations-${kind}`}
                 label={r.label}
                 title={r.title}
+                hint={r.hint}
                 checked={choice.relations === r.id}
                 onChange={() => apply({ ...choice, relations: r.id })}
               />
@@ -359,6 +360,7 @@ function Section({
 interface ChoiceProps {
   label: string;
   title?: string;
+  hint?: string;
   checked: boolean;
   disabled?: boolean;
   onChange?: () => void;
@@ -377,6 +379,7 @@ function ChoiceRow({
   name,
   label,
   title,
+  hint,
   checked,
   disabled,
   onChange,
@@ -403,6 +406,17 @@ function ChoiceRow({
         style={{ margin: 0, accentColor: "var(--color-accent)" }}
       />
       {label}
+      {hint && (
+        <span
+          style={{
+            marginLeft: "auto",
+            fontSize: 11,
+            color: "var(--text-muted)",
+          }}
+        >
+          {hint}
+        </span>
+      )}
     </label>
   );
 }

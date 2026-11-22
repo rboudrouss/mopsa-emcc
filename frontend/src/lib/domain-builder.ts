@@ -114,8 +114,10 @@ export function valueOptions(kind: DomainKind) {
   return VALUE_DOMAINS.filter((d) => !UNAVAILABLE[kind]?.includes(d.id));
 }
 
-export function relationOptions(kind: DomainKind): Item<Relations>[] {
-  const options: Item<Relations>[] = [
+export function relationOptions(
+  kind: DomainKind,
+): (Item<Relations> & { hint?: string })[] {
+  const options: (Item<Relations> & { hint?: string })[] = [
     { id: "none", label: "None", title: "Each variable on its own" },
     {
       id: "packed",
@@ -125,10 +127,13 @@ export function relationOptions(kind: DomainKind): Item<Relations>[] {
     {
       id: "all",
       label: "Between all variables",
-      title:
-        kind === "c"
-          ? "Linear relations between all variables, very slow with the C library"
-          : "Linear relations between all variables",
+      ...(kind === "c"
+        ? {
+            title:
+              "Linear relations between all variables, those of the C library headers too: analyzing them takes minutes",
+            hint: "very slow",
+          }
+        : { title: "Linear relations between all variables" }),
     },
   ];
   return options.filter(
