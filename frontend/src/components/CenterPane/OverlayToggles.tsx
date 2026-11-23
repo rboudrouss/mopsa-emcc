@@ -1,5 +1,4 @@
-import { useEditorNav, type InlineKind, type InlineValuesMode } from "@/lib/editor-nav";
-import { useAppStore } from "@/lib/store";
+import { useEditorNav, type InlineValuesMode } from "@/lib/editor-nav";
 
 const WHERE: { value: InlineValuesMode; label: string }[] = [
   { value: "off", label: "Inline: off" },
@@ -7,12 +6,6 @@ const WHERE: { value: InlineValuesMode; label: string }[] = [
   { value: "all", label: "Inline: all lines" },
   { value: "before", label: "Inline: before each line" },
   { value: "after", label: "Inline: after each line" },
-];
-
-const KIND: { value: InlineKind; label: string }[] = [
-  { value: "values", label: "Show: values" },
-  { value: "relations", label: "Show: relations" },
-  { value: "both", label: "Show: values + relations" },
 ];
 
 /** Tab-bar switches of the editor overlays fed by the analysis states. */
@@ -23,10 +16,6 @@ export function OverlayToggles() {
   const setShowSafe = useEditorNav((s) => s.setShowSafe);
   const inlineValues = useEditorNav((s) => s.inlineValues);
   const setInlineValues = useEditorNav((s) => s.setInlineValues);
-  const inlineKind = useEditorNav((s) => s.inlineKind);
-  const setInlineKind = useEditorNav((s) => s.setInlineKind);
-  // Relations need a relational numeric domain in the config.
-  const relational = useAppStore((s) => s.configText.includes("numeric.relational"));
   const on = inlineValues !== "off";
 
   return (
@@ -51,26 +40,14 @@ export function OverlayToggles() {
         options={WHERE}
         onChange={setInlineValues}
         title={
-          "Abstract states at the end of the lines. Cursor line, all lines: the state " +
-          "after each line and what the next one changes. Before / after each line: " +
-          "the state at that point only."
+          "Abstract values at the end of the lines, of the variables each line uses. " +
+          "The eyes of the Domains panel choose the domains shown.\n" +
+          "Before / after each line: the state before the line, or after it.\n" +
+          "Cursor line, all lines: the state after the line, and the values the next " +
+          "line changes as they are before it (i = 0 → [0,9]). The relations: the " +
+          "ones the line brings."
         }
       />
-      {on && (
-        <Select
-          on
-          value={inlineKind}
-          options={KIND}
-          onChange={setInlineKind}
-          title={
-            relational
-              ? "The values of the variables, the relations between them (new ones on " +
-                "the cursor line or all lines), or both"
-              : "The values of the variables, the relations between them, or both " +
-                "(relations need a relational config, see Domains)"
-          }
-        />
-      )}
     </div>
   );
 }

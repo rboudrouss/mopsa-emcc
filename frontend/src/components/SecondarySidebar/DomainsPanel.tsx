@@ -3,6 +3,8 @@ import {
   ChevronDownIcon,
   ChevronRightIcon,
   ExternalLinkIcon,
+  EyeIcon,
+  EyeOffIcon,
 } from "lucide-react";
 import { DomainNode } from "@/components/ui/DomainNode";
 import { parseConfigText } from "@/lib/mopsa-client";
@@ -20,6 +22,7 @@ import {
   type DomainChoice,
   type DomainKind,
 } from "@/lib/domain-builder";
+import { useEditorNav, type InlineDomain } from "@/lib/editor-nav";
 import { usePresets } from "@/lib/hooks/use-presets";
 import { getActiveAnalysisMode, getNodePath } from "@/lib/tree";
 import { useAppStore } from "@/lib/store";
@@ -66,6 +69,7 @@ export function DomainsPanel() {
   const activeFile = useAppStore((s) => s.activeFile);
   const numeric = useAppStore((s) => s.optionValues["-numeric"]);
   const setOptionValue = useAppStore((s) => s.setOptionValue);
+  const setInlineShown = useEditorNav((s) => s.setInlineShown);
   const [treeOpen, setTreeOpen] = useState(false);
 
   const isMultilang =
@@ -101,6 +105,11 @@ export function DomainsPanel() {
     if (!text) return;
     if (presetLang !== lang && !isMultilang) setLang(presetLang, text);
     applyPreset(name, text);
+    // A domain turned on shows inline
+    for (const d of next.values)
+      if (!choice.values.includes(d)) setInlineShown(d, true);
+    if (choice.relations === "none" && next.relations !== "none")
+      setInlineShown("relations", true);
   };
   const toggle = <T,>(list: T[], item: T) =>
     list.includes(item) ? list.filter((x) => x !== item) : [...list, item];
@@ -168,12 +177,25 @@ export function DomainsPanel() {
           )}
 
           <Section title="Values">
-            <Toggle label="Intervals" checked disabled title="Always on" />
+            <Toggle
+              label="Intervals"
+              checked
+              disabled
+              title="Always on"
+              eye={<Eye domain="intervals" label="Intervals" on />}
+            />
             {valueOptions(kind).map((d) => (
               <Toggle
                 key={d.id}
                 label={d.label}
                 title={d.title}
+                eye={
+                  <Eye
+                    domain={d.id}
+                    label={d.label}
+                    on={choice.values.includes(d.id)}
+                  />
+                }
                 checked={choice.values.includes(d.id)}
                 onChange={() =>
                   apply({ ...choice, values: toggle(choice.values, d.id) })
@@ -185,21 +207,28 @@ export function DomainsPanel() {
           <Section
             title="Relations"
             action={
-              !isFlagLockedByBackend("-numeric") && (
-                <select
-                  aria-label="Relational domain"
-                  title="The relational domain of the options below"
-                  value={String(numeric ?? NUMERIC?.default)}
-                  onChange={(e) => setOptionValue("-numeric", e.target.value)}
-                  style={SELECT_STYLE}
-                >
-                  {NUMERIC?.choices?.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-              )
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <Eye
+                  domain="relations"
+                  label="Relations"
+                  on={choice.relations !== "none"}
+                />
+                {!isFlagLockedByBackend("-numeric") && (
+                  <select
+                    aria-label="Relational domain"
+                    title="The relational domain of the options below"
+                    value={String(numeric ?? NUMERIC?.default)}
+                    onChange={(e) => setOptionValue("-numeric", e.target.value)}
+                    style={SELECT_STYLE}
+                  >
+                    {NUMERIC?.choices?.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
             }
           >
             <Steps
@@ -492,12 +521,15 @@ function Toggle({
   title,
   checked,
   disabled,
+  eye,
   onChange,
 }: {
   label: string;
   title?: string;
   checked: boolean;
   disabled?: boolean;
+  /** Its eye, before the switch. */
+  eye?: React.ReactNode;
   onChange?: () => void;
 }) {
   return (
@@ -506,29 +538,83 @@ function Toggle({
       style={{
         display: "flex",
         alignItems: "center",
-        justifyContent: "space-between",
         gap: 8,
         padding: "3px 0",
-        opacity: disabled ? 0.5 : 1,
       }}
     >
       <span
         onClick={disabled ? undefined : onChange}
         style={{
+          flex: 1,
           fontSize: 12,
           fontWeight: 500,
           color: "var(--text-primary)",
           cursor: disabled ? "default" : "pointer",
+          opacity: disabled ? 0.5 : 1,
         }}
       >
         {label}
       </span>
-      <Switch
-        label={label}
-        checked={checked}
-        disabled={disabled}
-        onChange={() => onChange?.()}
-      />
+      {eye}
+      <span style={{ display: "flex", opacity: disabled ? 0.5 : 1 }}>
+        <Switch
+          label={label}
+          checked={checked}
+          disabled={disabled}
+          onChange={() => onChange?.()}
+        />
+      </span>
     </div>
+  );
+}
+
+/**
+ * Whether the inline values of the editor show a domain: an open eye or a
+ * closed one, greyed when the domain is off (`on` false) or the inline
+ * values are.
+ */
+function Eye({
+  domain,
+  label,
+  on,
+}: {
+  domain: InlineDomain;
+  label: string;
+  on: boolean;
+}) {
+  const shown = useEditorNav((s) => !s.inlineHidden.includes(domain));
+  const inlineOff = useEditorNav((s) => s.inlineValues === "off");
+  const setInlineShown = useEditorNav((s) => s.setInlineShown);
+  const disabled = !on || inlineOff;
+  const title = !on
+    ? `${label}: off, so not inline`
+    : inlineOff
+      ? "The inline values are off (Inline, above the editor)"
+      : shown
+        ? `${label} shown in the inline values: click to hide`
+        : `${label} hidden from the inline values: click to show`;
+  return (
+    <button
+      aria-label={`${label} inline`}
+      aria-pressed={shown}
+      disabled={disabled}
+      title={title}
+      onClick={(e) => {
+        e.stopPropagation();
+        setInlineShown(domain, !shown);
+      }}
+      style={{
+        display: "flex",
+        padding: 2,
+        background: "none",
+        border: "none",
+        borderRadius: 3,
+        cursor: disabled ? "default" : "pointer",
+        color: shown && !disabled ? "var(--color-accent)" : "var(--text-muted)",
+        opacity: disabled ? 0.35 : 1,
+      }}
+    >
+      {shown ? <EyeIcon size={14} /> : <EyeOffIcon size={14} />}
+    </button>
   );
 }

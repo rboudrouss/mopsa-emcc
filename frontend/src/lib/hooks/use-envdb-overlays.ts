@@ -6,7 +6,13 @@ import {
   type EnvironmentsBody,
 } from "../envdb/env-engine";
 import { useEnvEngine } from "./use-env-engine";
-import { useEditorNav, type InlineValuesMode } from "../editor-nav";
+import {
+  useEditorNav,
+  VALUE_EYES,
+  type InlineDomain,
+  type InlineValuesMode,
+} from "../editor-nav";
+import { parseDomainName, partsText, valueParts, type DomainTree } from "../envdb/inline-values";
 import { useAppStore } from "../store";
 
 /**
@@ -15,9 +21,10 @@ import { useAppStore } from "../store";
  *   - coverage: a gutter bar on the lines the analysis reached, and a grey
  *     background on the lines it found unreachable (every state is ⊥);
  *   - inline values: after the code of a line, the abstract values of its
- *     variables and/or the relations between them (with a relational
- *     domain): what the line brings (cursor line only, or every line), or
- *     on every line the state before it or after it.
+ *     variables and the relations between them (with a relational domain),
+ *     of the domains whose eye is open in the Domains panel: what the line
+ *     brings (cursor line only, or every line), or on every line the state
+ *     before it or after it.
  */
 
 const MAX_INLINE = 70;
@@ -52,18 +59,34 @@ interface InlinePart {
   isType: boolean;
 }
 
-/** The variables of a line-scope print object. A variable printed by
- *  several domains (Python: its type in the environment, its value in the
- *  numeric domain) is shown once, by value when there is one. */
-export function inlineParts(env: unknown, python = false): InlinePart[] {
+/** Every domain shown. */
+const ALL = () => true;
+
+/** The variables of a line-scope print object, with the domains `shown`
+ *  only. A variable printed by several domains (Python: its type in the
+ *  environment, its value in the numeric domain) is shown once, by value
+ *  when there is one. The values of other domains than the numeric ones
+ *  (types, pointers, strings) go with the intervals. */
+export function inlineParts(
+  env: unknown,
+  python = false,
+  shown: (d: InlineDomain) => boolean = ALL,
+): InlinePart[] {
   const vars = new Map<string, { types: Set<string>; values: string[] }>();
   const entry = (name: string) => {
     let e = vars.get(name);
     if (!e) vars.set(name, (e = { types: new Set(), values: [] }));
     return e;
   };
-  const leaf = (key: string, v: unknown) => {
+  const leaf = (key: string, v: unknown, tree: DomainTree | null) => {
     if (!key || key.startsWith("@")) return; // heap addresses' internals
+    const parts = tree && valueParts(tree, v);
+    if (parts) {
+      const text = partsText(parts, shown);
+      if (text) entry(key).values.push(text);
+      return;
+    }
+    if (!shown("intervals")) return;
     const list = Array.isArray(v) ? v : [v];
     const texts = list.map((x) => valueText(x, python));
     if (texts.some((x) => x === null)) return; // a callable, class, module
@@ -72,20 +95,22 @@ export function inlineParts(env: unknown, python = false): InlinePart[] {
     if (isType) entry(key).types.add(text);
     else entry(key).values.push(Array.isArray(v) ? `{${text}}` : text);
   };
-  const visit = (key: string, v: unknown, depth: number) => {
+  const visit = (key: string, v: unknown, depth: number, tree: DomainTree | null) => {
     if (v && typeof v === "object" && !Array.isArray(v))
       for (const [k, sub] of Object.entries(v as Record<string, unknown>))
         // The top-level keys are domain groups ("float-itv ∪ int-itv",
-        // "environment"): they aren't part of the names.
+        // "environment"): they aren't part of the names, and tell the
+        // domains of the values.
         visit(
           depth > 1 && VAR_LIKE.test(key) ? `${key}.${k}` : k.replace(DECORATION, ""),
           sub,
           depth + 1,
+          depth === 0 ? parseDomainName(k) : tree,
         );
-    else leaf(key, v);
+    else leaf(key, v, tree);
   };
   if (env === null || env === undefined) return [];
-  visit("", env, 0);
+  visit("", env, 0, null);
   return [...vars].map(([name, { types, values }]) =>
     values.length > 0
       ? { name, value: [...new Set(values)].join(" ∧ "), isType: false }
@@ -100,7 +125,9 @@ export function inlineParts(env: unknown, python = false): InlinePart[] {
  */
 export function mergedInlineText(after: InlinePart[], before: InlinePart[]): string {
   const next = new Map(before.map((p) => [p.name, p]));
-  const show = (p: InlinePart) => p.name + (p.isType ? ": " : " = ") + p.value;
+  // "y ≠ 0", "x ∈ {1, 3}", not "y = ≠ 0"
+  const show = (p: InlinePart) =>
+    p.name + (p.isType ? ": " : /^[≠∈∉]/.test(p.value) ? " " : " = ") + p.value;
   const parts = after.map((p) => {
     const q = next.get(p.name);
     next.delete(p.name);
@@ -143,13 +170,14 @@ function partsByContext(
   res: EnvQueryResult<EnvironmentsBody> | undefined,
   python: boolean,
   source: string,
+  shown: (d: InlineDomain) => boolean,
 ): Map<string, InlinePart[] | null> {
   const out = new Map<string, InlinePart[] | null>();
   if (!res || res.kind !== "ok") return out;
   for (const c of res.body.contexts)
     out.set(
       JSON.stringify(c.callstack),
-      c.bottom ? null : inlineParts(c.env, python).filter((p) => inSource(p.name, source)),
+      c.bottom ? null : inlineParts(c.env, python, shown).filter((p) => inSource(p.name, source)),
     );
   return out;
 }
@@ -252,6 +280,7 @@ async function valueTexts(
   where: Where,
   lines: number[],
   python: boolean,
+  shown: (d: InlineDomain) => boolean,
 ): Promise<Map<number, string>> {
   const merged = where === "all" || where === "cursor";
   if (where === "all") lines = [...new Set(lines.flatMap((l) => [l - 1, l]))].filter((l) => l >= 1);
@@ -269,8 +298,8 @@ async function valueTexts(
   queried.forEach((l, i) => {
     const source = model.getLineContent(l);
     states.set(l, {
-      post: partsByContext(firsts[i], python, source),
-      entry: partsByContext(seconds[i], python, source),
+      post: partsByContext(firsts[i], python, source, shown),
+      entry: partsByContext(seconds[i], python, source, shown),
     });
   });
   const out = new Map<number, string>();
@@ -356,7 +385,7 @@ export function useEnvdbOverlays(
   const { phase, generation } = useEnvEngine();
   const showCoverage = useEditorNav((s) => s.showCoverage);
   const inlineValues = useEditorNav((s) => s.inlineValues);
-  const inlineKind = useEditorNav((s) => s.inlineKind);
+  const inlineHidden = useEditorNav((s) => s.inlineHidden);
   const cursorLine = useEditorNav((s) => s.cursorLine);
   const coverageRef = useRef<Monaco.editor.IEditorDecorationsCollection | null>(null);
   const valuesRef = useRef<Monaco.editor.IEditorDecorationsCollection | null>(null);
@@ -426,8 +455,10 @@ export function useEnvdbOverlays(
   const python = codeFilePath.endsWith(".py");
   // Relations need a relational domain in the config.
   const relational = useAppStore((s) => s.configText.includes("numeric.relational"));
-  const showValues = inlineKind !== "relations";
-  const showRelations = inlineKind !== "values" && relational;
+  // (a string: the effect runs again when it changes, not the array)
+  const hiddenKey = inlineHidden.join(",");
+  const showValues = !VALUE_EYES.every((d) => inlineHidden.includes(d));
+  const showRelations = !inlineHidden.includes("relations") && relational;
   useEffect(() => {
     const editor = editorRef.current;
     if (!editor || !enabled || !ready || inlineValues === "off") {
@@ -435,6 +466,7 @@ export function useEnvdbOverlays(
       return;
     }
     const where = inlineValues;
+    const hidden = hiddenKey.split(",");
     let cancelled = false;
     void (async () => {
       let lines: number[];
@@ -449,7 +481,9 @@ export function useEnvdbOverlays(
       lines = lines.filter((l) => l <= model.getLineCount());
       const none = Promise.resolve(new Map<number, string>());
       const [values, relations] = await Promise.all([
-        showValues ? valueTexts(codeFilePath, model, where, lines, python) : none,
+        showValues
+          ? valueTexts(codeFilePath, model, where, lines, python, (d) => !hidden.includes(d))
+          : none,
         showRelations ? relationTexts(codeFilePath, model, where, lines) : none,
       ]);
       if (cancelled) return;
@@ -481,6 +515,7 @@ export function useEnvdbOverlays(
     generation,
     inlineValues,
     showValues,
+    hiddenKey,
     showRelations,
     cursorKey,
     mountKey,

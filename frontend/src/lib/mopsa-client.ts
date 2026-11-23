@@ -13,8 +13,8 @@ export const DEFAULT_CODE: Record<SupportedLanguage, string> = {
  * reverse() is correct, yet the default config reports a possible
  * out-of-bounds write at r[j], since intervals do not relate i, j and n. With
  * Relations "Per function" (Domains panel), Mopsa finds n = j + i + 1 and the
- * false alarm disappears. "Inline: all lines" with
- * "Show: relations" displays the relations each line adds.
+ * false alarm disappears. "Inline: all lines" displays the relations each
+ * line adds (the eyes of the Domains panel choose what shows inline).
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -47,8 +47,8 @@ int main(void) {
 # squares_desc() is correct, yet the default config reports a possible
 # IndexError at out[j], since intervals do not relate i and j. With Relations
 # "All" (Domains panel), Mopsa finds j + i = 4 at the start of each iteration
-# and the false alarm disappears. "Inline: all lines" with
-# "Show: relations" displays the relations each line adds.
+# and the false alarm disappears. "Inline: all lines" displays the relations
+# each line adds (the eyes of the Domains panel choose what shows inline).
 
 
 class Account:
@@ -94,8 +94,8 @@ print(squares_desc(5))
 // With the default config (intervals), Mopsa cannot prove any of the three
 // asserts. With Relations "All" (Domains panel), it finds the loop invariants
 // up = 2i and n = i + down, and proves the first two.
-// "Inline: all lines" with "Show: values + relations" displays them line by
-// line.
+// "Inline: all lines" displays them line by line (the eyes of the Domains
+// panel choose what shows inline).
 
 int n;
 int i;

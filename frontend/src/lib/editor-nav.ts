@@ -1,37 +1,49 @@
 import { create } from "zustand";
+import type { ValueDomain } from "./domain-builder";
 import { useAppStore } from "./store";
 import { getAllFilePaths, getWorkspaceForFile } from "./tree";
 
 /** Where the inline values show. */
 export type InlineValuesMode = "off" | "cursor" | "all" | "before" | "after";
-/** What they show: the variables' values, the relations between them, both. */
-export type InlineKind = "values" | "relations" | "both";
+/** What they can show, with an eye each in the Domains panel: the
+ *  intervals (the base value of each variable), the other value domains,
+ *  the relations. */
+export type InlineDomain = "intervals" | ValueDomain | "relations";
+
+/** The eyes of the values, all but the relations. */
+export const VALUE_EYES: InlineDomain[] = ["intervals", "congruences", "zero", "excluded", "sets", "bitmask"];
 
 const VIEW_KEY = "mopsa-editor-view";
 
 type View = {
   showCoverage: boolean;
   inlineValues: InlineValuesMode;
-  inlineKind: InlineKind;
+  /** The domains whose eye is closed. */
+  inlineHidden: InlineDomain[];
   showSafe: boolean;
 };
 
 const DEFAULT_VIEW: View = {
   showCoverage: true,
   inlineValues: "all",
-  inlineKind: "values",
+  inlineHidden: [],
   showSafe: false,
 };
 
 function loadView(): View {
   try {
-    const view: View = {
-      ...DEFAULT_VIEW,
-      ...JSON.parse(localStorage.getItem(VIEW_KEY) ?? "{}"),
-    };
-    // Earlier, relations were a mode of their own.
-    if ((view.inlineValues as string) === "relations")
-      return { ...view, inlineValues: "all", inlineKind: "relations" };
+    const saved = JSON.parse(localStorage.getItem(VIEW_KEY) ?? "{}");
+    const view: View = { ...DEFAULT_VIEW, ...saved };
+    // Earlier, relations were a mode of their own, then a "Show:" select of
+    // values, relations or both.
+    let kind: string | undefined = saved.inlineKind;
+    if ((view.inlineValues as string) === "relations") {
+      view.inlineValues = "all";
+      kind = "relations";
+    }
+    if (kind === "values") view.inlineHidden = ["relations"];
+    if (kind === "relations") view.inlineHidden = VALUE_EYES;
+    if (!Array.isArray(view.inlineHidden)) view.inlineHidden = [];
     return view;
   } catch {
     return DEFAULT_VIEW;
@@ -51,9 +63,9 @@ interface EditorNav {
   /** Abstract values shown at the end of code lines. */
   inlineValues: InlineValuesMode;
   setInlineValues: (mode: InlineValuesMode) => void;
-  /** What the inline values show. */
-  inlineKind: InlineKind;
-  setInlineKind: (kind: InlineKind) => void;
+  /** The domains the inline values leave out. */
+  inlineHidden: InlineDomain[];
+  setInlineShown: (domain: InlineDomain, shown: boolean) => void;
   /** Gutter marks of the checks proved safe. */
   showSafe: boolean;
   setShowSafe: (on: boolean) => void;
@@ -67,10 +79,10 @@ interface EditorNav {
 
 function saveView(s: View) {
   try {
-    const { showCoverage, inlineValues, inlineKind, showSafe } = s;
+    const { showCoverage, inlineValues, inlineHidden, showSafe } = s;
     localStorage.setItem(
       VIEW_KEY,
-      JSON.stringify({ showCoverage, inlineValues, inlineKind, showSafe }),
+      JSON.stringify({ showCoverage, inlineValues, inlineHidden, showSafe }),
     );
   } catch {
     /* no localStorage */
@@ -87,8 +99,9 @@ export const useEditorNav = create<EditorNav>((set, get) => ({
     set({ inlineValues: mode });
     saveView(get());
   },
-  setInlineKind: (kind) => {
-    set({ inlineKind: kind });
+  setInlineShown: (domain, shown) => {
+    const hidden = get().inlineHidden.filter((d) => d !== domain);
+    set({ inlineHidden: shown ? hidden : [...hidden, domain] });
     saveView(get());
   },
   setShowSafe: (on) => {

@@ -39,12 +39,15 @@ const TAIL = "universal.partitioning.tail-markers";
 export const VALUE_DOMAINS: (Item<ValueDomain> & {
   module: string;
   reduction?: string;
+  /** Its name in Mopsa's output. */
+  display: string;
 })[] = [
   {
     id: "congruences",
     label: "Congruences",
     title: "x mod n, e.g. that a counter stays even",
     module: "universal.numeric.values.congruences",
+    display: "congruences",
     reduction: "universal.numeric.reductions.intervals_congruences",
   },
   {
@@ -52,12 +55,14 @@ export const VALUE_DOMAINS: (Item<ValueDomain> & {
     label: "Zero / non-zero",
     title: "Whether a value is zero, e.g. before a division",
     module: "universal.numeric.values.zero",
+    display: "zero",
   },
   {
     id: "excluded",
     label: "Excluded values",
     title: "Constants a value cannot be, e.g. x ≠ 0",
     module: "universal.numeric.values.powersets.excluded",
+    display: "excluded",
     reduction: "universal.numeric.reductions.intervals_excluded_powerset",
   },
   {
@@ -65,6 +70,7 @@ export const VALUE_DOMAINS: (Item<ValueDomain> & {
     label: "Value sets",
     title: "Small sets of constants, e.g. x ∈ {1, 3}",
     module: "universal.numeric.values.powersets.standard",
+    display: "powerset",
     reduction: "universal.numeric.reductions.intervals_powerset",
   },
   {
@@ -72,6 +78,7 @@ export const VALUE_DOMAINS: (Item<ValueDomain> & {
     label: "Bitmasks",
     title: "Known bits, for bitwise operations",
     module: "universal.numeric.values.bitmask",
+    display: "bitmask",
   },
 ];
 
