@@ -133,12 +133,20 @@ function constants(text: string): bigint[] | null {
 const sameSet = (a: bigint[], b: bigint[]) =>
   a.length === b.length && a.every((x) => b.includes(x));
 
+/** Whether `values` are all the integers of the interval, which says it. */
+const fills = (values: bigint[], b: [Bound, Bound] | undefined) =>
+  !!b &&
+  b[0] !== null &&
+  b[1] !== null &&
+  BigInt(new Set(values).size) === b[1] - b[0] + 1n &&
+  values.every((n) => inside(n, b));
+
 /**
  * The text of a value, the parts of the shown domains only, joined by ∧.
  * The parts that say nothing are left out: ⊤ (congruence ℤ, no excluded
  * value...), and when the interval shows, what it says already (the
- * congruence 2 of [2,2], ≠ 0 of [3,5], an excluded value outside it). An
- * empty text: nothing to show.
+ * congruence 2 of [2,2], ≠ 0 of [3,5], ∈ {0, 1, 2} of [0,2], an excluded
+ * value outside it). An empty text: nothing to show.
  */
 export function partsText(parts: ValuePart[], shown: (d: InlineDomain) => boolean): string {
   const itvText = parts.find((p) => p.domain === "intervals")?.text;
@@ -172,7 +180,7 @@ export function partsText(parts: ValuePart[], shown: (d: InlineDomain) => boolea
         return text;
       case "sets":
         if (text === "⊤") return null;
-        return itvShown && single !== null && setValues && sameSet(setValues, [single]) ? null : text;
+        return itvShown && setValues && fills(setValues, bounds) ? null : text;
       case "excluded": {
         if (text === "∉ ∅") return null;
         const values = constants(text);
@@ -184,7 +192,7 @@ export function partsText(parts: ValuePart[], shown: (d: InlineDomain) => boolea
         }
         if (text.startsWith("∈")) {
           if (setValues && sameSet(values, setValues)) return null;
-          if (itvShown && single !== null && sameSet(values, [single])) return null;
+          if (itvShown && fills(values, bounds)) return null;
         }
         return text;
       }
