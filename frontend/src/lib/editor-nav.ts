@@ -5,13 +5,21 @@ import { getAllFilePaths, getWorkspaceForFile } from "./tree";
 
 /** Where the inline values show. */
 export type InlineValuesMode = "off" | "cursor" | "all" | "before" | "after";
-/** What they can show, with an eye each in the Domains panel: the
- *  intervals (the base value of each variable), the other value domains,
- *  the relations. */
-export type InlineDomain = "intervals" | ValueDomain | "relations";
+/** What they can show, with an eye each in the Domains panel: the integer
+ *  intervals (with the other base values: strings, pointers, types), the
+ *  float intervals, the other value domains, the relations. */
+export type InlineDomain = "intervals" | "floats" | ValueDomain | "relations";
 
 /** The eyes of the values, all but the relations. */
-export const VALUE_EYES: InlineDomain[] = ["intervals", "congruences", "zero", "excluded", "sets", "bitmask"];
+export const VALUE_EYES: InlineDomain[] = [
+  "intervals",
+  "floats",
+  "congruences",
+  "zero",
+  "excluded",
+  "sets",
+  "bitmask",
+];
 
 const VIEW_KEY = "mopsa-editor-view";
 

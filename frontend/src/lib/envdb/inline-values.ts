@@ -13,12 +13,12 @@ import type { InlineDomain } from "../editor-nav";
  * The name tells which part of the list is which domain.
  */
 
-/** Mopsa's names of the value domains (`display`) → their eye. Intervals
- *  stand for the base value of a variable, what other domains print too
- *  (strings, pointers, Python types). */
+/** Mopsa's names of the value domains (`display`) → their eye. The integer
+ *  intervals stand for the base value of a variable, what other domains
+ *  print too (strings, pointers, Python types). */
 const EYE: Record<string, InlineDomain> = {
   "int-itv": "intervals",
-  "float-itv": "intervals",
+  "float-itv": "floats",
   ...Object.fromEntries(VALUE_DOMAINS.map((d) => [d.display, d.id])),
 };
 

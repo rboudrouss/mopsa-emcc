@@ -13,8 +13,11 @@ export type Relations = "none" | "packed" | "all";
 export type MemoryDomain = "strings" | "sentinels" | "rewriting";
 
 export interface DomainChoice {
-  /** Off: the other value domains without intervals (Universal only). */
+  /** Off: the other value domains without integer intervals (Universal
+   *  only). */
   intervals: boolean;
+  /** Off: no float intervals, the floats are left to the relations. */
+  floats: boolean;
   values: ValueDomain[];
   relations: Relations;
   memory: MemoryDomain[];
@@ -23,6 +26,7 @@ export interface DomainChoice {
 
 export const NO_CHOICE: DomainChoice = {
   intervals: true,
+  floats: true,
   values: [],
   relations: "none",
   memory: [],
@@ -36,6 +40,7 @@ interface Item<T> {
 }
 
 const ITV = "universal.numeric.values.intervals.integer";
+const FLOAT_ITV = "universal.numeric.values.intervals.float";
 const RELATIONAL = "universal.numeric.relational";
 const TAIL = "universal.partitioning.tail-markers";
 
@@ -120,11 +125,12 @@ const UNAVAILABLE: Partial<Record<DomainKind, string[]>> = {
   multilanguage: ["bitmask"],
 };
 
-/** Whether the intervals can be left out: the C memory model and Python's
- *  lists need them. */
+/** Whether the integer intervals can be left out: the C memory model and
+ *  Python's lists need them. */
 export function intervalsOptional(kind: DomainKind): boolean {
   return kind === "universal";
 }
+
 
 export function valueOptions(kind: DomainKind) {
   return VALUE_DOMAINS.filter((d) => !UNAVAILABLE[kind]?.includes(d.id));
@@ -184,6 +190,7 @@ const PREFIX = "domains:";
 export function choicePreset(kind: DomainKind, c: DomainChoice): string {
   const parts = [
     ...(c.intervals ? [] : ["no-intervals"]),
+    ...(c.floats ? [] : ["no-floats"]),
     ...c.values,
     ...(c.relations === "none" ? [] : [c.relations]),
     ...(kind === "c" ? c.memory : []),
@@ -217,6 +224,7 @@ export function parseChoicePreset(
     kind: kind as DomainKind,
     choice: {
       intervals: !parts.includes("no-intervals"),
+      floats: !parts.includes("no-floats"),
       values,
       relations,
       memory,
@@ -244,14 +252,23 @@ export function choiceLabel(c: DomainChoice): string {
     (d) => d.label.toLowerCase(),
   );
   return [
-    ...(c.intervals ? ["Intervals", ...values] : values),
+    ...(c.intervals && c.floats
+      ? ["Intervals"]
+      : c.intervals
+        ? ["Integer intervals"]
+        : c.floats
+          ? ["Float intervals"]
+          : []),
+    ...values,
     ...(c.relations === "packed" ? ["relations per function"] : []),
     ...(c.relations === "all" ? ["relations"] : []),
     ...MEMORY_DOMAINS.filter((d) => c.memory.includes(d.id)).map((d) =>
       d.label.toLowerCase(),
     ),
     ...(c.branches ? ["branches apart"] : []),
-  ].join(", ");
+  ]
+    .join(", ")
+    .replace(/^./, (x) => x.toUpperCase());
 }
 
 /** The name of a preset in the results: what it has, for a choice. */
@@ -272,6 +289,7 @@ export function readChoice(config: unknown): DomainChoice {
   return {
     // (a config without a value domain keeps its intervals)
     intervals: s.includes(`"${ITV}"`) || values.length === 0,
+    floats: s.includes(`"${FLOAT_ITV}"`),
     values: values.map((d) => d.id),
     relations: s.includes(`"${RELATIONAL}"`)
       ? /packing\.static_scope/.test(s)
@@ -333,6 +351,14 @@ export function buildConfig(
   // Without intervals, the other value domains alone, without the
   // reductions with intervals (all of them)
   const intervals = c.intervals || !intervalsOptional(kind) || values.length === 0;
+  // Without float intervals, the analysis stops at the first float, unless
+  // the relations take it (not in C)
+  if (!c.floats)
+    [domain] = replaceFirst(
+      domain,
+      (n) => Array.isArray(n) && n.includes(FLOAT_ITV),
+      (list) => (list as Json[]).filter((x) => x !== FLOAT_ITV),
+    );
   if (!intervals) {
     const modules = values.map((d) => d.module);
     [domain] = replaceFirst(

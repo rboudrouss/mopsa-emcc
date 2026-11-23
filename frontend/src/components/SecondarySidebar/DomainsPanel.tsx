@@ -108,6 +108,7 @@ export function DomainsPanel() {
     applyPreset(name, text);
     // A domain turned on shows inline
     if (next.intervals && !choice.intervals) setInlineShown("intervals", true);
+    if (next.floats && !choice.floats) setInlineShown("floats", true);
     for (const d of next.values)
       if (!choice.values.includes(d)) setInlineShown(d, true);
     if (choice.relations === "none" && next.relations !== "none")
@@ -181,13 +182,13 @@ export function DomainsPanel() {
           <Section title="Values">
             {intervalsOptional(kind) ? (
               <Toggle
-                label="Intervals"
+                label="Integer intervals"
                 title={
                   choice.values.length === 0
-                    ? "Bounds of each value. Turn another value domain on to analyze without them"
-                    : "Bounds of each value"
+                    ? "Bounds of the integers. Turn another value domain on to analyze without them"
+                    : "Bounds of the integers"
                 }
-                eye={<Eye domain="intervals" label="Intervals" on />}
+                eye={<Eye domain="intervals" label="Integer intervals" on />}
                 checked={choice.intervals}
                 disabled={choice.intervals && choice.values.length === 0}
                 onChange={() =>
@@ -196,13 +197,26 @@ export function DomainsPanel() {
               />
             ) : (
               <Toggle
-                label="Intervals"
+                label="Integer intervals"
                 checked
                 disabled
                 title="Always on"
-                eye={<Eye domain="intervals" label="Intervals" on />}
+                eye={<Eye domain="intervals" label="Integer intervals" on />}
               />
             )}
+            <Toggle
+              label="Float intervals"
+              title={
+                kind === "c" || kind === "multilanguage"
+                  ? "Bounds of the floats. Off, the analysis stops at the first float"
+                  : "Bounds of the floats. Off, the floats need the relations"
+              }
+              eye={
+                <Eye domain="floats" label="Float intervals" on={choice.floats} />
+              }
+              checked={choice.floats}
+              onChange={() => apply({ ...choice, floats: !choice.floats })}
+            />
             {valueOptions(kind).map((d) => (
               <Toggle
                 key={d.id}
