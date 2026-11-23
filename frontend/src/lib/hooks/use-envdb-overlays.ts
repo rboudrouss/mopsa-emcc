@@ -12,7 +12,13 @@ import {
   type InlineDomain,
   type InlineValuesMode,
 } from "../editor-nav";
-import { parseDomainName, partsText, valueParts, type DomainTree } from "../envdb/inline-values";
+import {
+  parseDomainName,
+  partsText,
+  valueAlternatives,
+  type DomainTree,
+} from "../envdb/inline-values";
+import { groupAggregates } from "../envdb/aggregates";
 import { pointerText } from "../envdb/pointers";
 import { readableRelations } from "../envdb/relations";
 import { useAppStore } from "../store";
@@ -32,21 +38,22 @@ import { useAppStore } from "../store";
 const MAX_INLINE = 70;
 const VAR_LIKE = /^[A-Za-z_$][\w$]*(\[[^\]]*\]|\.[\w$]+|->[\w$]+)*$/;
 const DECORATION = /:[^\s:]+:\d+\.\d+(-\d+(\.\d+)?)?$/;
-// Python heap addresses of callables, classes and modules: noise inline.
+// Python heap addresses of callables, classes and modules (C ones too, of
+// C extensions): noise inline.
 const PY_HIDDEN =
-  /^@(function|builtin_function_or_method|method|classmethod|staticmethod|module|type)\b/;
+  /^@(function|builtin_function_or_method|method|classmethod|staticmethod|module|type|c)\b/;
 
 /**
  * One value as shown inline. Python variables point to heap addresses
  * ("@Inst{int}:w", "@list"): shown as their type, and hidden (null) for
  * functions, classes and modules.
  */
-function valueText(v: unknown, python: boolean): string | null {
+function valueText(v: unknown): string | null {
   if (v === null || v === undefined) return "⊥";
   const s = (typeof v === "object" ? JSON.stringify(v) : String(v))
     .replace(/\s+/g, " ")
     .trim();
-  if (!python || !s.startsWith("@")) return s;
+  if (!s.startsWith("@")) return s;
   if (PY_HIDDEN.test(s)) return null;
   const inst = /^@Inst\{([^}]*)\}/.exec(s);
   if (inst) return inst[1];
@@ -78,29 +85,52 @@ export function inlineParts(
 ): InlinePart[] {
   if (env === null || env === undefined) return [];
   // Each partition (branches kept apart) is a state of its own: a variable
-  // is the one value or the other, "x = 1 ∨ 5"
+  // is the one value or the other, "x = 1 ∨ 5", a pointer to the bases of
+  // both
   const states = partitions(env).map((e) => stateParts(e, python, shown, file));
   const names = [...new Set(states.flatMap((st) => [...st.keys()]))];
   return names.map((name) => {
     const per = states.flatMap((st) => (st.has(name) ? [st.get(name)!] : []));
+    const ptr = per.every((p) => p.pointer) && per.map((p) => p.pointer!);
+    if (ptr && ptr.every((q) => q.offset === ptr[0].offset)) {
+      const bases = [...new Set(ptr.flatMap((q) => q.bases))];
+      return { name, value: pointerText(bases, ptr[0].offset, file), isType: false };
+    }
     const typed = per.every((p) => p.isType);
     const values = [...new Set(per.filter((p) => p.isType === typed).map((p) => p.value))];
     return { name, value: values.join(typed ? " | " : " ∨ "), isType: typed };
   });
 }
 
-/** The states of the partitions of a print object: under keys that are no
- *  domain groups ("ε", "if (x > 0)"), each holding domain groups. */
+const isObject = (v: unknown): v is Record<string, unknown> =>
+  !!v && typeof v === "object" && !Array.isArray(v);
+
+/** A key of a state that is no partition: a domain group. */
+const isGroup = (k: string) =>
+  parseDomainName(k) !== null || /^(numeric-relations|pointers|environment)/.test(k);
+
+/** The states of the partitions of a print object (branches kept apart):
+ *  under keys that are no domain groups ("ε", "if (x > 0)",
+ *  "return@main.c:8.2-10"), each holding domain groups, beside the groups of
+ *  the state where no partition applies. */
 function partitions(env: unknown): unknown[] {
-  if (!env || typeof env !== "object" || Array.isArray(env)) return [env];
-  const subs = Object.entries(env as Record<string, unknown>);
-  const isGroup = (k: string) => parseDomainName(k) !== null;
-  const partitioned =
-    subs.length > 0 &&
-    !subs.some(([k]) => isGroup(k)) &&
-    subs.every(([, v]) => v && typeof v === "object" && !Array.isArray(v)) &&
-    subs.some(([, v]) => Object.keys(v as object).some(isGroup));
-  return partitioned ? subs.map(([, v]) => v) : [env];
+  if (!isObject(env)) return [env];
+  const subs = Object.entries(env);
+  const isPartition = ([k, v]: [string, unknown]) =>
+    !isGroup(k) && isObject(v) && Object.keys(v).some(isGroup);
+  const parts = subs.filter(isPartition);
+  if (parts.length === 0) return [env];
+  const rest = subs.filter((e) => !isPartition(e));
+  return [
+    ...(rest.length > 0 ? [Object.fromEntries(rest)] : []),
+    ...parts.flatMap(([, v]) => partitions(v)),
+  ];
+}
+
+/** A variable of one state; a C pointer keeps its bases and offset, to
+ *  join them across partitions. */
+interface StatePart extends InlinePart {
+  pointer?: { bases: string[]; offset?: string };
 }
 
 /** The variables of one state. */
@@ -109,7 +139,7 @@ function stateParts(
   python: boolean,
   shown: (d: InlineDomain) => boolean,
   file?: string,
-): Map<string, InlinePart> {
+): Map<string, StatePart> {
   // C pointers: their bases, and their offsets, numeric variables offset⦃p⦄
   const pointers = new Map<string, string[]>();
   const offsets = new Map<string, string>();
@@ -122,26 +152,29 @@ function stateParts(
   const leaf = (key: string, v: unknown, tree: DomainTree | null, group: string) => {
     if (!key || key.startsWith("@")) return; // heap addresses' internals
     if (group === "pointers") {
-      if (shown("pointers")) pointers.set(key, (Array.isArray(v) ? v : [v]).map(String));
+      // ∅: no base yet (before its declaration)
+      const bases = (Array.isArray(v) ? v : [v]).map(String).filter((b) => b !== "∅");
+      if (shown("pointers") && bases.length > 0) pointers.set(key, bases);
       return;
     }
-    const parts = tree && valueParts(tree, v);
+    const alts = tree && valueAlternatives(tree, v);
     const offset = /^offset⦃(.+)⦄$/.exec(key);
     if (offset) {
-      const itv = parts?.find((p) => p.domain === "intervals")?.text;
-      offsets.set(offset[1], itv ?? String(v));
+      const itvs = alts?.map((parts) => parts.find((p) => p.domain === "intervals")?.text);
+      offsets.set(offset[1], itvs?.length === 1 && itvs[0] ? itvs[0] : String(v));
       return;
     }
-    if (parts) {
-      const text = partsText(parts, shown);
-      if (text) entry(key).values.push(text);
+    if (alts) {
+      const texts = [...new Set(alts.map((parts) => partsText(parts, shown)))];
+      // (one alternative saying nothing: the variable says nothing)
+      if (!texts.includes("")) entry(key).values.push(texts.join(" ∨ "));
       return;
     }
     if (!shown("intervals")) return;
     const list = Array.isArray(v) ? v : [v];
-    const texts = list.map((x) => valueText(x, python));
+    const texts = list.map((x) => valueText(x));
     if (texts.some((x) => x === null)) return; // a callable, class, module
-    const isType = python && list.every((x) => String(x).startsWith("@"));
+    const isType = list.every((x) => String(x).startsWith("@"));
     const text = [...new Set(texts as string[])].join(isType ? " | " : ", ");
     if (isType) entry(key).types.add(text);
     else entry(key).values.push(Array.isArray(v) ? `{${text}}` : text);
@@ -153,8 +186,8 @@ function stateParts(
     tree: DomainTree | null,
     group: string,
   ) => {
-    if (v && typeof v === "object" && !Array.isArray(v))
-      for (const [k, sub] of Object.entries(v as Record<string, unknown>))
+    if (isObject(v))
+      for (const [k, sub] of Object.entries(v))
         // The top-level keys are domain groups ("float-itv ∪ int-itv",
         // "environment"): they aren't part of the names, and tell the
         // domains of the values.
@@ -168,16 +201,30 @@ function stateParts(
     else leaf(key, v, tree, group);
   };
   visit("", env, 0, null, "");
-  for (const [name, bases] of pointers)
-    entry(name).values.push(pointerText(bases, offsets.get(name), file));
-  return new Map(
-    [...vars].map(([name, { types, values }]) => [
+
+  const out = new Map<string, StatePart>();
+  const values = new Map<string, string>();
+  for (const [name, { types, values: vs }] of vars) {
+    const type = [...types].join(" | ");
+    // a class or a builtin named by its name ("str: str"): no news
+    if (vs.length === 0 && type === name) continue;
+    // a string of any value says less than its type
+    if (vs.length === 0 || (type && vs.every((x) => x === "⊤")))
+      out.set(name, { name, value: type, isType: true });
+    else values.set(name, [...new Set(vs)].join(" ∧ "));
+  }
+  for (const [name, bases] of pointers) values.set(name, pointerText(bases, offsets.get(name), file));
+  // C arrays and structs in one piece (Python objects keep their type)
+  for (const [name, value] of python ? values : groupAggregates(values)) {
+    const bases = pointers.get(name);
+    out.set(name, {
       name,
-      values.length > 0
-        ? { name, value: [...new Set(values)].join(" ∧ "), isType: false }
-        : { name, value: [...types].join(" | "), isType: true },
-    ]),
-  );
+      value,
+      isType: false,
+      ...(bases ? { pointer: { bases, offset: offsets.get(name) } } : {}),
+    });
+  }
+  return out;
 }
 
 /**
@@ -222,6 +269,15 @@ export function changedBefore(before: InlinePart[], after: InlinePart[]): Inline
 
 /** Whether the variable shows in the source line: not a temporary or the
  *  cleanup at a block's "}" (base name of "s.f", "p->x", "*p", "self.x"). */
+/** A source line without its strings and comments (blanked, the columns
+ *  stay): "data" in a comment names no variable of the line. */
+function codeOf(source: string): string {
+  return source.replace(
+    /"(\\.|[^"\\])*"|'(\\.|[^'\\])*'|\/\*.*?(\*\/|$)|\/\/.*$|#.*$/g,
+    (m) => " ".repeat(m.length),
+  );
+}
+
 function inSource(name: string, source: string): boolean {
   return sourceIndex(name, source) >= 0;
 }
@@ -231,7 +287,7 @@ function inSource(name: string, source: string): boolean {
 function sourceIndex(name: string, source: string): number {
   const base = /[A-Za-z_$][\w$]*/.exec(name)?.[0];
   if (!base) return 0;
-  const m = new RegExp(`(^|[^\\w$])${base.replace(/\$/g, "\\$")}($|[^\\w$])`).exec(source);
+  const m = new RegExp(`(^|[^\\w$])${base.replace(/\$/g, "\\$")}($|[^\\w$])`).exec(codeOf(source));
   return m ? m.index + m[1].length : -1;
 }
 

@@ -83,15 +83,48 @@ function leafText(v: unknown): string {
   return JSON.stringify(v);
 }
 
+const INT_ITV = /^(\[(-?\d+|-∞),(-?\d+|\+∞)\]|⊥|⊤)$/;
+
+/** Whether `v` can be a value of the domain named `atom`: in a union, the
+ *  branch of a value is the one it fits. */
+function fits(atom: string, v: unknown): boolean {
+  const str = typeof v === "string";
+  switch (atom) {
+    case "int-itv":
+      return str && INT_ITV.test(v);
+    case "float-itv":
+      return str && /^(\[|⊥|⊤|NaN|[+-]∞)/.test(v);
+    case "congruences":
+      return str && /^(⊥|-?\d+|\d*ℤ(\+\d+)?)$/.test(v);
+    case "zero":
+      return str && /^(⊤|⊥|0|≠ 0)$/.test(v);
+    case "excluded":
+      return Array.isArray(v) || (str && /^[∈∉] /.test(v));
+    case "powerset":
+      return Array.isArray(v) || v === "⊤" || v === "⊥";
+    case "bitmask":
+      return str && /^[…01⊤]*$/.test(v);
+    default:
+      return true;
+  }
+}
+
+const hasInt = (t: DomainTree): boolean =>
+  "atom" in t ? t.atom === "int-itv" : "pair" in t ? t.pair.some(hasInt) : t.union.some(hasInt);
+
+/** The branches of a union in the order to try for `v`: an integer
+ *  interval goes to the integers, though a float can print as one. */
+function branchesFor(branches: DomainTree[], v: unknown): DomainTree[] {
+  if (!(typeof v === "string" && INT_ITV.test(v))) return branches;
+  return [...branches.filter(hasInt), ...branches.filter((b) => !hasInt(b))];
+}
+
 /** The parts of value `v` printed by the domains of `tree`, null when `v`
  *  doesn't have its shape. */
 export function valueParts(tree: DomainTree, v: unknown): ValuePart[] | null {
   if ("atom" in tree) {
+    if (!fits(tree.atom, v)) return null;
     const domain = EYE[tree.atom] ?? "intervals";
-    // An interval is a string ("[0,1]", "[0.5,1]∨NaN"): a list is a value of
-    // another branch of a union
-    if ((tree.atom === "int-itv" || tree.atom === "float-itv") && typeof v !== "string")
-      return null;
     return [{ domain, text: leafText(v).replace(/\s+/g, " ").trim() }];
   }
   if ("pair" in tree) {
@@ -100,11 +133,40 @@ export function valueParts(tree: DomainTree, v: unknown): ValuePart[] | null {
     const b = a && valueParts(tree.pair[1], v[1]);
     return b && [...a!, ...b];
   }
-  for (const branch of tree.union) {
+  for (const branch of branchesFor(tree.union, v)) {
     const parts = valueParts(branch, v);
     if (parts) return parts;
   }
   return null;
+}
+
+/**
+ * The values `v` stands for: one, or several when Mopsa joined the values of
+ * several partitions (branches kept apart) in one list, [a1, b1, a2, b2]
+ * for (a ∧ b) twice, ["[1,1]", "[5,5]"] for an interval twice. Null when
+ * `v` doesn't have the shape of `tree`.
+ */
+export function valueAlternatives(tree: DomainTree, v: unknown): ValuePart[][] | null {
+  if ("union" in tree) {
+    const first = Array.isArray(v) ? v[0] : v;
+    for (const branch of branchesFor(tree.union, first)) {
+      const alts = valueAlternatives(branch, v);
+      if (alts) return alts;
+    }
+    return null;
+  }
+  const one = valueParts(tree, v);
+  if (one) return [one];
+  if (!Array.isArray(v) || v.length < 2) return null;
+  const width = "pair" in tree ? 2 : 1;
+  if (v.length % width !== 0) return null;
+  const out: ValuePart[][] = [];
+  for (let i = 0; i < v.length; i += width) {
+    const parts = valueParts(tree, width === 2 ? [v[i], v[i + 1]] : v[i]);
+    if (!parts) return null;
+    out.push(parts);
+  }
+  return out;
 }
 
 // ── Text ─────────────────────────────────────────────────────────────────
@@ -141,6 +203,31 @@ const fills = (values: bigint[], b: [Bound, Bound] | undefined) =>
   BigInt(new Set(values).size) === b[1] - b[0] + 1n &&
   values.every((n) => inside(n, b));
 
+const LIMITS: Record<string, string> = {
+  "1.7976931348623157e+308": "DBL_MAX",
+  "3.4028234663852886e+38": "FLT_MAX",
+};
+
+/** A bound written short: the shortest decimal of the same double
+ *  (0.10000000000000001: 0.1), 4 digits with an exponent, DBL_MAX. */
+function shortNumber(n: string): string {
+  const sign = n.startsWith("-") ? "-" : "";
+  const abs = sign ? n.slice(1) : n;
+  if (LIMITS[abs]) return sign + LIMITS[abs];
+  const x = Number(n);
+  if (!Number.isFinite(x)) return n;
+  const t = String(x);
+  return t.includes("e") ? x.toPrecision(4).replace(/\.?0+e/, "e") : t;
+}
+
+/** An interval written short: "4" for [4,4], "⊤" for any float. */
+export function intervalText(text: string): string {
+  const short = text.replace(/-?\d+(\.\d+)?(e[+-]?\d+)?/g, shortNumber);
+  if (/^\[-(DBL|FLT)_MAX,(DBL|FLT)_MAX\]∨\+∞∨-∞∨NaN$/.test(short)) return "⊤";
+  const single = /^\[([^,\]]+),\1\]$/.exec(short);
+  return single ? single[1] : short;
+}
+
 /**
  * The text of a value, the parts of the shown domains only, joined by ∧.
  * The parts that say nothing are left out: ⊤ (congruence ℤ, no excluded
@@ -176,7 +263,8 @@ export function partsText(parts: ValuePart[], shown: (d: InlineDomain) => boolea
   function partText(domain: InlineDomain, text: string): string | null {
     switch (domain) {
       case "intervals":
-        return text;
+      case "floats":
+        return intervalText(text);
       case "congruences":
         if (text === "ℤ") return null;
         return itvShown && single !== null && text === String(single) ? null : text;
