@@ -13,6 +13,7 @@ import {
   type InlineValuesMode,
 } from "../editor-nav";
 import { parseDomainName, partsText, valueParts, type DomainTree } from "../envdb/inline-values";
+import { readableRelations } from "../envdb/relations";
 import { useAppStore } from "../store";
 
 /**
@@ -212,10 +213,10 @@ const IDENT = /[A-Za-z_$][\w$.]*(\[[^\]]*\])*/g;
  * The constraints of the relational domain in a whole-state print object:
  * under "numeric-relations", or "numeric-relations(<pack>)" with packing,
  * a set of strings ("j + i = n + 1"), or {domain, relations} with
- * -show-relational-domain.
+ * -show-relational-domain. Made readable (see relations.ts).
  */
 export function relationsOf(env: unknown): Set<string> {
-  const out = new Set<string>();
+  const out: string[] = [];
   const visit = (key: string, v: unknown) => {
     if (key.startsWith("numeric-relations")) {
       const rel =
@@ -223,21 +224,22 @@ export function relationsOf(env: unknown): Set<string> {
           ? (v as { relations: unknown }).relations
           : v;
       if (Array.isArray(rel))
-        for (const c of rel) if (typeof c === "string") out.add(c.replace(DECORATIONS, ""));
+        for (const c of rel) if (typeof c === "string") out.push(c);
       return;
     }
     if (v && typeof v === "object")
       for (const [k, sub] of Object.entries(v as Record<string, unknown>)) visit(k, sub);
   };
   visit("", env);
-  return out;
+  // (simplified before the decorations go: two variables can have one name)
+  return new Set(readableRelations(out).map((c) => c.replace(DECORATIONS, "")));
 }
 
 /** A relation between program variables: two variables at least (one is
  *  only a bound, the intervals show it), none internal to Mopsa (heap
- *  addresses, return values "ret(f)"). */
+ *  addresses, return values "ret(f)", pointer offsets "offset⦃p⦄"). */
 function isRelation(c: string): boolean {
-  if (/[@(]/.test(c)) return false;
+  if (/[@(⦃]/.test(c)) return false;
   return new Set(c.match(IDENT)).size >= 2;
 }
 
