@@ -153,6 +153,15 @@ export function partsText(parts: ValuePart[], shown: (d: InlineDomain) => boolea
   const bounds = intBounds(itvText);
   const itvShown = shown("intervals") && itvText !== undefined;
   const single = bounds && bounds[0] !== null && bounds[0] === bounds[1] ? bounds[0] : null;
+  // The constant shown by the interval [5,5], or by the congruence 5 (no
+  // interval, or hidden): the other parts can't say more
+  const congr = parts.find((p) => p.domain === "congruences" && shown("congruences"))?.text;
+  const constant =
+    itvShown && single !== null
+      ? single
+      : congr && /^-?\d+$/.test(congr)
+        ? BigInt(congr)
+        : null;
   const setPart = parts.find((p) => p.domain === "sets" && shown("sets"));
   const setValues = setPart && constants(setPart.text);
 
@@ -171,16 +180,20 @@ export function partsText(parts: ValuePart[], shown: (d: InlineDomain) => boolea
       case "congruences":
         if (text === "ℤ") return null;
         return itvShown && single !== null && text === String(single) ? null : text;
-      case "zero":
+      case "zero": {
         if (text === "⊤") return null;
-        if (itvShown && bounds) {
-          const zero = inside(0n, bounds);
-          if ((text === "≠ 0" && !zero) || (text === "0" && single === 0n)) return null;
-        }
+        if (itvShown && bounds && text === "≠ 0" && !inside(0n, bounds)) return null;
+        if (constant !== null && text === (constant === 0n ? "0" : "≠ 0")) return null;
+        // ≠ 0 of {3, 5}, of 2ℤ+1
+        if (text === "≠ 0" && setValues && !setValues.includes(0n)) return null;
+        const m = congr && /^(\d*)ℤ\+(\d+)$/.exec(congr);
+        if (text === "≠ 0" && m && BigInt(m[2]) % BigInt(m[1] || "1") !== 0n) return null;
         return text;
+      }
       case "sets":
         if (text === "⊤") return null;
-        return itvShown && setValues && fills(setValues, bounds) ? null : text;
+        if (itvShown && setValues && fills(setValues, bounds)) return null;
+        return constant !== null && setValues && sameSet(setValues, [constant]) ? null : text;
       case "excluded": {
         if (text === "∉ ∅") return null;
         const values = constants(text);
@@ -193,13 +206,14 @@ export function partsText(parts: ValuePart[], shown: (d: InlineDomain) => boolea
         if (text.startsWith("∈")) {
           if (setValues && sameSet(values, setValues)) return null;
           if (itvShown && fills(values, bounds)) return null;
+          if (constant !== null && sameSet(values, [constant])) return null;
         }
         return text;
       }
       case "bitmask":
         // Mopsa prints the bits from the highest unknown one: none for a
         // constant, "…⊤" when all are unknown
-        if (text === "") return single !== null && !itvShown ? `0b${single.toString(2)}` : null;
+        if (text === "") return single !== null && constant === null ? `0b${single.toString(2)}` : null;
         if (/^…?⊤+$/.test(text)) return null;
         return /^[01⊤]/.test(text) ? `0b${text}` : text;
       default:
