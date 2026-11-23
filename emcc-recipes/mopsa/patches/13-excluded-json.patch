@@ -1,0 +1,31 @@
+fix(excluded): print the set as one string, keeping ∈ / ∉ in JSON
+
+As a print object set, the values of the excluded powerset lost their
+∈ / ∉ in the JSON output, which the inline values of the interface read.
+
+diff --git a/analyzer/languages/universal/numeric/values/powersets/excluded.ml b/analyzer/languages/universal/numeric/values/powersets/excluded.ml
+--- a/analyzer/languages/universal/numeric/values/powersets/excluded.ml
++++ b/analyzer/languages/universal/numeric/values/powersets/excluded.ml
+@@ -45,15 +45,17 @@
+     | In    of Set.t
+     | NotIn of Set.t
+ 
++  (* One string: as a set, the JSON output would lose ∈ / ∉ *)
+   let print printer a =
+     let print_set prefix s =
+       if Set.is_empty s then pp_string printer (prefix^"∅")
+       else
+-        pp_set
+-          (unformat Z.pp_print)
+-          printer
+-          (Set.to_poly_set s)
+-          ~sopen:(prefix ^ "{") ~ssep:"," ~sclose:"}" in
++        pp_string printer
++          (Format.asprintf "%s{%a}" prefix
++             (Format.pp_print_list
++                ~pp_sep:(fun fmt () -> Format.pp_print_string fmt ", ")
++                Z.pp_print)
++             (Set.elements s)) in
+     match a with
+     | In s    -> print_set "∈ " s
+     | NotIn s -> print_set "∉ " s
