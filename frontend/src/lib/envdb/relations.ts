@@ -80,6 +80,14 @@ function sub(a: Vec, b: Vec): Vec {
 
 const abs = (x: bigint) => (x < 0n ? -x : x);
 
+/** a / b as a float, for integers of any size (a, b > 0). */
+function ratio(a: bigint, b: bigint): number {
+  const sa = a.toString();
+  const sb = b.toString();
+  const exp = (n: string) => Math.max(0, n.length - 17);
+  return (Number(sa.slice(0, 17)) / Number(sb.slice(0, 17))) * 10 ** (exp(sa) - exp(sb));
+}
+
 function readable(constraints: string[]): string[] {
   // the tightest bound of each vector
   const halves = new Map<string, Half>();
@@ -183,15 +191,26 @@ function write(dir: Vec, lo: bigint | undefined, hi: bigint | undefined): string
       hi === undefined ? undefined : -hi,
       lo === undefined ? undefined : -lo,
     );
+  // Huge coefficients (the polyhedra of floats, 2734…592f ≤ 9115…736total):
+  // divided by the first one, in decimals, f ≤ 0.333333total
+  const huge = [...dir.values(), lo ?? 0n, hi ?? 0n].some((x) => abs(x).toString().length > 12);
+  const scale = huge ? pos[0][1] : 1n;
+  const num = (a: bigint) => {
+    if (!huge) return String(abs(a));
+    const x = ratio(abs(a), scale);
+    return String(Number(x.toPrecision(6)));
+  };
   const terms = (ts: [string, bigint][]) =>
-    ts.map(([x, a]) => (abs(a) === 1n ? x : `${abs(a)}${x}`)).join(" + ");
+    ts.map(([x, a]) => (num(a) === "1" ? x : `${num(a)}${x}`)).join(" + ");
   const P = terms(pos);
+  // (a constant 10⁹ times smaller than the coefficients: their rounding)
+  const zero = (c: bigint) => c === 0n || (huge && ratio(abs(c), scale) < 1e-9);
   const side = (c: bigint) =>
     neg.length === 0
-      ? String(c)
-      : c === 0n
+      ? zero(c) ? "0" : `${c < 0n ? "-" : ""}${num(c)}`
+      : zero(c)
         ? terms(neg)
-        : `${terms(neg)} ${c > 0n ? "+" : "-"} ${abs(c)}`;
+        : `${terms(neg)} ${c > 0n ? "+" : "-"} ${num(c)}`;
   if (lo !== undefined && hi !== undefined)
     return lo === hi ? `${P} = ${side(hi)}` : `${side(lo)} ≤ ${P} ≤ ${side(hi)}`;
   return hi !== undefined ? `${P} ≤ ${side(hi)}` : `${P} ≥ ${side(lo!)}`;
@@ -200,12 +219,22 @@ function write(dir: Vec, lo: bigint | undefined, hi: bigint | undefined): string
 // The same states come back on many lines
 const cache = new Map<string, string[]>();
 
+/** The rationals of the bounds of floats as decimals:
+ *  147718067777752269/36028797018963968 → 4.1. */
+const decimals = (c: string) =>
+  c.replace(/(\d+)\/(\d+)/g, (_, p: string, q: string) => {
+    // (the 17 first digits of each, for the huge ones)
+    const exp = (n: string) => Math.max(0, n.length - 17);
+    const x = (Number(p.slice(0, 17)) / Number(q.slice(0, 17))) * 10 ** (exp(p) - exp(q));
+    return Number.isFinite(x) ? String(Number(x.toPrecision(6))) : `${p}/${q}`;
+  });
+
 export function readableRelations(constraints: Iterable<string>): string[] {
   const list = [...constraints];
   const key = list.join("\n");
   let out = cache.get(key);
   if (!out) {
-    out = readable(list);
+    out = readable(list).map(decimals);
     if (cache.size > 500) cache.clear();
     cache.set(key, out);
   }
