@@ -13,6 +13,8 @@ export type Relations = "none" | "packed" | "all";
 export type MemoryDomain = "strings" | "sentinels" | "rewriting";
 
 export interface DomainChoice {
+  /** Off: the other value domains without intervals (Universal only). */
+  intervals: boolean;
   values: ValueDomain[];
   relations: Relations;
   memory: MemoryDomain[];
@@ -20,6 +22,7 @@ export interface DomainChoice {
 }
 
 export const NO_CHOICE: DomainChoice = {
+  intervals: true,
   values: [],
   relations: "none",
   memory: [],
@@ -117,6 +120,12 @@ const UNAVAILABLE: Partial<Record<DomainKind, string[]>> = {
   multilanguage: ["bitmask"],
 };
 
+/** Whether the intervals can be left out: the C memory model and Python's
+ *  lists need them. */
+export function intervalsOptional(kind: DomainKind): boolean {
+  return kind === "universal";
+}
+
 export function valueOptions(kind: DomainKind) {
   return VALUE_DOMAINS.filter((d) => !UNAVAILABLE[kind]?.includes(d.id));
 }
@@ -174,6 +183,7 @@ const PREFIX = "domains:";
 
 export function choicePreset(kind: DomainKind, c: DomainChoice): string {
   const parts = [
+    ...(c.intervals ? [] : ["no-intervals"]),
     ...c.values,
     ...(c.relations === "none" ? [] : [c.relations]),
     ...(kind === "c" ? c.memory : []),
@@ -205,7 +215,13 @@ export function parseChoicePreset(
       : "none";
   return {
     kind: kind as DomainKind,
-    choice: { values, relations, memory, branches: parts.includes("branches") },
+    choice: {
+      intervals: !parts.includes("no-intervals"),
+      values,
+      relations,
+      memory,
+      branches: parts.includes("branches"),
+    },
   };
 }
 
@@ -224,11 +240,11 @@ export function presetText(
 
 /** "Intervals, congruences, packed relations, branches". */
 export function choiceLabel(c: DomainChoice): string {
+  const values = VALUE_DOMAINS.filter((d) => c.values.includes(d.id)).map(
+    (d) => d.label.toLowerCase(),
+  );
   return [
-    "Intervals",
-    ...VALUE_DOMAINS.filter((d) => c.values.includes(d.id)).map((d) =>
-      d.label.toLowerCase(),
-    ),
+    ...(c.intervals ? ["Intervals", ...values] : values),
     ...(c.relations === "packed" ? ["relations per function"] : []),
     ...(c.relations === "all" ? ["relations"] : []),
     ...MEMORY_DOMAINS.filter((d) => c.memory.includes(d.id)).map((d) =>
@@ -252,10 +268,11 @@ export function presetLabel(name: string): string {
 /** The choices a config has, whatever wrote it. */
 export function readChoice(config: unknown): DomainChoice {
   const s = JSON.stringify(config ?? "");
+  const values = VALUE_DOMAINS.filter((d) => s.includes(`"${d.module}"`));
   return {
-    values: VALUE_DOMAINS.filter((d) => s.includes(`"${d.module}"`)).map(
-      (d) => d.id,
-    ),
+    // (a config without a value domain keeps its intervals)
+    intervals: s.includes(`"${ITV}"`) || values.length === 0,
+    values: values.map((d) => d.id),
     relations: s.includes(`"${RELATIONAL}"`)
       ? /packing\.static_scope/.test(s)
         ? "packed"
@@ -313,7 +330,17 @@ export function buildConfig(
   let domain = base.domain;
 
   const values = VALUE_DOMAINS.filter((d) => c.values.includes(d.id));
-  if (values.length > 0) {
+  // Without intervals, the other value domains alone, without the
+  // reductions with intervals (all of them)
+  const intervals = c.intervals || !intervalsOptional(kind) || values.length === 0;
+  if (!intervals) {
+    const modules = values.map((d) => d.module);
+    [domain] = replaceFirst(
+      domain,
+      (n) => n === ITV,
+      () => (modules.length === 1 ? modules[0] : { product: modules }),
+    );
+  } else if (values.length > 0) {
     const reductions = values.flatMap((d) =>
       d.reduction ? [d.reduction] : [],
     );
@@ -338,11 +365,11 @@ export function buildConfig(
           nonrel,
           packed ? { apply: packing, on: RELATIONAL } : RELATIONAL,
         ],
-        reductions: [
-          packed
-            ? `reductions.${packing}`
-            : "universal.numeric.reductions.intervals_rel",
-        ],
+        ...(packed
+          ? { reductions: [`reductions.${packing}`] }
+          : intervals
+            ? { reductions: ["universal.numeric.reductions.intervals_rel"] }
+            : {}),
       }),
     );
   }

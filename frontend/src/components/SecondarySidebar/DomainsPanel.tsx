@@ -14,6 +14,7 @@ import { SELECT_STYLE } from "@/components/ui/select-style";
 import { Switch } from "@/components/ui/Switch";
 import {
   choicePreset,
+  intervalsOptional,
   MEMORY_DOMAINS,
   presetText,
   readChoice,
@@ -106,6 +107,7 @@ export function DomainsPanel() {
     if (presetLang !== lang && !isMultilang) setLang(presetLang, text);
     applyPreset(name, text);
     // A domain turned on shows inline
+    if (next.intervals && !choice.intervals) setInlineShown("intervals", true);
     for (const d of next.values)
       if (!choice.values.includes(d)) setInlineShown(d, true);
     if (choice.relations === "none" && next.relations !== "none")
@@ -177,13 +179,30 @@ export function DomainsPanel() {
           )}
 
           <Section title="Values">
-            <Toggle
-              label="Intervals"
-              checked
-              disabled
-              title="Always on"
-              eye={<Eye domain="intervals" label="Intervals" on />}
-            />
+            {intervalsOptional(kind) ? (
+              <Toggle
+                label="Intervals"
+                title={
+                  choice.values.length === 0
+                    ? "Bounds of each value. Turn another value domain on to analyze without them"
+                    : "Bounds of each value"
+                }
+                eye={<Eye domain="intervals" label="Intervals" on />}
+                checked={choice.intervals}
+                disabled={choice.intervals && choice.values.length === 0}
+                onChange={() =>
+                  apply({ ...choice, intervals: !choice.intervals })
+                }
+              />
+            ) : (
+              <Toggle
+                label="Intervals"
+                checked
+                disabled
+                title="Always on"
+                eye={<Eye domain="intervals" label="Intervals" on />}
+              />
+            )}
             {valueOptions(kind).map((d) => (
               <Toggle
                 key={d.id}
@@ -197,9 +216,15 @@ export function DomainsPanel() {
                   />
                 }
                 checked={choice.values.includes(d.id)}
-                onChange={() =>
-                  apply({ ...choice, values: toggle(choice.values, d.id) })
-                }
+                onChange={() => {
+                  const values = toggle(choice.values, d.id);
+                  // no value domain left: the intervals come back
+                  apply({
+                    ...choice,
+                    values,
+                    intervals: choice.intervals || values.length === 0,
+                  });
+                }}
               />
             ))}
           </Section>
