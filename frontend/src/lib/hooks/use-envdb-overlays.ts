@@ -223,8 +223,16 @@ export function changedBefore(before: InlinePart[], after: InlinePart[]): Inline
 /** Whether the variable shows in the source line: not a temporary or the
  *  cleanup at a block's "}" (base name of "s.f", "p->x", "*p", "self.x"). */
 function inSource(name: string, source: string): boolean {
+  return sourceIndex(name, source) >= 0;
+}
+
+/** Where the variable `name` ("a[0]", "s.f": a, s) first occurs in the
+ *  source line, -1 if it doesn't (0 for a name without identifier). */
+function sourceIndex(name: string, source: string): number {
   const base = /[A-Za-z_$][\w$]*/.exec(name)?.[0];
-  return !base || new RegExp(`(^|[^\\w$])${base.replace(/\$/g, "\\$")}($|[^\\w$])`).test(source);
+  if (!base) return 0;
+  const m = new RegExp(`(^|[^\\w$])${base.replace(/\$/g, "\\$")}($|[^\\w$])`).exec(source);
+  return m ? m.index + m[1].length : -1;
 }
 
 /** Per call stack: the variables of the source line, null when bottom. */
@@ -240,7 +248,14 @@ function partsByContext(
   for (const c of res.body.contexts)
     out.set(
       JSON.stringify(c.callstack),
-      c.bottom ? null : inlineParts(c.env, python, shown, file).filter((p) => inSource(p.name, source)),
+      c.bottom
+        ? null
+        : // in the order of the line: int *p = &a[2] shows p first
+          inlineParts(c.env, python, shown, file)
+            .map((p) => ({ p, at: sourceIndex(p.name, source) }))
+            .filter(({ at }) => at >= 0)
+            .sort((x, y) => x.at - y.at)
+            .map(({ p }) => p),
     );
   return out;
 }
