@@ -22,6 +22,8 @@ export function baseText(base: string, file?: string): string {
     return `${freed ? "freed " : ""}${fn}@${where}`;
   }
   if (/^[A-Za-z_$][\w$.]*$/.test(base) && base !== "NULL" && base !== "INVALID") return `&${base}`;
+  // a function
+  if (base.startsWith("λ")) return `&${base.slice(1)}`;
   return base;
 }
 
