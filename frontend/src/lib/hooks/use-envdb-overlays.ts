@@ -73,6 +73,39 @@ export function inlineParts(
   python = false,
   shown: (d: InlineDomain) => boolean = ALL,
 ): InlinePart[] {
+  if (env === null || env === undefined) return [];
+  // Each partition (branches kept apart) is a state of its own: a variable
+  // is the one value or the other, "x = 1 ∨ 5"
+  const states = partitions(env).map((e) => stateParts(e, python, shown));
+  const names = [...new Set(states.flatMap((st) => [...st.keys()]))];
+  return names.map((name) => {
+    const per = states.flatMap((st) => (st.has(name) ? [st.get(name)!] : []));
+    const typed = per.every((p) => p.isType);
+    const values = [...new Set(per.filter((p) => p.isType === typed).map((p) => p.value))];
+    return { name, value: values.join(typed ? " | " : " ∨ "), isType: typed };
+  });
+}
+
+/** The states of the partitions of a print object: under keys that are no
+ *  domain groups ("ε", "if (x > 0)"), each holding domain groups. */
+function partitions(env: unknown): unknown[] {
+  if (!env || typeof env !== "object" || Array.isArray(env)) return [env];
+  const subs = Object.entries(env as Record<string, unknown>);
+  const isGroup = (k: string) => parseDomainName(k) !== null;
+  const partitioned =
+    subs.length > 0 &&
+    !subs.some(([k]) => isGroup(k)) &&
+    subs.every(([, v]) => v && typeof v === "object" && !Array.isArray(v)) &&
+    subs.some(([, v]) => Object.keys(v as object).some(isGroup));
+  return partitioned ? subs.map(([, v]) => v) : [env];
+}
+
+/** The variables of one state. */
+function stateParts(
+  env: unknown,
+  python: boolean,
+  shown: (d: InlineDomain) => boolean,
+): Map<string, InlinePart> {
   const vars = new Map<string, { types: Set<string>; values: string[] }>();
   const entry = (name: string) => {
     let e = vars.get(name);
@@ -110,12 +143,14 @@ export function inlineParts(
         );
     else leaf(key, v, tree);
   };
-  if (env === null || env === undefined) return [];
   visit("", env, 0, null);
-  return [...vars].map(([name, { types, values }]) =>
-    values.length > 0
-      ? { name, value: [...new Set(values)].join(" ∧ "), isType: false }
-      : { name, value: [...types].join(" | "), isType: true },
+  return new Map(
+    [...vars].map(([name, { types, values }]) => [
+      name,
+      values.length > 0
+        ? { name, value: [...new Set(values)].join(" ∧ "), isType: false }
+        : { name, value: [...types].join(" | "), isType: true },
+    ]),
   );
 }
 
@@ -213,26 +248,29 @@ const IDENT = /[A-Za-z_$][\w$.]*(\[[^\]]*\])*/g;
  * The constraints of the relational domain in a whole-state print object:
  * under "numeric-relations", or "numeric-relations(<pack>)" with packing,
  * a set of strings ("j + i = n + 1"), or {domain, relations} with
- * -show-relational-domain. Made readable (see relations.ts).
+ * -show-relational-domain. Made readable (see relations.ts). With
+ * partitions (branches kept apart), the ones of every partition.
  */
 export function relationsOf(env: unknown): Set<string> {
-  const out: string[] = [];
-  const visit = (key: string, v: unknown) => {
-    if (key.startsWith("numeric-relations")) {
-      const rel =
-        v && typeof v === "object" && !Array.isArray(v) && "relations" in v
-          ? (v as { relations: unknown }).relations
-          : v;
-      if (Array.isArray(rel))
-        for (const c of rel) if (typeof c === "string") out.push(c);
-      return;
-    }
-    if (v && typeof v === "object")
-      for (const [k, sub] of Object.entries(v as Record<string, unknown>)) visit(k, sub);
-  };
-  visit("", env);
-  // (simplified before the decorations go: two variables can have one name)
-  return new Set(readableRelations(out).map((c) => c.replace(DECORATIONS, "")));
+  const sets = partitions(env).map((e) => {
+    const out: string[] = [];
+    const visit = (key: string, v: unknown) => {
+      if (key.startsWith("numeric-relations")) {
+        const rel =
+          v && typeof v === "object" && !Array.isArray(v) && "relations" in v
+            ? (v as { relations: unknown }).relations
+            : v;
+        if (Array.isArray(rel)) for (const c of rel) if (typeof c === "string") out.push(c);
+        return;
+      }
+      if (v && typeof v === "object")
+        for (const [k, sub] of Object.entries(v as Record<string, unknown>)) visit(k, sub);
+    };
+    visit("", e);
+    // (simplified before the decorations go: two variables can have one name)
+    return new Set(readableRelations(out).map((c) => c.replace(DECORATIONS, "")));
+  });
+  return new Set([...sets[0]].filter((c) => sets.every((set) => set.has(c))));
 }
 
 /** A relation between program variables: two variables at least (one is
