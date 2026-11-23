@@ -13,6 +13,7 @@ import {
   type InlineValuesMode,
 } from "../editor-nav";
 import { parseDomainName, partsText, valueParts, type DomainTree } from "../envdb/inline-values";
+import { pointerText } from "../envdb/pointers";
 import { readableRelations } from "../envdb/relations";
 import { useAppStore } from "../store";
 
@@ -67,16 +68,18 @@ const ALL = () => true;
  *  only. A variable printed by several domains (Python: its type in the
  *  environment, its value in the numeric domain) is shown once, by value
  *  when there is one. The values of other domains than the numeric ones
- *  (types, pointers, strings) go with the intervals. */
+ *  and the pointers (types, strings) go with the intervals. `file`, the
+ *  file shown: the heap blocks allocated there go without it. */
 export function inlineParts(
   env: unknown,
   python = false,
   shown: (d: InlineDomain) => boolean = ALL,
+  file?: string,
 ): InlinePart[] {
   if (env === null || env === undefined) return [];
   // Each partition (branches kept apart) is a state of its own: a variable
   // is the one value or the other, "x = 1 ∨ 5"
-  const states = partitions(env).map((e) => stateParts(e, python, shown));
+  const states = partitions(env).map((e) => stateParts(e, python, shown, file));
   const names = [...new Set(states.flatMap((st) => [...st.keys()]))];
   return names.map((name) => {
     const per = states.flatMap((st) => (st.has(name) ? [st.get(name)!] : []));
@@ -105,16 +108,30 @@ function stateParts(
   env: unknown,
   python: boolean,
   shown: (d: InlineDomain) => boolean,
+  file?: string,
 ): Map<string, InlinePart> {
+  // C pointers: their bases, and their offsets, numeric variables offset⦃p⦄
+  const pointers = new Map<string, string[]>();
+  const offsets = new Map<string, string>();
   const vars = new Map<string, { types: Set<string>; values: string[] }>();
   const entry = (name: string) => {
     let e = vars.get(name);
     if (!e) vars.set(name, (e = { types: new Set(), values: [] }));
     return e;
   };
-  const leaf = (key: string, v: unknown, tree: DomainTree | null) => {
+  const leaf = (key: string, v: unknown, tree: DomainTree | null, group: string) => {
     if (!key || key.startsWith("@")) return; // heap addresses' internals
+    if (group === "pointers") {
+      if (shown("pointers")) pointers.set(key, (Array.isArray(v) ? v : [v]).map(String));
+      return;
+    }
     const parts = tree && valueParts(tree, v);
+    const offset = /^offset⦃(.+)⦄$/.exec(key);
+    if (offset) {
+      const itv = parts?.find((p) => p.domain === "intervals")?.text;
+      offsets.set(offset[1], itv ?? String(v));
+      return;
+    }
     if (parts) {
       const text = partsText(parts, shown);
       if (text) entry(key).values.push(text);
@@ -129,7 +146,13 @@ function stateParts(
     if (isType) entry(key).types.add(text);
     else entry(key).values.push(Array.isArray(v) ? `{${text}}` : text);
   };
-  const visit = (key: string, v: unknown, depth: number, tree: DomainTree | null) => {
+  const visit = (
+    key: string,
+    v: unknown,
+    depth: number,
+    tree: DomainTree | null,
+    group: string,
+  ) => {
     if (v && typeof v === "object" && !Array.isArray(v))
       for (const [k, sub] of Object.entries(v as Record<string, unknown>))
         // The top-level keys are domain groups ("float-itv ∪ int-itv",
@@ -140,10 +163,13 @@ function stateParts(
           sub,
           depth + 1,
           depth === 0 ? parseDomainName(k) : tree,
+          depth === 0 ? k : group,
         );
-    else leaf(key, v, tree);
+    else leaf(key, v, tree, group);
   };
-  visit("", env, 0, null);
+  visit("", env, 0, null, "");
+  for (const [name, bases] of pointers)
+    entry(name).values.push(pointerText(bases, offsets.get(name), file));
   return new Map(
     [...vars].map(([name, { types, values }]) => [
       name,
@@ -207,13 +233,14 @@ function partsByContext(
   python: boolean,
   source: string,
   shown: (d: InlineDomain) => boolean,
+  file: string,
 ): Map<string, InlinePart[] | null> {
   const out = new Map<string, InlinePart[] | null>();
   if (!res || res.kind !== "ok") return out;
   for (const c of res.body.contexts)
     out.set(
       JSON.stringify(c.callstack),
-      c.bottom ? null : inlineParts(c.env, python, shown).filter((p) => inSource(p.name, source)),
+      c.bottom ? null : inlineParts(c.env, python, shown, file).filter((p) => inSource(p.name, source)),
     );
   return out;
 }
@@ -338,8 +365,8 @@ async function valueTexts(
   queried.forEach((l, i) => {
     const source = model.getLineContent(l);
     states.set(l, {
-      post: partsByContext(firsts[i], python, source, shown),
-      entry: partsByContext(seconds[i], python, source, shown),
+      post: partsByContext(firsts[i], python, source, shown, file),
+      entry: partsByContext(seconds[i], python, source, shown, file),
     });
   });
   const out = new Map<number, string>();

@@ -278,9 +278,16 @@ export function DomainsPanel() {
             />
           </Section>
 
-          {kind === "c" && (
+          {(kind === "c" || kind === "multilanguage") && (
             <Section title="Memory">
-              {MEMORY_DOMAINS.map((d) => {
+              <Toggle
+                label="Pointers"
+                checked
+                disabled
+                title="Always on"
+                eye={<Eye domain="pointers" label="Pointers" on />}
+              />
+              {kind === "c" && MEMORY_DOMAINS.map((d) => {
                 const needsStrings =
                   d.id === "sentinels" && !choice.memory.includes("strings");
                 return (
