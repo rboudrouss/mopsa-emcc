@@ -19,7 +19,7 @@ import {
   presetText,
   readChoice,
   relationOptions,
-  valueOptions,
+  VALUE_DOMAINS,
   type DomainChoice,
   type DomainKind,
 } from "@/lib/domain-builder";
@@ -217,7 +217,7 @@ export function DomainsPanel() {
               checked={choice.floats}
               onChange={() => apply({ ...choice, floats: !choice.floats })}
             />
-            {valueOptions(kind).map((d) => (
+            {VALUE_DOMAINS.map((d) => (
               <Toggle
                 key={d.id}
                 label={d.label}

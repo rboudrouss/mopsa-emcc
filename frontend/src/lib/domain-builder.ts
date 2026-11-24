@@ -119,22 +119,12 @@ const PACKING: Record<DomainKind, string | null> = {
   universal: null,
 };
 
-// Left out in the browser: with C+Python, bitmasks lose the alarms (the
-// analysis ends early).
-const UNAVAILABLE: Partial<Record<DomainKind, string[]>> = {
-  multilanguage: ["bitmask"],
-};
-
 /** Whether the integer intervals can be left out: the C memory model and
  *  Python's lists need them. */
 export function intervalsOptional(kind: DomainKind): boolean {
   return kind === "universal";
 }
 
-
-export function valueOptions(kind: DomainKind) {
-  return VALUE_DOMAINS.filter((d) => !UNAVAILABLE[kind]?.includes(d.id));
-}
 
 export function relationOptions(
   kind: DomainKind,
@@ -164,11 +154,7 @@ export function relationOptions(
           : { title: "Linear relations between all variables" }),
     },
   ];
-  return options.filter(
-    (o) =>
-      !(o.id === "packed" && !PACKING[kind]) &&
-      !UNAVAILABLE[kind]?.includes(o.id),
-  );
+  return options.filter((o) => !(o.id === "packed" && !PACKING[kind]));
 }
 
 /** The preset a kind starts from. */
